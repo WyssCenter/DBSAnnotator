@@ -136,8 +136,18 @@ for it without checking eligibility first.)
 
 ```bash
 flutter build windows --release      # build first
-dart run msix:create                 # then package
+dart run msix:build                  # then package
+cp windows/msix/BadgeLogo.*.png build/windows/x64/runner/Release/Images/
+dart run msix:pack
 ```
+
+The `cp` is there because the msix package renders every tile, the lock-screen
+badge included, from the full-colour `logo_path`, and a badge must be white on
+transparency. The certification kit rejects the generated one. The white
+badges in `windows/msix/` come from `tool/build_brand_assets.py`, and copying
+them between `msix:build` and `msix:pack` keeps the names that `resources.pri`
+already indexes. Any options, such as `--store` and the identity flags, go to
+both `msix:build` and `msix:pack`.
 
 That order is not optional. `msix_config` sets `build_windows: false` because
 letting the packaging step launch its own `flutter build windows` has twice
@@ -203,10 +213,13 @@ Steps 1 and 2 are what unblock the Store identity, so they gate everything else.
    For a local Store build, pass them on the command line instead:
 
    ```bash
-   dart run msix:create --store \
-     --identity-name "<Package/Identity/Name>" \
-     --publisher "<CN=...>" \
-     --publisher-display-name "<Publisher display name>"
+   args=(--store
+     --identity-name "<Package/Identity/Name>"
+     --publisher "<CN=...>"
+     --publisher-display-name "<Publisher display name>")
+   dart run msix:build "${args[@]}"
+   cp windows/msix/BadgeLogo.*.png build/windows/x64/runner/Release/Images/
+   dart run msix:pack "${args[@]}"
    ```
 
    `--store` produces an **unsigned** package, which is correct, because
@@ -224,7 +237,19 @@ Steps 1 and 2 are what unblock the Store identity, so they gate everything else.
    listing.
 7. **Run the Windows App Certification Kit** against the package before
    uploading. It catches most certification failures locally, without spending a
-   review cycle.
+   review cycle. From an administrator PowerShell:
+
+   ```powershell
+   $wack = "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe"
+   & $wack reset
+   & $wack test -appxpackagepath "$PWD\build\windows\msix\dbs_annotator.msix" -reportoutputpath "$HOME\wack.xml"
+   ```
+
+   The report should say `OVERALL_RESULT=PASS`. Two optional tests fail on every
+   Flutter app and need no action: *Archive files usage* flags
+   `flutter_assets\NOTICES.Z`, the compressed licence text, and *Blocked
+   executables* flags process-launch references in the Flutter engine and in
+   `url_launcher`.
 
 ### Versioning
 

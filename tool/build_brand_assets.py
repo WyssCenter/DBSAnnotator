@@ -142,6 +142,12 @@ def main() -> int:
         ROOT / "assets/icon/mark_white.png",
     )
 
+    print("msix badge")
+    for scale, px in ((100, 24), (125, 30), (150, 36), (200, 48), (400, 96)):
+        badge = Image.new("RGBA", (px, px), (*WHITE, 0))
+        badge.putalpha(_ink_mask(MARK_VIEWBOX, px, px))
+        _write(badge, ROOT / f"windows/msix/BadgeLogo.scale-{scale}.png")
+
     print("lockup")
     _write(_lockup(1440, BLACK, None), ROOT / "assets/icon/wyss_lockup_black.png")
     _write(_lockup(1440, WHITE, None), ROOT / "assets/icon/wyss_lockup_white.png")
