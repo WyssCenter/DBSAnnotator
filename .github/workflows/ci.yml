@@ -209,7 +209,9 @@ jobs:
                    --publisher "$MSIX_PUBLISHER"
                    --publisher-display-name "$MSIX_PUBLISHER_DISPLAY_NAME")
           fi
-          dart run msix:create "${args[@]}"
+          dart run msix:build "${args[@]}"
+          cp windows/msix/BadgeLogo.*.png build/windows/x64/runner/Release/Images/
+          dart run msix:pack "${args[@]}"
 
       - name: Shred the certificate
         if: always()

@@ -66,7 +66,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   # App icon generation (run: dart run flutter_launcher_icons). See .github/RELEASING.md.
   flutter_launcher_icons: ^0.14.1
-  # Windows MSIX packaging (run: dart run msix:create). See msix_config below
+  # Windows MSIX packaging. See msix_config below
   # and the Windows section of .github/RELEASING.md.
   msix: ^3.18.0
 
@@ -113,10 +113,9 @@ flutter_launcher_icons:
     generate: true
     image_path: "assets/icon/desktop_icon.png"
 
-# Windows MSIX packaging. Two commands, one config:
-#
-#   dart run msix:create            self-signed, to INSTALL and verify locally
-#   dart run msix:create --store    unsigned, to UPLOAD to Partner Center
+# Windows MSIX packaging. Two builds, one config: self-signed by default, to
+# INSTALL and verify locally, and unsigned with --store, to UPLOAD to Partner
+# Center. The commands are in the Windows section of .github/RELEASING.md.
 #
 # A Store package is unsigned by design (Microsoft re-signs it after
 # certification, which is why no code-signing certificate is needed and none
@@ -138,7 +137,7 @@ msix_config:
   # `version: x.y.z+build` above; the build number is not a revision.
   # Keep the first three equal to it; test/version_parity_test.dart enforces it.
   msix_version: 0.6.0.0
-  # One 1024x1024 source; the tool generates the whole tile/scale set from it.
+  # One 1024x1024 source for every tile except the badge, which comes from windows/msix/.
   logo_path: assets/icon/app_icon.png
   architecture: x64
   output_path: build/windows/msix
@@ -153,10 +152,7 @@ msix_config:
   # system delete windows/flutter/ephemeral/cpp_client_wrapper/*.cc and then
   # skip re-copying them (its filecache believes the unpack step is current),
   # so the next build fails with C1083 on files nobody touched. Build first,
-  # package second:
-  #
-  #   flutter build windows --release && dart run msix:create
-  #
+  # package second.
   # msix validates that the expected .exe is present, so a forgotten build
   # fails loudly rather than packaging a stale one.
   build_windows: false
