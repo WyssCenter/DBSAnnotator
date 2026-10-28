@@ -1,7 +1,8 @@
 # Notes for coding agents
 
 Conventions for any coding agent working in this repository. CONTRIBUTING.md is the full
-version for people; this file is the compact one.
+version for people; this file is the compact one. When the two disagree, this file is
+correct: fix CONTRIBUTING.md in the same change.
 
 ## Project
 
@@ -10,8 +11,7 @@ programming sessions, built for Windows, macOS, Linux, Android and iOS. The TSV 
 output format is a contract defined in `schema/`, which the app bundles and the docs render
 from. User docs are Sphinx sources in `docs/`, published on Read the Docs.
 
-Programming sessions are outpatient visits: the clinicians and the patient sit around a table
-while configurations are tested. Write "in clinic" or "during the visit", never "bedside".
+Programming sessions are outpatient visits: the clinicians and the patient sit around a table while configurations are tested. Write "in clinic" or "during the visit", never "bedside".
 
 ## Setup
 
@@ -84,24 +84,19 @@ same standard:
 
 - Question whether the change is needed before writing it; build nothing for a hypothetical
   future case.
-- Reach for the Dart and Flutter standard libraries, then an existing helper in `lib/`, before
-  writing new code; add a dependency only when the platform cannot do the job.
+- Reach for the Dart and Flutter standard libraries, then an existing helper in `lib/`, before writing new code; add a dependency only when the platform cannot do the job.
 - No abstraction without a second caller: no wrapper around a single call, no interface with
   one implementation, no parameter or setting for a value that never varies.
-- Keep the diff to what the task needs. Delete dead code instead of commenting it out, and do
-  not reshape unrelated code.
-- Readability wins over brevity: plain control flow and descriptive names, no clever one-liners
-  that need a comment to decode.
+- Keep the diff to what the task needs. Delete dead code instead of commenting it out, and do not reshape unrelated code.
 
-- Comment only what the code cannot say: a constraint, a non-obvious decision, a defect
-  someone would reintroduce. Keep comment lines under about 20% of a file.
-- Doc comments on public API are one or two lines. No section headings inside files.
+- No code comments. The only exception is doc comments on public API, one or two lines.
+- When you edit code, bring the comments on and around the lines you change in line with
+  these rules: delete plain comments and cut doc comments to one or two lines. Leave
+  comments elsewhere in the file alone.
+- No section headings inside files.
 - No version history in code ("used to", "was named"). State the constraint, not the story.
-- No em or en dashes anywhere, product strings included. The one exception is the dash key in
-  the sanitiser map of `lib/report/report_text.dart`, which must stay. Fix dashes only in lines
-  you are already editing.
-- Docs prose (`docs/*.rst`) is fuller and explanatory, for a clinician or analyst meeting the
-  format for the first time. Still no filler, scattered bold or rhetorical headings.
+- No em or en dashes anywhere, product strings included. The one exception is the dash key in the sanitiser map of `lib/report/report_text.dart`, which must stay. Fix dashes only in lines you are already editing.
+- Docs prose (`docs/*.rst`) is fuller and explanatory, for a clinician or analyst meeting the format for the first time. Still no filler, scattered bold or rhetorical headings.
 
 ## Clinical care
 
@@ -114,15 +109,13 @@ Reports are filed in a patient record.
 
 - The app is offline by design. Add no network calls, analytics, crash reporting or
   telemetry, including through a dependency.
-- No real patient data in code, tests, fixtures, screenshots or issue text. Use the synthetic
-  data in `test/fixtures/`.
+- No real patient data in code, tests, fixtures, screenshots or issue text. Use the synthetic data in `test/fixtures/`.
 - Never commit signing material (keystores, `.pfx`, `key.properties`, `.p8`). `.gitignore`
   covers it, and `git add -f` bypasses that.
 
 ## Pitfalls
 
-- Never run `sed -i` over `git ls-files`. With `core.autocrlf` it strips CR bytes from PNG and
-  ICO files. Find files with `grep -l` first and check `git diff --numstat` afterwards.
+- Never run `sed -i` over `git ls-files`. With `core.autocrlf` it strips CR bytes from PNG and ICO files. Find files with `grep -l` first and check `git diff --numstat` afterwards.
 - No `.gitignore` rule may match `lib/`: `git check-ignore -v lib/main.dart` must print
   nothing.
 - The contract lives only in `schema/`. Changing a TSV column means changing

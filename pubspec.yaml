@@ -80,38 +80,28 @@ flutter:
     # drop the TTFs here; reports fall back to Helvetica (ASCII-only) when
     # absent. See lib/report/report_fonts.dart and .github/RELEASING.md.
     - assets/fonts/
-    # The app mark, shown in the AppBar and the About dialog, and bundled so the
-    # Linux runner can set the window icon (Flutter's Linux template sets none).
+    # The app icon, shown in the AppBar and the About dialog, and bundled so the
+    # Linux runner can set the window icon.
     - assets/icon/
 
-# App launcher icon: the Wyss Center mark, at assets/icon/app_icon.png, which
-# `tool/build_brand_assets.py` renders from assets/brand/*.svg. Regenerate all
-# platform icons with `dart run flutter_launcher_icons`.
-# NOTE: this tool has no Linux support; the Linux window icon is set by hand in
-# linux/runner/my_application.cc from the bundled asset above.
+# Platform icons, rendered by `tool/build_brand_assets.py` from
+# assets/brand/ann-icon.svg. Regenerate with `dart run flutter_launcher_icons`.
+# The Linux window icon is set in linux/runner/my_application.cc.
 flutter_launcher_icons:
   image_path: "assets/icon/app_icon.png"
   android: true
-  # Android adaptive icons composite 108dp and show only the inner 72dp (66%),
-  # and ic_launcher.xml insets this layer by a further 16%. The mark fills its
-  # own canvas, so it would be clipped by circular and squircle launcher masks;
-  # the foreground below re-centres it at 75% on a transparent canvas, over a
-  # white background, which lands it at about three quarters of the safe circle.
-  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_background: "#95F9D8"
   adaptive_icon_foreground: "assets/icon/app_icon_adaptive_foreground.png"
   ios: true
-  # iOS forbids alpha in app icons, so flatten onto white.
   remove_alpha_ios: true
-  background_color_ios: "#FFFFFF"
-  # Desktop icons sit on the taskbar or dock, where a white square reads as a
-  # tile; the mark there is on its own white disc instead.
+  background_color_ios: "#95F9D8"
   windows:
     generate: true
     image_path: "assets/icon/desktop_icon.png"
     icon_size: 256
   macos:
     generate: true
-    image_path: "assets/icon/desktop_icon.png"
+    image_path: "assets/icon/macos_icon.png"
 
 # Windows MSIX packaging. Two builds, one config: self-signed by default, to
 # INSTALL and verify locally, and unsigned with --store, to UPLOAD to Partner

@@ -14,7 +14,6 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // The mark, mirroring the desktop app's titled header.
         leading: const Padding(
           padding: EdgeInsets.only(left: 12),
           child: AppLogo(size: 30),

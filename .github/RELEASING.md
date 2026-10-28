@@ -10,16 +10,22 @@ Flutter SDK; see the documentation's Installation page.
 
 ## 1. App icon
 
-The source mark is `assets/icon/app_icon.png` (1024×1024). To regenerate every
+The master is the vector `assets/brand/ann-icon.svg`. To regenerate every
 platform's icons from it:
 
 ```bash
+uv run --no-project --with pymupdf --with pillow python tool/build_brand_assets.py
 dart run flutter_launcher_icons   # config is in pubspec.yaml
 ```
 
-Commit the generated files under `android/`, `ios/`, `macos/` and
-`windows/runner/resources/`. The tool has no Linux support; the Linux window icon
-is set by hand in `linux/runner/my_application.cc` from the bundled asset.
+Commit the generated files under `assets/`, `docs/_static/`, `android/`, `ios/`,
+`macos/`, `windows/msix/` and `windows/runner/resources/`. The tool has no Linux
+support; the Linux window icon is set by hand in `linux/runner/my_application.cc`
+from the bundled asset. The MSIX tiles are rendered from `logo_path` at packaging
+time, so none are committed.
+
+`assets/store/play_store_icon_512.png` is the high-resolution icon the Play
+Console listing asks for; upload it by hand.
 
 ## 2. Android signing (signed APK on the GitHub Release)
 
