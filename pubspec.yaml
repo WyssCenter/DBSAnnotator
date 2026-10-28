@@ -34,7 +34,7 @@ dependencies:
   # (notes, newline-separated scale_name/scale_value) round-trip like Python csv.
   csv: ^6.0.0
   path_provider: ^2.1.4
-  file_picker: ^12.2.0
+  file_picker: ^13.1.0
   share_plus: ^13.3.0
   # Opens the repository, issues and contact links in the About dialog. Its
   # Windows and Linux plugins were already being linked through share_plus, so
