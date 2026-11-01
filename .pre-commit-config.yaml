@@ -69,7 +69,7 @@ repos:
 
   # ---- Docs ---------------------------------------------------------------
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.9
+    rev: v0.17.3
     hooks:
       # Config in pyproject.toml, scoped to docs/**/*.py - the Sphinx conf and
       # extension that renders the schema tables are the only Python here.
