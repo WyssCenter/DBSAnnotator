@@ -35,11 +35,11 @@ dependencies:
   csv: ^6.0.0
   path_provider: ^2.1.4
   file_picker: ^12.2.0
-  share_plus: ^13.3.0
+  share_plus: ^13.3.1
   # Opens the repository, issues and contact links in the About dialog. Its
   # Windows and Linux plugins were already being linked through share_plus, so
   # on the desktop targets this adds the Dart side of something already shipped.
-  url_launcher: ^6.3.2
+  url_launcher: ^6.3.3
   # Report export: native PDF, no MS Word needed.
   #
   # Two chart-related packages are deliberately NOT dependencies:
