@@ -45,7 +45,7 @@ void main() {
         'PD': ['UPDRS'],
       },
       session: {
-        'PD': [(name: 'Tremor', min: '0', max: '10', mode: 'min')],
+        'PD': [(name: 'Tremor', min: '0', max: '10', mode: 'min', step: '')],
       },
     );
 
@@ -91,6 +91,7 @@ void main() {
         min: '0',
         max: '4',
         mode: 'min',
+        step: '',
       ));
     });
 
@@ -100,7 +101,7 @@ void main() {
         UserPrefs(
           session: {
             'PD': [
-              ['Mood', '0', '10', 'max'],
+              ['Mood', '0', '10', 'max', '1'],
             ],
           },
         ),
@@ -110,6 +111,7 @@ void main() {
         min: '0',
         max: '10',
         mode: 'max',
+        step: '1',
       ));
     });
 

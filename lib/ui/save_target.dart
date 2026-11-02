@@ -105,15 +105,34 @@ typedef NewTsvTarget = ({
   bool fellBack,
 });
 
-/// Ask the user where to create a new TSV, seed it with [header], and report
-/// where it went. Returns null if they cancelled. Creating and seeding are
-/// one step, so the file cannot be left without its header.
+/// Ask for the folder new session files are created in. Null when cancelled.
+Future<String?> pickSaveFolder() async {
+  if (debugSaveDir case final dir?) return dir.path;
+  try {
+    return await FilePicker.getDirectoryPath(
+      dialogTitle: 'Choose the folder for session files',
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Create a new TSV seeded with [header] and report where it went: in
+/// [folder] when given, never over an existing file, else where the user
+/// chooses. Null if they cancelled.
 Future<NewTsvTarget?> createNewTsv({
   required String dialogTitle,
   required String fileName,
   required String header,
+  String? folder,
 }) async {
   final bytes = Uint8List.fromList(utf8.encode(header));
+  if (folder != null) {
+    final file = File('$folder/$fileName');
+    await file.create(exclusive: true);
+    await file.writeAsBytes(bytes, flush: true);
+    return (path: file.path, location: file.path, fellBack: false);
+  }
   if (debugSaveDir case final dir?) {
     final path = '${dir.path}/$fileName';
     await File(path).writeAsBytes(bytes);

@@ -23,7 +23,9 @@ class UserPrefs {
     this.entryPanelOrder,
     this.entryVisibleConfigs,
     this.entryTableExpanded,
+    this.entryChartsExpanded,
     this.reportSections,
+    this.saveFolder,
   });
 
   /// Stimulation quick-pick lists (override `limits.json` stimulation_presets).
@@ -56,6 +58,12 @@ class UserPrefs {
 
   /// Whether the inserted-entries table below the charts is expanded.
   bool? entryTableExpanded;
+
+  /// Whether the comparison charts in Programming are expanded.
+  bool? entryChartsExpanded;
+
+  /// Folder new session files are created in, on platforms that can write one.
+  String? saveFolder;
 
   /// Report sections to include, by [ReportSection.name]; null means every
   /// section. Persisted so a dropped section stays dropped on the next export.
@@ -90,6 +98,8 @@ class UserPrefs {
           .toList(),
       entryVisibleConfigs: (j['entry_visible_configs'] as num?)?.toInt(),
       entryTableExpanded: j['entry_table_expanded'] as bool?,
+      entryChartsExpanded: j['entry_charts_expanded'] as bool?,
+      saveFolder: j['save_folder'] as String?,
       reportSections: (j['report_sections'] as List?)
           ?.map((e) => e as String)
           .toList(),
@@ -109,7 +119,10 @@ class UserPrefs {
     if (entryVisibleConfigs != null)
       'entry_visible_configs': entryVisibleConfigs,
     if (entryTableExpanded != null) 'entry_table_expanded': entryTableExpanded,
+    if (entryChartsExpanded != null)
+      'entry_charts_expanded': entryChartsExpanded,
     if (reportSections != null) 'report_sections': reportSections,
+    if (saveFolder != null) 'save_folder': saveFolder,
   };
 }
 
@@ -151,6 +164,7 @@ ScalePresets mergeScalePresets(ScalePresets base, UserPrefs prefs) {
                   scaleOptimizationModes.contains(r[3].trim().toLowerCase())
               ? r[3].trim().toLowerCase()
               : defaultScaleOptimizationMode,
+          step: r.length > 4 ? r[4] : '',
         ),
     ],
   );

@@ -28,9 +28,8 @@ class SessionAuthoring {
     _appendId = nextAppendId(rows);
   }
 
-  /// Append one insert (one block) and return the rows added. [stim] holds the
-  /// 10 stimulation columns keyed by their exact TSV names; missing keys become
-  /// empty cells. [isInitial] marks a Step-1 baseline rather than a recording.
+  /// Append one block and return its rows, or rewrite block [replacing] in
+  /// place. [stim] maps the stimulation column names to their cells.
   List<SessionRow> addInsert({
     required bool isInitial,
     required Map<String, String> stim,
@@ -40,9 +39,10 @@ class SessionAuthoring {
     String rightElectrodeModel = '',
     String notes = '',
     DateTime? at,
+    int? replacing,
   }) {
     final inserted = buildInsertRows(
-      blockId: _blockId,
+      blockId: replacing ?? _blockId,
       appendId: _appendId,
       isInitial: isInitial,
       scales: scales,
@@ -62,8 +62,14 @@ class SessionAuthoring {
       rightPulseWidth: stim['right_pulse_width'] ?? '',
       at: at,
     );
-    rows.addAll(inserted);
-    _blockId += 1;
+    if (replacing == null) {
+      rows.addAll(inserted);
+      _blockId += 1;
+      return inserted;
+    }
+    final at0 = rows.indexWhere((r) => r.blockId == '$replacing');
+    rows.removeWhere((r) => r.blockId == '$replacing');
+    rows.insertAll(at0 < 0 ? rows.length : at0, inserted);
     return inserted;
   }
 

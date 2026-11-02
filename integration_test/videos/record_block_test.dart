@@ -81,7 +81,6 @@ void main() {
     await typeInto(tester, 'Score', '28');
     await typeInto(tester, 'Score', '15', at: 1);
     await typeInto(tester, 'Notes', 'Baseline on admission settings.');
-    await tapText(tester, 'Insert baseline');
     await tapText(tester, 'Next');
     await pause(tester, 1500);
     await tapText(tester, 'Next');
@@ -90,15 +89,15 @@ void main() {
     await _preset(tester, '5');
     await _rate(tester, [0.6, 0.55, 0.5, 0.45, 0.4]);
     await typeInto(tester, 'Notes', 'Left raised to 5 mA.');
-    await tapText(tester, 'Insert recording block');
+    await tapText(tester, 'Save configuration');
     await _preset(tester, '7');
     await _rate(tester, [0.35, 0.4, 0.3, 0.55, 0.5]);
     await typeInto(tester, 'Notes', 'Left raised to 7 mA, less checking.');
-    await tapText(tester, 'Insert recording block');
+    await tapText(tester, 'Save configuration');
     await _preset(tester, '100');
     await _rate(tester, [0.2, 0.25, 0.25, 0.65, 0.6]);
     await typeInto(tester, 'Notes', 'Left frequency down to 100 Hz.');
-    await tapText(tester, 'Insert recording block');
+    await tapText(tester, 'Save configuration');
 
     await center(tester, find.textContaining('Inserted entries'));
     await pause(tester, 2500);

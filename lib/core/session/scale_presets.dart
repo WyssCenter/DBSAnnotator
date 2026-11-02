@@ -6,10 +6,15 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart' show rootBundle;
 
-/// One session-scale preset row, as the contract's strings. [mode] (`min`,
-/// `max`, `custom`, `ignore`) is the direction the report's block ranking
-/// optimises the scale in, and is absent from older 3-cell rows.
-typedef SessionScaleRow = ({String name, String min, String max, String mode});
+/// One session-scale preset row, as the contract's strings. [mode] is the
+/// ranking direction; [step] is the rating step, empty for a continuous bar.
+typedef SessionScaleRow = ({
+  String name,
+  String min,
+  String max,
+  String mode,
+  String step,
+});
 
 /// Fallback for a preset row with no mode cell.
 const String defaultScaleOptimizationMode = 'min';
@@ -59,6 +64,7 @@ class ScalePresets {
                 mode: scaleOptimizationModes.contains(mode)
                     ? mode
                     : defaultScaleOptimizationMode,
+                step: cells.length > 4 ? cells[4] : '',
               );
             })
             .toList(growable: false),

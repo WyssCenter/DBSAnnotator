@@ -34,6 +34,7 @@ void main() {
   Future<void> pumpWizard(
     WidgetTester tester, {
     SessionAuthoring? authoring,
+    bool open = true,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1400, 2600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -43,7 +44,7 @@ void main() {
           catalog: catalog,
           limits: limits,
           scalePresets: scalePresets,
-          authoring: authoring,
+          authoring: open ? authoring ?? SessionAuthoring() : null,
         ),
       ),
     );
@@ -52,8 +53,7 @@ void main() {
     await tester.pump();
   }
 
-  /// Advance the wizard by tapping the current step's Next button [steps]
-  /// times (only the active step renders controls, so 'Next' is unique).
+  /// Advance the wizard [steps] times with the bottom bar's Next button.
   Future<void> tapNext(WidgetTester tester, [int steps = 1]) async {
     for (var i = 0; i < steps; i++) {
       final next = find.text('Next');
@@ -64,25 +64,52 @@ void main() {
     }
   }
 
-  testWidgets('wizard: file step, then baseline insert lands in the '
-      'recording-step blocks list', (tester) async {
+  testWidgets('setup cannot be left before a session is started, and says '
+      'why', (tester) async {
+    await pumpWizard(tester, open: false);
+    await tapNext(tester);
+    expect(
+      find.textContaining('press New, or open a saved session'),
+      findsOneWidget,
+    );
+    expect(find.text('Patient ID (sub-)'), findsOneWidget);
+    expect(find.text('Frequency'), findsNothing);
+  });
+
+  testWidgets('New asks for the patient ID before anything else', (
+    tester,
+  ) async {
+    await pumpWizard(tester, open: false);
+    await tester.tap(find.text('New'));
+    await tester.pump();
+    expect(find.text('Enter the patient ID first.'), findsOneWidget);
+    expect(find.textContaining('Where should'), findsNothing);
+  });
+
+  testWidgets('wizard: setup, the initial assessment saves itself on Next, '
+      'then programming and finish', (tester) async {
     final authoring = SessionAuthoring();
     await pumpWizard(tester, authoring: authoring);
 
-    // All four desktop-style step headers are visible.
     expect(find.text('Complete workflow'), findsOneWidget);
-    expect(find.text('File'), findsOneWidget);
-    expect(find.text('Initial configuration'), findsOneWidget);
-    expect(find.text('Session scales configuration'), findsOneWidget);
-    expect(find.text('Recording'), findsOneWidget);
+    for (final step in [
+      'Setup',
+      'Initial assessment',
+      'Ratings',
+      'Programming',
+      'Finish',
+    ]) {
+      expect(find.text(step), findsWidgets);
+    }
 
-    // Step 0: patient/run plus New / Open actions; no stim UI yet.
+    // Setup: patient and run, New / Open, and the electrode; no stimulation.
     expect(find.text('Patient ID (sub-)'), findsOneWidget);
     expect(find.text('New'), findsOneWidget);
     expect(find.text('Open existing TSV'), findsOneWidget);
-    expect(find.text('Insert baseline'), findsNothing);
+    expect(find.text('Same model on both sides'), findsOneWidget);
+    expect(find.text('Frequency'), findsNothing);
 
-    // Step 1: L/R stim + electrode, clinical pills, Insert baseline.
+    // Initial assessment: L/R stimulation, clinical pills, no insert button.
     await tapNext(tester);
     // The default model (Medtronic SenSight B33005) is preselected, so both
     // canvases render immediately instead of the "select a model" placeholder.
@@ -91,60 +118,72 @@ void main() {
     expect(find.text('Frequency'), findsNWidgets(2));
     expect(find.text('Amplitude'), findsNWidgets(2));
     expect(find.text('Pulse width'), findsNWidgets(2));
-    expect(find.text('Insert baseline'), findsOneWidget);
+    expect(find.text('Insert baseline'), findsNothing);
     for (final name in scalePresets.buttons) {
       expect(find.widgetWithText(ChoiceChip, name), findsOneWidget);
     }
 
-    // A clinical pill REPLACES the rows with that preset's scale names.
+    // A pill adds that preset's scales; names already listed are skipped.
     await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'OCD'));
     await tester.tap(find.widgetWithText(ChoiceChip, 'OCD'));
     await tester.pump();
     expect(find.widgetWithText(TextField, 'Y-BOCS'), findsOneWidget);
-    expect(
-      find.text('Score'),
-      findsNWidgets(scalePresets.clinical['OCD']!.length),
-    );
     await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'MDD'));
     await tester.tap(find.widgetWithText(ChoiceChip, 'MDD'));
     await tester.pump();
-    expect(find.widgetWithText(TextField, 'Y-BOCS'), findsNothing);
+    expect(find.widgetWithText(TextField, 'Y-BOCS'), findsOneWidget);
     expect(
       find.text('Score'),
-      findsNWidgets(scalePresets.clinical['MDD']!.length),
+      findsNWidgets(
+        {
+          ...scalePresets.clinical['OCD']!,
+          ...scalePresets.clinical['MDD']!,
+        }.length,
+      ),
     );
 
-    // Type one score and insert the baseline: ONE is_initial=1 block, one
-    // row per scored clinical scale (blank scores are dropped, desktop
-    // ClinicalScale.is_valid).
+    // Next writes ONE is_initial=1 block, one row per scored scale.
     await tester.enterText(find.widgetWithText(TextField, 'Score').first, '12');
-    final insert = find.text('Insert baseline');
-    await tester.ensureVisible(insert);
-    await tester.tap(insert);
-    await tester.pump();
+    await tapNext(tester);
     expect(authoring.rows, hasLength(1));
     expect(authoring.rows.single.isInitial, '1');
-    expect(authoring.rows.single.scaleName, 'MADRS');
+    expect(authoring.rows.single.scaleName, 'Y-BOCS');
     expect(authoring.rows.single.scaleValue, '12');
     expect(authoring.rows.single.blockId, '0');
 
-    // Step 3 shows the inserted entry in the review table (Type "Initial",
-    // scale MADRS/12).
-    await tapNext(tester, 2);
-    expect(find.text('Initial'), findsWidgets);
-    expect(find.text('MADRS'), findsWidgets);
-    expect(find.text('No entries inserted yet.'), findsNothing);
-    expect(find.text('Insert recording block'), findsOneWidget);
-    // Four separate controls collapsed into one Export menu; the formats are
-    // now menu items, so they only exist once it is opened.
-    expect(find.text('Export'), findsOneWidget);
-    expect(find.text('Export report (PDF)'), findsNothing);
-    await tester.tap(find.text('Export'));
+    // Going back and changing a score rewrites that block, never a second.
+    await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();
-    expect(find.text('Export report (PDF)'), findsOneWidget);
-    expect(find.text('Export report (Word)'), findsOneWidget);
-    expect(find.text('Export TSV'), findsOneWidget);
-    expect(find.text('Paper size: A4'), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextField, 'Score').first, '14');
+    await tapNext(tester);
+    expect(authoring.rows, hasLength(1));
+    expect(authoring.rows.single.scaleValue, '14');
+    expect(authoring.rows.single.blockId, '0');
+    expect(authoring.blockId, 1);
+
+    // Programming lists the initial assessment in the review table.
+    await tapNext(tester);
+    expect(find.text('Initial'), findsWidgets);
+    expect(find.text('Y-BOCS'), findsWidgets);
+    expect(find.text('Save configuration'), findsOneWidget);
+
+    // Finish: a summary, then the exports grouped by who reads them.
+    await tapNext(tester);
+    expect(find.text('Configurations tested: 0'), findsOneWidget);
+    expect(find.text('For the patient record'), findsOneWidget);
+    expect(find.text('Report (PDF)'), findsOneWidget);
+    expect(find.text('Report (Word)'), findsOneWidget);
+    expect(find.text('A4'), findsOneWidget);
+    expect(find.text('For research'), findsOneWidget);
+    expect(find.text('Raw data file'), findsOneWidget);
+    expect(find.text('Research dataset (BIDS, zip)'), findsOneWidget);
+    expect(find.text('Next'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Next'))
+          .onPressed,
+      isNull,
+    );
   });
 
   testWidgets('stim - / + steppers move by step1 and the clear X empties '
@@ -211,9 +250,8 @@ void main() {
     expect(leftFreqText(), presetLabel(limits.frequency.max));
   });
 
-  testWidgets('out-of-range stimulation value blocks the baseline insert', (
-    tester,
-  ) async {
+  testWidgets('out-of-range stimulation value keeps the initial assessment '
+      'open and unsaved', (tester) async {
     final authoring = SessionAuthoring();
     await pumpWizard(tester, authoring: authoring);
     await tapNext(tester); // Step 1.
@@ -224,17 +262,14 @@ void main() {
       '${limits.frequency.max + 1}',
     );
     await tester.pump();
-
-    final insert = find.text('Insert baseline');
-    await tester.ensureVisible(insert);
-    await tester.tap(insert);
-    await tester.pump();
+    await tapNext(tester);
 
     expect(
       find.text('Fix out-of-range stimulation values before inserting.'),
       findsOneWidget,
     );
     expect(authoring.rows, isEmpty);
+    expect(find.text('Frequency'), findsNWidgets(2));
   });
 
   testWidgets('tapping a stimulation quick-pick chip fills the field', (
@@ -266,49 +301,45 @@ void main() {
     await pumpWizard(tester, authoring: authoring);
     await tapNext(tester, 2); // Step 2.
 
-    // The session pills define the (name, min, max) scale set; PD REPLACES
-    // the rows with its preset.
+    // A session pill adds that preset's (name, min, max) rows.
     await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'PD'));
     await tester.tap(find.widgetWithText(ChoiceChip, 'PD'));
     await tester.pump();
     final pdRows = scalePresets.session['PD']!;
-    expect(find.widgetWithText(TextField, 'Tremor'), findsOneWidget);
+    const first = 'MDS-UPDRS 3.3 Rigidity RUE';
+    expect(find.widgetWithText(TextField, first), findsOneWidget);
     expect(find.text('Min'), findsNWidgets(pdRows.length));
     expect(find.text('Max'), findsNWidgets(pdRows.length));
 
-    // Step 3: one rating row per Step-2 scale, each with a slider and an
-    // omit ("not assessed") toggle. Navigate via the step header (robust when
-    // the tall Step-2 content pushes the Next control under the Stepper's
-    // transition-animation layers).
-    await tester.ensureVisible(find.text('Recording'));
-    await tester.tap(find.text('Recording'));
-    await tester.pumpAndSettle();
+    // Programming: one rating row per scale, each with a bar and an omit
+    // ("not assessed") toggle.
+    await tapNext(tester);
     // One custom ScaleSlider (bar + chevrons + X-omit) per Step-2 scale.
     expect(find.byType(ScaleSlider), findsNWidgets(pdRows.length));
-    expect(find.text('Tremor'), findsOneWidget);
+    expect(find.text(first), findsOneWidget);
 
-    // Omit the first scale (Tremor) via its X toggle; the rest keep values.
-    final omitTremor = find.byTooltip('Omit (not assessed)').first;
-    await tester.ensureVisible(omitTremor);
-    await tester.tap(omitTremor);
+    // Official items start not assessed; omit Dyskinesia, keep Paresthesia.
+    expect(find.byTooltip('Include (assessed)'), findsNWidgets(10));
+    final omitDyskinesia = find.byTooltip('Omit (not assessed)').first;
+    await tester.ensureVisible(omitDyskinesia);
+    await tester.tap(omitDyskinesia);
     await tester.pump();
 
-    final insert = find.text('Insert recording block');
+    final insert = find.text('Save configuration');
     await tester.ensureVisible(insert);
     await tester.tap(insert);
     await tester.pump();
 
-    // One is_initial=0 block, one row per scale: the omitted one carries
-    // the limits.json session_scale.omitted_tsv literal, the others the
-    // slider value (untouched sliders sit at their own min).
+    // One is_initial=0 block, one row per scale: omitted ones carry the
+    // limits.json omitted literal, untouched continuous bars their min.
     expect(authoring.rows, hasLength(pdRows.length));
     expect(authoring.rows.first.isInitial, '0');
-    expect(authoring.rows.first.scaleName, 'Tremor');
+    expect(authoring.rows.first.scaleName, first);
     expect(authoring.rows.first.scaleValue, limits.sessionScaleOmittedTsv);
     expect(authoring.rows.first.scaleValue, 'n/a');
-    expect(authoring.rows[1].scaleName, 'Rigidity');
-    expect(authoring.rows[1].scaleValue, '0');
-    expect(authoring.serialize(), contains('n/a'));
+    final byName = {for (final r in authoring.rows) r.scaleName: r.scaleValue};
+    expect(byName['Dyskinesia'], 'n/a');
+    expect(byName['Paresthesia'], '0');
 
     // The recording rows appear in the inserted-entries review table.
     expect(find.text('Rec'), findsWidgets);

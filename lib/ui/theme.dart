@@ -62,6 +62,10 @@ class DbsColors {
   /// with `surfaceTintColor: Colors.transparent`.
   static Color cardFill(bool dark) =>
       greenLighter.withValues(alpha: dark ? 0.12 : 0.22);
+
+  /// Background of the initial assessment, so it never reads as programming.
+  static Color assessmentFill(bool dark) =>
+      const Color(0xFF64748B).withValues(alpha: dark ? 0.18 : 0.10);
 }
 
 /// Non-state colours for the electrode canvas: the lead's insulating polymer

@@ -8,6 +8,7 @@ import '../app_info.dart';
 import '../core/annotation.dart';
 import '../core/bids.dart';
 import '../core/bids_sidecar.dart';
+import '../core/prefs/user_prefs.dart';
 import '../core/safe_file.dart';
 import '../core/timestamps.dart';
 import '../core/session/tsv_kind.dart';
@@ -18,6 +19,7 @@ import 'bids_merge_ui.dart';
 import 'report_sections_dialog.dart' show askAttestation;
 import 'save_target.dart';
 import 'share_util.dart';
+import 'wizard_parts.dart';
 import 'theme.dart';
 import 'close_guard.dart';
 
@@ -46,6 +48,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
   final _entries = <Annotation>[];
 
   int _currentStep = 0;
+  UserPrefs _prefs = UserPrefs();
   // Chosen save path (from New/Open); when set, notes autosave to it.
   String? _savePath;
   // Working copy in the app's own storage, written on every note whatever the
@@ -63,6 +66,9 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
   @override
   void initState() {
     super.initState();
+    loadUserPrefs().then((p) {
+      if (mounted) setState(() => _prefs = p);
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _offerRecovery());
     activeSessionGuard = _mayLeave;
   }
@@ -172,10 +178,21 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     }
   }
 
+  /// Ask for the folder new files go into, and remember it.
+  Future<String?> _chooseSaveFolder() async {
+    final folder = await pickSaveFolder();
+    if (folder == null || !mounted) return null;
+    setState(() => _prefs.saveFolder = folder);
+    saveUserPrefs(_prefs);
+    return folder;
+  }
+
   Future<void> _newSession() async {
-    final subject = _subjectCtrl.text.trim().isEmpty
-        ? '01'
-        : _subjectCtrl.text.trim();
+    final subject = _subjectCtrl.text.trim();
+    if (subject.isEmpty) {
+      _snack('Enter the patient ID first.');
+      return;
+    }
     final run = _runCtrl.text.trim().isEmpty ? '01' : _runCtrl.text.trim();
     final bids = _bidsName(
       subject: subject,
@@ -208,13 +225,27 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       return;
     }
 
+    final folder = canWriteChosenFolder
+        ? _prefs.saveFolder ?? await _chooseSaveFolder()
+        : null;
+    if (canWriteChosenFolder && folder == null) return;
+    if (!mounted) return;
     final NewTsvTarget? target;
     try {
       target = await createNewTsv(
         dialogTitle: 'Create new notes TSV',
         fileName: name,
-        header: writeAnnotations(const []), // header only
+        header: writeAnnotations(const []),
+        folder: folder,
       );
+    } on PathExistsException {
+      if (mounted) {
+        _snack(
+          '$name is already in $folder. Change the run number, '
+          'or use Open to continue those notes.',
+        );
+      }
+      return;
     } catch (e) {
       if (mounted) _snack('Could not create $name: $e');
       return;
@@ -297,6 +328,8 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (canWriteChosenFolder)
+          SaveFolderRow(folder: _prefs.saveFolder, onChoose: _chooseSaveFolder),
         Row(
           children: [
             Expanded(
@@ -638,6 +671,18 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     );
   }
 
+  /// Move to [step]; the notes step needs a file to save into first.
+  void _goTo(int step) {
+    if (step > 0 && _workingPath == null) {
+      _snack(
+        'Enter the patient ID and press New, or open a saved notes file, '
+        'so the notes have somewhere to be saved.',
+      );
+      return;
+    }
+    setState(() => _currentStep = step);
+  }
+
   /// Leaving asks whether to keep the recovery copy; see `close_guard.dart`.
   Future<bool> _mayLeave() => confirmLeaveSession(context, _workingPath);
 
@@ -657,49 +702,41 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
         title: const Text('Annotations'),
         actions: const [TextSizeButtons(), HelpButton(), ThemeToggleButton()],
       ),
-      body: Stepper(
-        currentStep: _currentStep,
-        onStepTapped: (i) => setState(() => _currentStep = i),
-        onStepContinue: _currentStep < 1
-            ? () => setState(() => _currentStep += 1)
-            : null,
-        onStepCancel: _currentStep > 0
-            ? () => setState(() => _currentStep -= 1)
-            : null,
-        controlsBuilder: (context, details) {
-          return Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Row(
-              children: [
-                if (details.onStepContinue != null)
-                  FilledButton.tonal(
-                    onPressed: details.onStepContinue,
-                    child: const Text('Next'),
-                  ),
-                if (details.onStepContinue != null &&
-                    details.onStepCancel != null)
-                  const SizedBox(width: 8),
-                if (details.onStepCancel != null)
-                  TextButton(
-                    onPressed: details.onStepCancel,
-                    child: const Text('Back'),
-                  ),
+      bottomNavigationBar: StepControls(
+        label: _currentStep == 0 ? 'Setup' : 'Notes',
+        onBack: _currentStep > 0 ? () => _goTo(0) : null,
+        onNext: _currentStep < 1 ? () => _goTo(1) : null,
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_currentStep > 0)
+            SessionStrip(
+              parts: [
+                'Patient ${_subjectCtrl.text.trim()}',
+                'Run ${_runCtrl.text.trim()}',
+              ],
+              onTap: () => _goTo(0),
+            ),
+          Expanded(
+            child: Stepper(
+              type: StepperType.horizontal,
+              currentStep: _currentStep,
+              onStepTapped: _goTo,
+              controlsBuilder: (context, details) => const SizedBox.shrink(),
+              steps: [
+                Step(
+                  title: const Text('Setup'),
+                  isActive: _currentStep == 0,
+                  content: _fileStep(),
+                ),
+                Step(
+                  title: const Text('Notes'),
+                  isActive: _currentStep == 1,
+                  content: _notesStep(),
+                ),
               ],
             ),
-          );
-        },
-        steps: [
-          Step(
-            title: const Text('File'),
-            subtitle: const Text('Patient / task / run: new or open TSV'),
-            isActive: _currentStep == 0,
-            content: _fileStep(),
-          ),
-          Step(
-            title: const Text('Notes'),
-            subtitle: const Text('Timestamped notes → task-notes TSV'),
-            isActive: _currentStep == 1,
-            content: _notesStep(),
           ),
         ],
       ),

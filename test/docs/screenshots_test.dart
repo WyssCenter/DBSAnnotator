@@ -54,6 +54,7 @@ import 'package:dbs_annotator/ui/electrode_view.dart';
 import 'package:dbs_annotator/ui/home_screen.dart';
 import 'package:dbs_annotator/ui/painter_font.dart';
 import 'package:dbs_annotator/ui/report_sections_dialog.dart';
+import 'package:dbs_annotator/ui/save_target.dart' show debugSaveDir;
 import 'package:dbs_annotator/ui/scale_slider.dart';
 import 'package:dbs_annotator/ui/session/entry_charts_view.dart';
 import 'package:dbs_annotator/ui/session_screen.dart';
@@ -63,7 +64,8 @@ import 'package:dbs_annotator/ui/stim_params_form.dart';
 import 'package:dbs_annotator/ui/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart' show FontLoader, rootBundle;
+import 'package:flutter/services.dart'
+    show FontLoader, MethodChannel, rootBundle;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'example_visits.dart';
@@ -486,7 +488,21 @@ Future<(ElectrodeCatalog, StimLimits, ScalePresets)> _contracts() async => (
 SessionAuthoring _seededAuthoring() =>
     SessionAuthoring()..loadExisting(File(_fixture).readAsStringSync());
 
-/// Tap the current step's `Next`; only the active step renders one.
+/// Press New and keep a loose file, as a clinician would. The file is
+/// written to a scratch folder, outside the fake clock that cannot finish it.
+Future<void> _startNew(WidgetTester tester) async {
+  await _tapText(tester, 'New');
+  await tester.tap(find.text('Loose TSV'));
+  for (var i = 0; i < 20; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  await tester.pumpAndSettle();
+}
+
+/// Tap `Next` in the wizard's bottom bar.
 Future<void> _next(WidgetTester tester) async => _tapText(tester, 'Next');
 
 /// Scroll [finder] into view, let the scroll settle, then tap it. The settle
@@ -679,6 +695,13 @@ void main() {
   }
 
   setUpAll(() async {
+    final support = Directory.systemTemp.createTempSync('docs_support');
+    debugSaveDir = Directory.systemTemp.createTempSync('docs_save');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (_) async => support.path,
+        );
     await _loadFonts();
     _textFont = await _loadTextFont();
     // CustomPainters never see the theme, so electrode labels, slider values
@@ -739,7 +762,12 @@ void main() {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
       tester,
-      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
     );
     await _seedFileStep(tester);
     await _next(tester);
@@ -755,7 +783,12 @@ void main() {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
       tester,
-      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
       size: const Size(_narrow, _maxHeight),
     );
     await _seedFileStep(tester);
@@ -774,7 +807,12 @@ void main() {
     final model = catalog.models[_defaultModel]!;
     await _pump(
       tester,
-      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
     );
     await _next(tester);
 
@@ -805,7 +843,12 @@ void main() {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
       tester,
-      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
     );
     await _next(tester);
     await _next(tester);
@@ -839,8 +882,9 @@ void main() {
       tester,
       'session_step3_recording',
       from: find.text('Program'),
-      to: find.text('Insert recording block'),
+      to: find.text('Save configuration'),
     );
+    await _tapText(tester, 'Comparison charts');
     await _shootRegion(
       tester,
       'session_step3_charts',
@@ -871,13 +915,13 @@ void main() {
       tester,
       'session_step3_recording_dark',
       from: find.text('Program'),
-      to: find.text('Insert recording block'),
+      to: find.text('Save configuration'),
     );
   });
 
   // ---- Menus ------------------------------------------------------------
 
-  testWidgets('session: export menu and paper-size submenu', (tester) async {
+  testWidgets('session: finish', (tester) async {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
       tester,
@@ -888,28 +932,11 @@ void main() {
         authoring: _seededAuthoring(),
       ),
     );
-    await _next(tester);
-    await _next(tester);
-    await _next(tester);
-
-    // Shrink to the frame before the menu opens. A menu lives in the overlay,
-    // not in the page's scroll view, so [_shootFitted] would measure the page
-    // and shrink the window out from under the menu.
-    await tester.binding.setSurfaceSize(const Size(_wide, 620));
-    await tester.pumpAndSettle();
-    // Put the Export button just below the AppBar so the menu opens into the
-    // frame rather than off the bottom of it.
-    await Scrollable.ensureVisible(
-      tester.element(find.text('Export')),
-      alignment: 0.05,
-      duration: Duration.zero,
-    );
-    await tester.pumpAndSettle();
-
-    // Only the submenu shot is kept: it shows the whole menu as well.
-    await _tapText(tester, 'Export');
-    await _tapText(tester, 'Paper size: A4');
-    await _shoot(tester, 'session_paper_size_submenu');
+    for (var i = 0; i < 4; i++) {
+      await _next(tester);
+    }
+    await _tapText(tester, 'Confirm');
+    await _shootFitted(tester, 'session_finish');
   });
 
   // ---- Dialogs ----------------------------------------------------------
@@ -920,7 +947,12 @@ void main() {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
       tester,
-      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
     );
     await _next(tester);
     await _tapText(tester, _preset);
@@ -940,7 +972,12 @@ void main() {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
       tester,
-      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
     );
     await _next(tester);
     await _next(tester);
@@ -987,8 +1024,14 @@ void main() {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
       tester,
-      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
     );
+    await _seedFileStep(tester);
     await _tapText(tester, 'New');
     await _shootDialog(tester, 'dialog_save_location');
     await _tapText(tester, 'Cancel');
@@ -1080,7 +1123,7 @@ void main() {
   testWidgets('annotations: notes step', (tester) async {
     await _pump(tester, const AnnotationsScreen());
     await _seedFileStep(tester);
-    await _next(tester);
+    await _startNew(tester);
     for (final note in const [
       'Session started; patient alert and oriented.',
       'Reports the paraesthesia has settled since the last change.',

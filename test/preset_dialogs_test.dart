@@ -99,7 +99,10 @@ void main() {
       result = await showSessionPresetsDialog(
         context,
         presets: const {
-          'PD': [(name: 'Tremor', min: '0', max: '10', mode: 'max')],
+          'PD': [
+            (name: 'Tremor', min: '0', max: '10', mode: 'max', step: '1'),
+            (name: 'Mood', min: '0', max: '10', mode: 'min', step: ''),
+          ],
         },
       );
     });
@@ -108,10 +111,11 @@ void main() {
     await tester.tap(find.text('Save & Close'));
     await tester.pumpAndSettle();
 
-    // The hidden optimization mode is carried through unchanged.
+    // The hidden optimization mode and rating step are carried through.
     expect(result, {
       'PD': [
-        ['Tremor', '0', '10', 'max'],
+        ['Tremor', '0', '10', 'max', '1'],
+        ['Mood', '0', '10', 'min'],
       ],
     });
   });
