@@ -506,7 +506,7 @@ Future<void> _startNew(WidgetTester tester) async {
 Future<void> _choosePathology(WidgetTester tester) async {
   await _tapFinder(
     tester,
-    find.widgetWithText(DropdownMenu<String>, 'Pathology'),
+    find.widgetWithText(DropdownMenu<String>, 'DBS indication'),
   );
   await tester.tap(find.text(_preset).last);
   await tester.pumpAndSettle();
@@ -1034,7 +1034,6 @@ void main() {
         'sub-01/ses-20260203/beh/'
         'sub-01_ses-20260203_task-programming_run-01_beh';
     final shots = <(String, Future<Object?> Function(BuildContext), String)>[
-      ('dialog_session_label', (c) => askSessionLabel(c, '20260203'), 'Cancel'),
       (
         'dialog_record_into',
         (c) => confirmRecordInto(c, root, name, what: 'this visit'),

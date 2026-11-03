@@ -135,6 +135,7 @@ datasetFromUploads(
               ? (isSession ? 'programming' : 'notes')
               : name.task,
           run: name.run,
+          acquisition: name.acquisition,
         ),
         tsv: isSession
             ? serializeSessionTsv(file.rows)

@@ -177,6 +177,7 @@ BidsName nextFreeRun(BidsName name, Set<String> taken) {
       session: n.session,
       task: n.task,
       run: BidsName.index('${int.parse(BidsName.index(n.run)) + 1}'),
+      acquisition: n.acquisition,
       suffix: n.suffix,
       extension: n.extension,
     );

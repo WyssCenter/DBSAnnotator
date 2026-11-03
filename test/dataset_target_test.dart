@@ -1,5 +1,5 @@
 /// Recording into a dataset from either workflow: the Task field, filing
-/// notes beside a visit, and the session label check.
+/// and notes filed beside a visit.
 library;
 
 import 'dart:convert';
@@ -76,56 +76,6 @@ void main() {
         await put(_name('notes'), 'annotation_tsv', tsv: 'different'),
         isNull,
       );
-    });
-  });
-
-  group('session label', () {
-    Future<void> open(
-      WidgetTester tester,
-      String proposed, {
-      String? Function(String)? note,
-    }) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => askSessionLabel(context, proposed, note: note),
-              child: const Text('go'),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-    }
-
-    bool useEnabled(WidgetTester tester) => tester
-        .widget<FilledButton>(find.widgetWithText(FilledButton, 'Use'))
-        .enabled;
-
-    testWidgets('says how a typed label will be filed', (tester) async {
-      await open(tester, '3-mo');
-      expect(find.textContaining('Filed as ses-3mo'), findsOneWidget);
-      expect(useEnabled(tester), isTrue);
-    });
-
-    testWidgets('an empty label cannot be used', (tester) async {
-      await open(tester, '20260203');
-      await tester.enterText(find.byType(TextField), '');
-      await tester.pump();
-      expect(useEnabled(tester), isFalse);
-    });
-
-    testWidgets('a name already filed is explained, not refused', (
-      tester,
-    ) async {
-      await open(
-        tester,
-        'preop',
-        note: (label) => label == 'preop' ? 'filed as run-02' : null,
-      );
-      expect(find.textContaining('filed as run-02'), findsOneWidget);
-      expect(useEnabled(tester), isTrue);
     });
   });
 

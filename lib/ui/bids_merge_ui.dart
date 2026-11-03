@@ -285,14 +285,9 @@ Future<({String root, List<DatasetFile> existing})?> pickCheckedDatasetFolder(
   }
 }
 
-/// Ask whether a new recording is a loose file or goes into a dataset, and,
-/// when a dataset, which one and under what session label. [what] names the
-/// recording in the dialogs: "this visit", "these notes".
-///
-/// `root` is null for a loose file. The label is proposed as today's date but
-/// stays editable: `ses-YYYYMMDD` is this app's convention, and plenty of
-/// groups use `ses-preop` or `ses-3mo`. Filing into someone's tree under a
-/// scheme they do not use turns a filename edit into a history problem.
+/// Ask whether a new recording is a loose file or goes into a dataset, and
+/// which one. [what] names the recording in the dialogs: "this visit".
+/// `root` is null for a loose file.
 Future<({String? root, BidsName name})?> askNewTarget(
   BuildContext context,
   BidsName proposed, {
@@ -345,117 +340,13 @@ Future<({String? root, BidsName name})?> askNewTarget(
 
   final folder = await pickCheckedDatasetFolder(context);
   if (folder == null || !context.mounted) return null;
-  BidsName named(String session) => BidsName(
-    subject: proposed.subject,
-    session: session,
-    task: proposed.task,
-    run: proposed.run,
-  );
   // A name already filed moves to the next free run: the dataset can hold
   // any number of recordings per session, but two cannot share a file name.
-  final filed = {for (final f in folder.existing) f.path};
-  final label = await askSessionLabel(
-    context,
-    proposed.session,
-    note: (session) {
-      final asked = named(session);
-      final free = nextFreeRun(asked, filed);
-      return free.run == BidsName.index(asked.run)
-          ? null
-          : '${asked.filename} is already in this dataset, so this recording '
-                'is filed as run-${free.run}.';
-    },
-  );
-  if (label == null || !context.mounted) return null;
-  final name = nextFreeRun(named(label), filed);
+  final name = nextFreeRun(proposed, {for (final f in folder.existing) f.path});
   if (!await confirmRecordInto(context, folder.root, name, what: what)) {
     return null;
   }
   return (root: folder.root, name: name);
-}
-
-/// Ask for the `ses-` label of a recording filed into a dataset, proposing
-/// [proposed]. Returns the label as it will be filed, or null when cancelled.
-///
-/// [note] says what filing under a label implies, or returns null.
-Future<String?> askSessionLabel(
-  BuildContext context,
-  String proposed, {
-  String? Function(String label)? note,
-}) => showDialog<String>(
-  context: context,
-  builder: (_) => _SessionLabelDialog(proposed, note),
-);
-
-/// Owns its controller, so the field outlives the dialog's closing animation.
-class _SessionLabelDialog extends StatefulWidget {
-  const _SessionLabelDialog(this.proposed, this.note);
-
-  final String proposed;
-  final String? Function(String label)? note;
-
-  @override
-  State<_SessionLabelDialog> createState() => _SessionLabelDialogState();
-}
-
-class _SessionLabelDialogState extends State<_SessionLabelDialog> {
-  late final _ctrl = TextEditingController(text: widget.proposed)
-    ..addListener(() => setState(() {}));
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final typed = _ctrl.text.trim();
-    final label = BidsName.label(typed);
-    final note = label.isEmpty ? null : widget.note?.call(label);
-    return AlertDialog(
-      title: const Text('Session label'),
-      scrollable: true,
-      content: SizedBox(
-        width: 480,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _ctrl,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: 'ses-',
-                helperText: label.isEmpty
-                    ? null
-                    : label != typed
-                    ? 'Filed as ses-$label: BIDS labels are letters and digits.'
-                    : 'Often the date, but use whatever this study uses.',
-                helperMaxLines: 3,
-                errorText: typed.isNotEmpty && label.isEmpty
-                    ? 'Letters and digits only.'
-                    : null,
-              ),
-            ),
-            // Below the field, not in its helper: a BIDS filename is long, and
-            // a helper is cut at its line limit.
-            if (note != null) ...[const SizedBox(height: 12), Text(note)],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: label.isEmpty ? null : () => Navigator.pop(context, label),
-          child: const Text('Use'),
-        ),
-      ],
-    );
-  }
 }
 
 /// Say where a recording filed straight into a dataset will go.

@@ -1148,7 +1148,7 @@ SessionReportData buildSessionReportData({
   final rightIpg = sessionValueIn(rows, (r) => r.rightIpgModel);
   final sessionDetails = [
     for (final (label, value) in [
-      ('Pathology', sessionValueIn(rows, (r) => r.pathology)),
+      ('DBS indication', sessionValueIn(rows, (r) => r.pathology)),
       ('Target', sessionValueIn(rows, (r) => r.target)),
       (
         'IPG',

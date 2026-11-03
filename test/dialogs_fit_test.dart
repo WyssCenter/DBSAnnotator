@@ -32,11 +32,6 @@ const _name = BidsName(
   run: '01',
 );
 
-/// The dialog's note when the name is taken, worded as `askNewTarget` words it.
-String _taken(String session) =>
-    '${_name.filename} is already in this dataset, so this recording is filed '
-    'as run-02.';
-
 final _manyPaths = [
   for (var i = 0; i < 15; i++)
     'sub-OCD017/ses-2026100$i/beh/sub-OCD017_ses-2026100${i}_task-programming_run-01_beh.tsv',
@@ -64,21 +59,6 @@ final List<_Case> _cases = [
     name: 'where to save',
     open: (c) => askNewTarget(c, _name, what: 'this visit'),
     then: null,
-  ),
-  (
-    name: 'session label, name already taken',
-    open: (c) => askSessionLabel(c, '20261005', note: _taken),
-    then: null,
-  ),
-  (
-    name: 'session label, sanitised and taken',
-    open: (c) => askSessionLabel(c, '20261005', note: _taken),
-    then: (t) => t.enterText(find.byType(TextField), '3-mo follow up'),
-  ),
-  (
-    name: 'session label, invalid',
-    open: (c) => askSessionLabel(c, '20261005', note: _taken),
-    then: (t) => t.enterText(find.byType(TextField), '---'),
   ),
   (
     name: 'record into this dataset',

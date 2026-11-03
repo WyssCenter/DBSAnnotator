@@ -28,6 +28,7 @@ class UserPrefs {
     this.saveFolder,
     this.pathologies,
     this.targets,
+    this.ipgs,
   });
 
   /// Stimulation quick-pick lists (override `limits.json` stimulation_presets).
@@ -67,9 +68,11 @@ class UserPrefs {
   /// Folder new session files are created in, on platforms that can write one.
   String? saveFolder;
 
-  /// The Setup pathology and target lists as edited; null means the defaults.
+  /// The Setup indication, target and IPG lists as edited; null means the
+  /// defaults.
   List<String>? pathologies;
   List<String>? targets;
+  List<String>? ipgs;
 
   /// Report sections to include, by [ReportSection.name]; null means every
   /// section. Persisted so a dropped section stays dropped on the next export.
@@ -108,6 +111,7 @@ class UserPrefs {
       saveFolder: j['save_folder'] as String?,
       pathologies: (j['pathologies'] as List?)?.cast<String>(),
       targets: (j['targets'] as List?)?.cast<String>(),
+      ipgs: (j['ipgs'] as List?)?.cast<String>(),
       reportSections: (j['report_sections'] as List?)
           ?.map((e) => e as String)
           .toList(),
@@ -133,6 +137,7 @@ class UserPrefs {
     if (saveFolder != null) 'save_folder': saveFolder,
     if (pathologies != null) 'pathologies': pathologies,
     if (targets != null) 'targets': targets,
+    if (ipgs != null) 'ipgs': ipgs,
   };
 }
 

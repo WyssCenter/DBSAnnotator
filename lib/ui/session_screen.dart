@@ -185,6 +185,10 @@ class _SessionScreenState extends State<SessionScreen> {
   final _subjectCtrl = TextEditingController();
   final _taskCtrl = TextEditingController(text: _defaultTask);
   final _runCtrl = TextEditingController(text: '01');
+  final _sessionCtrl = TextEditingController(
+    text: BidsName.sessionStamp(DateTime.now()),
+  );
+  final _acqCtrl = TextEditingController();
   // Notes are per-context: the initial-config notes persist across inserts (the
   // user keeps refining them); recording notes clear after each block.
   final _notesInitCtrl = TextEditingController();
@@ -425,6 +429,8 @@ class _SessionScreenState extends State<SessionScreen> {
     _subjectCtrl.dispose();
     _taskCtrl.dispose();
     _runCtrl.dispose();
+    _sessionCtrl.dispose();
+    _acqCtrl.dispose();
     _notesInitCtrl.dispose();
     _notesRecCtrl.dispose();
     _pathologyCtrl.dispose();
@@ -827,11 +833,7 @@ class _SessionScreenState extends State<SessionScreen> {
       return;
     }
     final run = _runCtrl.text.trim().isEmpty ? '01' : _runCtrl.text.trim();
-    final bids = _bidsName((
-      subject: subject,
-      task: _labels.task,
-      run: run,
-    ), session: BidsName.sessionStamp(DateTime.now()));
+    final bids = _bidsName((subject: subject, task: _labels.task, run: run));
     final name = bids.filename;
     final authoring = SessionAuthoring();
 
@@ -853,7 +855,6 @@ class _SessionScreenState extends State<SessionScreen> {
         _runCtrl.text = into.name.run;
         _initialBlock = null;
         _initialSaved = null;
-        _currentStep = _modelName == null ? 0 : 1;
       });
       _snack(
         'Recording into ${into.root}. '
@@ -906,7 +907,6 @@ class _SessionScreenState extends State<SessionScreen> {
       _runCtrl.text = run;
       _initialBlock = null;
       _initialSaved = null;
-      _currentStep = _modelName == null ? 0 : 1;
     });
     _snack('New session: ${target.location}');
   }
@@ -1010,25 +1010,24 @@ class _SessionScreenState extends State<SessionScreen> {
     _subjectCtrl.text = bids.subject;
     _taskCtrl.text = bids.task.isEmpty ? _defaultTask : bids.task;
     _runCtrl.text = bids.run;
+    if (bids.session.isNotEmpty) _sessionCtrl.text = bids.session;
+    _acqCtrl.text = bids.acquisition;
   }
 
   /// The BIDS entities for everything this screen writes: the session TSV, its
   /// sidecar and the report derivative all carry the same ones.
-  ///
-  /// The session is the label chosen when filing into a dataset, so exports
-  /// carry the same `ses-` as the filed visit, and today's date otherwise.
-  BidsName _bidsName(
-    ({String subject, String task, String run}) labels, {
-    String? session,
-  }) => BidsName(
-    subject: labels.subject,
-    session:
-        session ??
-        _datasetName?.session ??
-        BidsName.sessionStamp(DateTime.now()),
-    task: labels.task,
-    run: labels.run,
-  );
+  BidsName _bidsName(({String subject, String task, String run}) labels) {
+    final session = BidsName.label(_sessionCtrl.text.trim());
+    return BidsName(
+      subject: labels.subject,
+      session: session.isEmpty
+          ? BidsName.sessionStamp(DateTime.now())
+          : session,
+      task: labels.task,
+      run: labels.run,
+      acquisition: BidsName.label(_acqCtrl.text.trim()),
+    );
+  }
 
   /// Report sections the user last chose (all of them, by default).
   Set<ReportSection> get _sections {
@@ -1322,45 +1321,80 @@ class _SessionScreenState extends State<SessionScreen> {
       }
     }
 
-    Widget menu(String? value, String label, ValueChanged<String?> onChanged) =>
-        DropdownMenu<String>(
-          key: ValueKey('$label $value'),
-          initialSelection: value,
-          label: Text(label),
-          expandedInsets: EdgeInsets.zero,
-          requestFocusOnTap: false,
-          onSelected: (name) {
-            if (name != null) onChanged(name);
-          },
-          dropdownMenuEntries: [
-            for (final group in catalog.manufacturers.entries) ...[
-              DropdownMenuEntry(
-                value: '#${group.key}',
-                label: group.key,
-                enabled: false,
-                labelWidget: Text(
-                  group.key,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              for (final name in group.value)
-                DropdownMenuEntry(
-                  value: name,
-                  label: name,
-                  leadingIcon: const SizedBox(width: 12),
-                ),
-            ],
-          ],
+    final makers = {...catalog.manufacturers.keys, ...catalog.ipgs.keys};
+    final ipgs = _prefs.ipgs ?? [for (final n in catalog.ipgs.values) ...n];
+    final ipgGroups = <String, List<String>>{};
+    for (final name in ipgs) {
+      final maker =
+          makers.where((m) => name.startsWith('$m ')).firstOrNull ??
+          name.split(' ').first;
+      (ipgGroups[maker] ??= []).add(name);
+    }
+
+    Widget menu(
+      String label,
+      Map<String, List<String>> groups, {
+      String? value,
+      TextEditingController? controller,
+      bool enabled = true,
+      ValueChanged<String>? onSelected,
+    }) => DropdownMenu<String>(
+      key: controller == null ? ValueKey('$label $value') : null,
+      controller: controller,
+      initialSelection: value,
+      label: Text(label),
+      enabled: enabled,
+      expandedInsets: EdgeInsets.zero,
+      requestFocusOnTap: false,
+      onSelected: (name) {
+        if (name != null) onSelected?.call(name);
+      },
+      dropdownMenuEntries: [
+        for (final group in groups.entries) ...[
+          DropdownMenuEntry(
+            value: '#${group.key}',
+            label: group.key,
+            enabled: false,
+            labelWidget: Text(
+              group.key,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          for (final name in group.value)
+            DropdownMenuEntry(
+              value: name,
+              label: name,
+              leadingIcon: const SizedBox(width: 12),
+            ),
+        ],
+      ],
+    );
+
+    Widget sameBox(String title, bool value, ValueChanged<bool>? onChanged) =>
+        CheckboxListTile(
+          value: value,
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          title: Text(title),
+          onChanged: onChanged == null ? null : (v) => onChanged(v ?? true),
         );
 
+    Widget heading(String text, [Widget? action]) => SizedBox(
+      height: 40,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(text, style: Theme.of(context).textTheme.labelLarge),
+          ),
+          ?action,
+        ],
+      ),
+    );
+
     final same = _rightModelName == null;
-    final ipgs = [for (final names in catalog.ipgs.values) ...names];
     final ipgLocked =
         sessionValueIn(_authoring.rows, (r) => r.leftIpgModel) != '';
-    Widget heading(String text) => Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 6),
-      child: Text(text, style: Theme.of(context).textTheme.labelLarge),
-    );
     return GroupCard(
       title: 'Devices',
       child: Padding(
@@ -1370,9 +1404,10 @@ class _SessionScreenState extends State<SessionScreen> {
           children: [
             heading('Leads'),
             menu(
-              _modelName,
               same ? 'Lead model' : 'Left lead model',
-              (name) => setState(() {
+              catalog.manufacturers,
+              value: _modelName,
+              onSelected: (name) => setState(() {
                 _modelName = name;
                 reset(
                   same
@@ -1381,49 +1416,51 @@ class _SessionScreenState extends State<SessionScreen> {
                 );
               }),
             ),
-            CheckboxListTile(
-              value: same,
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              title: const Text('Same model on both sides'),
-              onChanged: (v) => setState(() {
-                _rightModelName = v ?? true ? null : _modelName;
-              }),
+            sameBox(
+              'Same lead on both sides',
+              same,
+              (v) => setState(() => _rightModelName = v ? null : _modelName),
             ),
             if (!same)
               menu(
-                _rightModelName,
                 'Right lead model',
-                (name) => setState(() {
+                catalog.manufacturers,
+                value: _rightModelName,
+                onSelected: (name) => setState(() {
                   _rightModelName = name;
                   reset([_rightInit, _rightRec]);
                 }),
               ),
             const Divider(height: 24),
-            heading('Implanted pulse generator (IPG)'),
-            _choiceField(
-              controller: _leftIpgCtrl,
-              label: _sameIpg ? 'IPG model' : 'Left IPG model',
-              options: ipgs,
-              locked: ipgLocked,
+            heading(
+              'Implanted pulse generator (IPG)',
+              IconButton(
+                icon: const Icon(Icons.settings),
+                tooltip: 'Edit IPG models',
+                onPressed: () => _editList(
+                  'IPG models (manufacturer and model)',
+                  ipgs,
+                  (l) => _prefs.ipgs = l,
+                ),
+              ),
             ),
-            CheckboxListTile(
-              value: _sameIpg,
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              title: const Text('Same IPG on both sides'),
-              onChanged: ipgLocked
-                  ? null
-                  : (v) => setState(() => _sameIpg = v ?? true),
+            menu(
+              _sameIpg ? 'IPG model' : 'Left IPG model',
+              ipgGroups,
+              controller: _leftIpgCtrl,
+              enabled: !ipgLocked,
+            ),
+            sameBox(
+              'Same IPG on both sides',
+              _sameIpg,
+              ipgLocked ? null : (v) => setState(() => _sameIpg = v),
             ),
             if (!_sameIpg)
-              _choiceField(
+              menu(
+                'Right IPG model',
+                ipgGroups,
                 controller: _rightIpgCtrl,
-                label: 'Right IPG model',
-                options: ipgs,
-                locked: ipgLocked,
+                enabled: !ipgLocked,
               ),
           ],
         ),
@@ -1881,21 +1918,27 @@ class _SessionScreenState extends State<SessionScreen> {
             const SizedBox(height: 12),
             Row(
               children: [
-                SizedBox(
-                  width: 120,
-                  child: TextField(
-                    controller: _runCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: field.copyWith(labelText: 'Run'),
+                for (final (i, (ctrl, label, flex)) in [
+                  (_runCtrl, 'Run', 2),
+                  (_sessionCtrl, 'Session', 3),
+                  (_taskCtrl, 'Task', 3),
+                  (_acqCtrl, 'Acquisition', 3),
+                ].indexed) ...[
+                  if (i > 0) const SizedBox(width: 12),
+                  Expanded(
+                    flex: flex,
+                    child: TextField(
+                      controller: ctrl,
+                      keyboardType: ctrl == _runCtrl
+                          ? TextInputType.number
+                          : null,
+                      decoration: field.copyWith(
+                        labelText: label,
+                        hintText: ctrl == _acqCtrl ? 'Optional' : null,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _taskCtrl,
-                    decoration: field.copyWith(labelText: 'Task'),
-                  ),
-                ),
+                ],
               ],
             ),
             const SizedBox(height: 16),
@@ -1934,6 +1977,13 @@ class _SessionScreenState extends State<SessionScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            Text(
+              'The entry names follow the BIDS naming convention: '
+              'sub-<Patient ID>_ses-<Session>_task-<Task>_acq-<Acquisition>'
+              '_run-<Run>. Acquisition is added only when filled in.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ],
         ),
       ),
@@ -1951,7 +2001,7 @@ class _SessionScreenState extends State<SessionScreen> {
                 Expanded(
                   child: _choiceField(
                     controller: _pathologyCtrl,
-                    label: 'Pathology',
+                    label: 'DBS indication',
                     options: pathologies,
                     typed: false,
                     locked:
@@ -1968,9 +2018,9 @@ class _SessionScreenState extends State<SessionScreen> {
                   ),
                 ),
                 gear(
-                  'Edit pathologies',
+                  'Edit DBS indications',
                   () => _editList(
-                    'Pathologies',
+                    'DBS indications',
                     pathologies,
                     (l) => _prefs.pathologies = l,
                   ),

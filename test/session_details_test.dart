@@ -69,7 +69,7 @@ void main() {
     final data = buildSessionReportData(rows: visit().rows);
     expect(
       data.sessionDetails,
-      'Pathology: PD    Target: STN    IPG: Medtronic Percept PC',
+      'DBS indication: PD    Target: STN    IPG: Medtronic Percept PC',
     );
     expect(data.medications, 'Levodopa 100 mg three times a day');
     expect(data.hasStars, isTrue);
@@ -81,7 +81,7 @@ void main() {
           .findFile('word/document.xml')!
           .readBytes()!,
     );
-    expect(doc, contains('Pathology: PD'));
+    expect(doc, contains('DBS indication: PD'));
     expect(doc, contains('Medications: Levodopa'));
     expect(doc, contains('Starred by the clinician during the visit'));
   });

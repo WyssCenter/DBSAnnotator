@@ -44,6 +44,10 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
   final _subjectCtrl = TextEditingController();
   final _taskCtrl = TextEditingController(text: _defaultTask);
   final _runCtrl = TextEditingController(text: '01');
+  final _sessionCtrl = TextEditingController(
+    text: BidsName.sessionStamp(DateTime.now()),
+  );
+  final _acqCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
   final _entries = <Annotation>[];
 
@@ -79,6 +83,8 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     _subjectCtrl.dispose();
     _taskCtrl.dispose();
     _runCtrl.dispose();
+    _sessionCtrl.dispose();
+    _acqCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
   }
@@ -136,20 +142,18 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
   ///
   /// [subject] and [run] are free text that ends up in a path, so they go
   /// through the sanitisers; run is an index in BIDS, not a label.
-  ///
-  /// The session is the label chosen when filing into a dataset, so exports
-  /// carry the same `ses-` as the filed notes, and today's date otherwise.
-  BidsName _bidsName({String? subject, String? run, String? session}) {
+  BidsName _bidsName({String? subject, String? run}) {
     final s = BidsName.label(subject ?? _subjectCtrl.text.trim());
     final task = BidsName.label(_taskCtrl.text.trim());
+    final session = BidsName.label(_sessionCtrl.text.trim());
     return BidsName(
       subject: s.isEmpty ? 'unknown' : s,
-      session:
-          session ??
-          _datasetName?.session ??
-          BidsName.sessionStamp(DateTime.now()),
+      session: session.isEmpty
+          ? BidsName.sessionStamp(DateTime.now())
+          : session,
       task: task.isEmpty ? _defaultTask : task,
       run: BidsName.index(run ?? _runCtrl.text.trim()),
+      acquisition: BidsName.label(_acqCtrl.text.trim()),
     );
   }
 
@@ -157,6 +161,8 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     _subjectCtrl.text = bids.subject;
     _taskCtrl.text = bids.task.isEmpty ? _defaultTask : bids.task;
     _runCtrl.text = bids.run;
+    if (bids.session.isNotEmpty) _sessionCtrl.text = bids.session;
+    _acqCtrl.text = bids.acquisition;
   }
 
   /// Write the `_beh.json` sidecar beside [tsvPath]; see the session screen's
@@ -194,11 +200,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       return;
     }
     final run = _runCtrl.text.trim().isEmpty ? '01' : _runCtrl.text.trim();
-    final bids = _bidsName(
-      subject: subject,
-      run: run,
-      session: BidsName.sessionStamp(DateTime.now()),
-    );
+    final bids = _bidsName(subject: subject, run: run);
     final name = bids.filename;
 
     // Loose file, or straight into a dataset: the answer decides where every
@@ -341,30 +343,39 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 160,
-              child: TextField(
-                controller: _taskCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Task',
-                  isDense: true,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 90,
-              child: TextField(
-                controller: _runCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Run',
-                  isDense: true,
-                ),
-              ),
-            ),
           ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            for (final (i, (ctrl, label, flex)) in [
+              (_runCtrl, 'Run', 2),
+              (_sessionCtrl, 'Session', 3),
+              (_taskCtrl, 'Task', 3),
+              (_acqCtrl, 'Acquisition', 3),
+            ].indexed) ...[
+              if (i > 0) const SizedBox(width: 12),
+              Expanded(
+                flex: flex,
+                child: TextField(
+                  controller: ctrl,
+                  keyboardType: ctrl == _runCtrl ? TextInputType.number : null,
+                  decoration: InputDecoration(
+                    labelText: label,
+                    hintText: ctrl == _acqCtrl ? 'Optional' : null,
+                    isDense: true,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'The entry names follow the BIDS naming convention: '
+          'sub-<Patient ID>_ses-<Session>_task-<Task>_acq-<Acquisition>'
+          '_run-<Run>. Acquisition is added only when filled in.',
+          style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 16),
         Row(

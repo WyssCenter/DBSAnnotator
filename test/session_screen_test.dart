@@ -56,7 +56,9 @@ void main() {
   }
 
   Future<void> choosePathology(WidgetTester tester, String pathology) async {
-    await tester.tap(find.widgetWithText(DropdownMenu<String>, 'Pathology'));
+    await tester.tap(
+      find.widgetWithText(DropdownMenu<String>, 'DBS indication'),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text(pathology).last);
     await tester.pumpAndSettle();
@@ -151,7 +153,7 @@ void main() {
     expect(find.text('Patient ID'), findsOneWidget);
     expect(find.text('New session'), findsOneWidget);
     expect(find.text('Open saved session'), findsOneWidget);
-    expect(find.text('Same model on both sides'), findsOneWidget);
+    expect(find.text('Same lead on both sides'), findsOneWidget);
     expect(find.text('Frequency'), findsNothing);
 
     // Initial assessment: L/R stimulation and clinical scales, no buttons
@@ -226,7 +228,9 @@ void main() {
     final authoring = SessionAuthoring();
     await pumpWizard(tester, authoring: authoring);
 
-    await tester.tap(find.widgetWithText(DropdownMenu<String>, 'Pathology'));
+    await tester.tap(
+      find.widgetWithText(DropdownMenu<String>, 'DBS indication'),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('PD').last);
     await tester.pumpAndSettle();
@@ -236,11 +240,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('STN').last);
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.widgetWithText(TextField, 'IPG model'),
-      'Medtronic Percept PC',
-    );
-    await tester.pump();
+    await tester.tap(find.widgetWithText(DropdownMenu<String>, 'IPG model'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Medtronic Percept PC').last);
+    await tester.pumpAndSettle();
 
     // Choosing the pathology loaded its clinical scales.
     await tapNext(tester);
@@ -295,7 +298,7 @@ void main() {
     expect(
       tester
           .widget<DropdownMenu<String>>(
-            find.widgetWithText(DropdownMenu<String>, 'Pathology'),
+            find.widgetWithText(DropdownMenu<String>, 'DBS indication'),
           )
           .enabled,
       isFalse,

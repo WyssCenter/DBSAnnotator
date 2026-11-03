@@ -60,7 +60,7 @@ void main() {
     await startVideo(tester, const HomeScreen());
     await tapText(tester, 'Complete workflow');
     await typeInto(tester, 'Patient ID', '01');
-    await tapText(tester, 'Pathology');
+    await tapText(tester, 'DBS indication');
     await tap(tester, find.text('OCD').last);
     await tapText(tester, 'New session');
     await tapText(tester, 'Loose TSV');
