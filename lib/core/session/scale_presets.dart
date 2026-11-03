@@ -32,7 +32,8 @@ class ScalePresets {
     required this.clinical,
     required this.session,
     this.clinicalRanges = const {},
-    this.targets = const {},
+    this.pathologies = const [],
+    this.targets = const [],
   });
 
   factory ScalePresets.fromJson(Map<String, dynamic> json) {
@@ -81,16 +82,17 @@ class ScalePresets {
         ),
     };
 
-    final targetsJson = json['targets'] as Map<String, dynamic>? ?? {};
     return ScalePresets(
       buttons: buttons,
       clinical: clinical,
       session: session,
       clinicalRanges: clinicalRanges,
-      targets: {
-        for (final e in targetsJson.entries)
-          e.key: (e.value as List).map((t) => t as String).toList(),
-      },
+      pathologies: [
+        for (final t in json['pathologies'] as List? ?? buttons) t as String,
+      ],
+      targets: [
+        for (final t in json['targets'] as List? ?? const []) t as String,
+      ],
     );
   }
 
@@ -107,8 +109,9 @@ class ScalePresets {
   /// Used only to set the clinical figure's y axis.
   final Map<String, ScaleRange> clinicalRanges;
 
-  /// Pathology -> usual anatomical targets, offered as suggestions in Setup.
-  final Map<String, List<String>> targets;
+  /// Pathologies and anatomical targets offered in Setup.
+  final List<String> pathologies;
+  final List<String> targets;
 }
 
 /// [ranges] as numbers, leaving out any that do not parse or are empty.

@@ -26,6 +26,8 @@ class UserPrefs {
     this.entryChartsExpanded,
     this.reportSections,
     this.saveFolder,
+    this.pathologies,
+    this.targets,
   });
 
   /// Stimulation quick-pick lists (override `limits.json` stimulation_presets).
@@ -65,6 +67,10 @@ class UserPrefs {
   /// Folder new session files are created in, on platforms that can write one.
   String? saveFolder;
 
+  /// The Setup pathology and target lists as edited; null means the defaults.
+  List<String>? pathologies;
+  List<String>? targets;
+
   /// Report sections to include, by [ReportSection.name]; null means every
   /// section. Persisted so a dropped section stays dropped on the next export.
   List<String>? reportSections;
@@ -100,6 +106,8 @@ class UserPrefs {
       entryTableExpanded: j['entry_table_expanded'] as bool?,
       entryChartsExpanded: j['entry_charts_expanded'] as bool?,
       saveFolder: j['save_folder'] as String?,
+      pathologies: (j['pathologies'] as List?)?.cast<String>(),
+      targets: (j['targets'] as List?)?.cast<String>(),
       reportSections: (j['report_sections'] as List?)
           ?.map((e) => e as String)
           .toList(),
@@ -123,6 +131,8 @@ class UserPrefs {
       'entry_charts_expanded': entryChartsExpanded,
     if (reportSections != null) 'report_sections': reportSections,
     if (saveFolder != null) 'save_folder': saveFolder,
+    if (pathologies != null) 'pathologies': pathologies,
+    if (targets != null) 'targets': targets,
   };
 }
 
@@ -178,6 +188,7 @@ ScalePresets mergeScalePresets(ScalePresets base, UserPrefs prefs) {
     clinical: clinical,
     session: session,
     clinicalRanges: clinicalRanges,
+    pathologies: base.pathologies,
     targets: base.targets,
   );
 }

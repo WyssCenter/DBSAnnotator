@@ -131,7 +131,7 @@ void main() {
 
   group('the Task field', () {
     String taskText(WidgetTester tester) => tester
-        .widget<TextField>(find.widgetWithText(TextField, 'Task (task-)'))
+        .widget<TextField>(find.widgetWithText(TextField, 'Task'))
         .controller!
         .text;
 

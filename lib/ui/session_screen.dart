@@ -129,7 +129,7 @@ class _SessionScaleEdit {
   bool omitted;
 
   /// The rating step of an official item; null for a continuous bar.
-  final double? step;
+  double? step;
 
   /// How this scale is scored when ranking configurations (the desktop export
   /// dialog's Min / Max / Custom radio). Seeded from the preset's contract cell
@@ -177,14 +177,8 @@ class _SideInputs {
 /// The `task-` label of a programming session unless the user names another.
 const _defaultTask = 'programming';
 
-const _stepNames = [
-  'Setup',
-  'Initial assessment',
-  'Ratings',
-  'Programming',
-  'Finish',
-];
-const _finishStep = 4;
+const _stepNames = ['Setup', 'Initial assessment', 'Programming', 'Finish'];
+const _finishStep = 3;
 
 class _SessionScreenState extends State<SessionScreen> {
   late SessionAuthoring _authoring = widget.authoring ?? SessionAuthoring();
@@ -196,7 +190,11 @@ class _SessionScreenState extends State<SessionScreen> {
   final _notesInitCtrl = TextEditingController();
   final _pathologyCtrl = TextEditingController();
   final _targetCtrl = TextEditingController();
-  final _ipgCtrl = TextEditingController();
+  final _leftIpgCtrl = TextEditingController(text: kDefaultIpg);
+  final _rightIpgCtrl = TextEditingController();
+
+  /// Whether one IPG drives both leads, so the right field is hidden.
+  bool _sameIpg = true;
   final _medicationsCtrl = TextEditingController();
   final _notesRecCtrl = TextEditingController();
 
@@ -251,7 +249,6 @@ class _SessionScreenState extends State<SessionScreen> {
   bool _savePathIsSandboxCopy = false;
   // Currently-applied disease preset, for the selected pill styling.
   String? _selectedClinicalPreset;
-  String? _selectedSessionPreset;
   // Selected program name (desktop program combo).
   String? _selectedProgram;
   // Per-user overrides (programs + presets), loaded async.
@@ -267,6 +264,10 @@ class _SessionScreenState extends State<SessionScreen> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _offerRecovery());
     activeSessionGuard = _mayLeave;
+    if (widget.authoring case final a?) {
+      _fillSessionDetails(a.rows);
+      _loadPathologyScales();
+    }
   }
 
   /// Offer back a session the app stopped in the middle of. Asking rather than
@@ -312,8 +313,10 @@ class _SessionScreenState extends State<SessionScreen> {
       _initialSaved = null;
       if (bids != null) _fillLabels(bids);
       _fillSessionDetails(_authoring.rows);
-      _currentStep = 3;
+      _selectedClinicalPreset = null;
+      _currentStep = 2;
     });
+    _loadPathologyScales();
     _snack('Reopened $name. Export it to save it outside the app.');
   }
 
@@ -403,6 +406,9 @@ class _SessionScreenState extends State<SessionScreen> {
   /// B33005"), so the L/R canvases render immediately instead of a placeholder.
   static const String kDefaultModel = 'Medtronic SenSight B33005';
 
+  /// The IPG Setup starts from, like [kDefaultModel] for the lead.
+  static const String kDefaultIpg = 'Medtronic Percept RC';
+
   Future<(ElectrodeCatalog, StimLimits, ScalePresets)> _loadContracts() async {
     final catalog = widget.catalog ?? await loadElectrodeCatalog();
     final limits = widget.limits ?? await loadStimLimits();
@@ -423,7 +429,8 @@ class _SessionScreenState extends State<SessionScreen> {
     _notesRecCtrl.dispose();
     _pathologyCtrl.dispose();
     _targetCtrl.dispose();
-    _ipgCtrl.dispose();
+    _leftIpgCtrl.dispose();
+    _rightIpgCtrl.dispose();
     _medicationsCtrl.dispose();
     _leftInit.dispose();
     _rightInit.dispose();
@@ -528,7 +535,7 @@ class _SessionScreenState extends State<SessionScreen> {
   /// the first time the Recording step (3) is opened, so recording STARTS from
   /// the initial config but is then edited independently. Call inside setState.
   void _goToStep(int step) {
-    if (step == 3 && !_recSeeded) {
+    if (step == 2 && !_recSeeded) {
       _copySide(_leftInit, _leftRec);
       _copySide(_rightInit, _rightRec);
       _recSeeded = true;
@@ -570,7 +577,8 @@ class _SessionScreenState extends State<SessionScreen> {
       models.$2,
       details.pathology,
       details.target,
-      details.ipg,
+      details.leftIpg,
+      details.rightIpg,
     ]);
     if (signature == _initialSaved) return true;
     final empty =
@@ -590,7 +598,8 @@ class _SessionScreenState extends State<SessionScreen> {
       rightElectrodeModel: models.$2,
       pathology: details.pathology,
       target: details.target,
-      ipgModel: details.ipg,
+      leftIpgModel: details.leftIpg,
+      rightIpgModel: details.rightIpg,
       medications: medications,
       notes: notes,
       replacing: _initialBlock,
@@ -603,17 +612,37 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   /// Pathology, target and IPG as chosen in Setup, written on every row.
-  ({String pathology, String target, String ipg}) get _sessionDetails => (
+  ({String pathology, String target, String leftIpg, String rightIpg})
+  get _sessionDetails => (
     pathology: _pathologyCtrl.text.trim(),
     target: _targetCtrl.text.trim(),
-    ipg: _ipgCtrl.text.trim(),
+    leftIpg: _leftIpgCtrl.text.trim(),
+    rightIpg: (_sameIpg ? _leftIpgCtrl : _rightIpgCtrl).text.trim(),
   );
 
   /// Fill pathology, target and IPG from an opened or recovered file.
   void _fillSessionDetails(List<SessionRow> rows) {
     _pathologyCtrl.text = sessionValueIn(rows, (r) => r.pathology);
     _targetCtrl.text = sessionValueIn(rows, (r) => r.target);
-    _ipgCtrl.text = sessionValueIn(rows, (r) => r.ipgModel);
+    _leftIpgCtrl.text = sessionValueIn(rows, (r) => r.leftIpgModel);
+    _rightIpgCtrl.text = sessionValueIn(rows, (r) => r.rightIpgModel);
+    _sameIpg =
+        _rightIpgCtrl.text.isEmpty || _rightIpgCtrl.text == _leftIpgCtrl.text;
+  }
+
+  /// Edit and save one of the Setup lists with the shared list editor.
+  Future<void> _editList(
+    String title,
+    List<String> items,
+    void Function(List<String>) keep,
+  ) async {
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => ListEditorDialog(title: title, items: List.of(items)),
+    );
+    if (result == null || !mounted) return;
+    setState(() => keep(result));
+    await saveUserPrefs(_prefs);
   }
 
   /// Move to [step], saving the initial assessment when leaving it and asking
@@ -658,7 +687,8 @@ class _SessionScreenState extends State<SessionScreen> {
       rightElectrodeModel: _rightModelName ?? _modelName ?? '',
       pathology: _sessionDetails.pathology,
       target: _sessionDetails.target,
-      ipgModel: _sessionDetails.ipg,
+      leftIpgModel: _sessionDetails.leftIpg,
+      rightIpgModel: _sessionDetails.rightIpg,
       starred: _starNext,
       notes: _notesRecCtrl.text.trim(),
     );
@@ -940,6 +970,7 @@ class _SessionScreenState extends State<SessionScreen> {
       _initialSaved = null;
       if (bids != null) _fillLabels(bids);
       _fillSessionDetails(_authoring.rows);
+      _selectedClinicalPreset = null;
       if (named.isNotEmpty && !unknownModel) {
         _modelName = named;
         _rightModelName = namedRight.isEmpty || namedRight == named
@@ -947,6 +978,7 @@ class _SessionScreenState extends State<SessionScreen> {
             : namedRight;
       }
     });
+    _loadPathologyScales();
     final opened =
         'Opened ${picked.name} (${_authoring.rows.length} rows, '
         'next block ${_authoring.blockId}, append ${_authoring.appendId}).';
@@ -1241,97 +1273,39 @@ class _SessionScreenState extends State<SessionScreen> {
 
   // ---- Shared UI pieces ----
 
-  List<DropdownMenuItem<String>> _modelItems(ElectrodeCatalog catalog) {
-    final items = <DropdownMenuItem<String>>[];
-    for (final entry in catalog.manufacturers.entries) {
-      items.add(
-        DropdownMenuItem<String>(
-          value: null,
-          enabled: false,
-          child: Text(
-            entry.key,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-      );
-      for (final name in entry.value) {
-        items.add(
-          DropdownMenuItem<String>(
-            value: name,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 12),
-              child: Text(name),
-            ),
-          ),
-        );
-      }
-    }
-    return items;
-  }
-
-  /// Two rows: what was delivered on top, what was observed below.
-  ///
-  /// Row 1 holds the stimulation parameters and the electrode canvases side by
-  /// side, because a contact selection and the amplitude that drives it are one
-  /// decision. Row 2 holds the scales and the notes.
-  ///
-  /// Rows rather than three columns: params, electrodes and
-  /// scales-plus-notes would each take a third of the width, which squeezes
-  /// the sliders and the notes into one narrow column. The split also matches
-  /// the order the work is done in, set the configuration then rate it.
-  ///
-  /// Portrait/narrow keeps the single stacked column; the rows only appear once
-  /// there is width to split.
+  /// Two rows: the configuration (parameters beside electrodes) and the
+  /// observations (scales beside notes), the observations first when
+  /// [observationsFirst]. Narrow screens stack everything in one column.
   Widget _stepBody(
     Widget params,
     Widget electrodes,
     Widget scalesCard,
-    TextEditingController notesCtrl,
-  ) {
+    Widget notes, {
+    bool observationsFirst = false,
+  }) {
     return LayoutBuilder(
       builder: (context, c) {
-        if (c.maxWidth >= 900) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Row 1: the configuration.
-              Row(
+        final wide = c.maxWidth >= 900;
+        Widget pair(Widget a, Widget b) => wide
+            ? Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: params),
+                  Expanded(child: a),
                   const SizedBox(width: 12),
-                  Expanded(child: electrodes),
+                  Expanded(child: b),
                 ],
-              ),
-              const Divider(height: 28, thickness: 1.2),
-              // Row 2: the observations. Scales on the left, the notes on the
-              // right, so a long scale list and a long note grow independently
-              // instead of pushing each other down.
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: scalesCard),
-                  const SizedBox(width: 12),
-                  Expanded(child: _notesField(notesCtrl)),
-                ],
-              ),
-            ],
-          );
-        }
-        // Portrait: one column, in the same order.
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [a, const SizedBox(height: 12), b],
+              );
+        final rows = [pair(params, electrodes), pair(scalesCard, notes)];
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            params,
-            const SizedBox(height: 12),
-            electrodes,
+            observationsFirst ? rows[1] : rows[0],
             const Divider(height: 28, thickness: 1.2),
-            scalesCard,
-            // Portrait: no neighbouring column to line up with, so the notes
-            // field starts modest and grows with the text instead of filling a
-            // height borrowed from the scales card.
-            const SizedBox(height: 12),
-            _notesField(notesCtrl),
+            observationsFirst ? rows[0] : rows[1],
           ],
         );
       },
@@ -1348,63 +1322,111 @@ class _SessionScreenState extends State<SessionScreen> {
       }
     }
 
-    Widget menu(String? value, String hint, ValueChanged<String?> onChanged) =>
-        DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            value: value,
-            isExpanded: true,
-            isDense: true,
-            hint: Text(hint),
-            items: _modelItems(catalog),
-            onChanged: onChanged,
-          ),
+    Widget menu(String? value, String label, ValueChanged<String?> onChanged) =>
+        DropdownMenu<String>(
+          key: ValueKey('$label $value'),
+          initialSelection: value,
+          label: Text(label),
+          expandedInsets: EdgeInsets.zero,
+          requestFocusOnTap: false,
+          onSelected: (name) {
+            if (name != null) onChanged(name);
+          },
+          dropdownMenuEntries: [
+            for (final group in catalog.manufacturers.entries) ...[
+              DropdownMenuEntry(
+                value: '#${group.key}',
+                label: group.key,
+                enabled: false,
+                labelWidget: Text(
+                  group.key,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              for (final name in group.value)
+                DropdownMenuEntry(
+                  value: name,
+                  label: name,
+                  leadingIcon: const SizedBox(width: 12),
+                ),
+            ],
+          ],
         );
 
     final same = _rightModelName == null;
+    final ipgs = [for (final names in catalog.ipgs.values) ...names];
+    final ipgLocked =
+        sessionValueIn(_authoring.rows, (r) => r.leftIpgModel) != '';
+    Widget heading(String text) => Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 6),
+      child: Text(text, style: Theme.of(context).textTheme.labelLarge),
+    );
     return GroupCard(
       title: 'Devices',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          menu(
-            _modelName,
-            same ? 'Select model' : 'Select left lead model',
-            (name) => setState(() {
-              _modelName = name;
-              reset(
-                same
-                    ? [_leftInit, _rightInit, _leftRec, _rightRec]
-                    : [_leftInit, _leftRec],
-              );
-            }),
-          ),
-          CheckboxListTile(
-            value: same,
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            title: const Text('Same model on both sides'),
-            onChanged: (v) => setState(() {
-              _rightModelName = v ?? true ? null : _modelName;
-            }),
-          ),
-          if (!same)
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            heading('Leads'),
             menu(
-              _rightModelName,
-              'Select right lead model',
+              _modelName,
+              same ? 'Lead model' : 'Left lead model',
               (name) => setState(() {
-                _rightModelName = name;
-                reset([_rightInit, _rightRec]);
+                _modelName = name;
+                reset(
+                  same
+                      ? [_leftInit, _rightInit, _leftRec, _rightRec]
+                      : [_leftInit, _leftRec],
+                );
               }),
             ),
-          const SizedBox(height: 12),
-          _choiceField(
-            controller: _ipgCtrl,
-            label: 'IPG (implanted pulse generator)',
-            options: [for (final names in catalog.ipgs.values) ...names],
-            locked: sessionValueIn(_authoring.rows, (r) => r.ipgModel) != '',
-          ),
-        ],
+            CheckboxListTile(
+              value: same,
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text('Same model on both sides'),
+              onChanged: (v) => setState(() {
+                _rightModelName = v ?? true ? null : _modelName;
+              }),
+            ),
+            if (!same)
+              menu(
+                _rightModelName,
+                'Right lead model',
+                (name) => setState(() {
+                  _rightModelName = name;
+                  reset([_rightInit, _rightRec]);
+                }),
+              ),
+            const Divider(height: 24),
+            heading('Implanted pulse generator (IPG)'),
+            _choiceField(
+              controller: _leftIpgCtrl,
+              label: _sameIpg ? 'IPG model' : 'Left IPG model',
+              options: ipgs,
+              locked: ipgLocked,
+            ),
+            CheckboxListTile(
+              value: _sameIpg,
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text('Same IPG on both sides'),
+              onChanged: ipgLocked
+                  ? null
+                  : (v) => setState(() => _sameIpg = v ?? true),
+            ),
+            if (!_sameIpg)
+              _choiceField(
+                controller: _rightIpgCtrl,
+                label: 'Right IPG model',
+                options: ipgs,
+                locked: ipgLocked,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1830,129 +1852,277 @@ class _SessionScreenState extends State<SessionScreen> {
     ScalePresets presets,
     StimLimits limits,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (canWriteChosenFolder)
-          SaveFolderRow(folder: _prefs.saveFolder, onChoose: _chooseSaveFolder),
-        Row(
+    final pathologies = _prefs.pathologies ?? presets.pathologies;
+    final targets = _prefs.targets ?? presets.targets;
+    final started = _workingPath != null || widget.authoring != null;
+    const field = InputDecoration(border: OutlineInputBorder());
+    Widget gear(String tooltip, VoidCallback onPressed) => IconButton(
+      icon: const Icon(Icons.settings),
+      tooltip: tooltip,
+      onPressed: onPressed,
+    );
+
+    final session = GroupCard(
+      title: 'Patient and session file',
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: TextField(
-                controller: _subjectCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Patient ID (sub-)',
-                  isDense: true,
-                ),
+            if (canWriteChosenFolder)
+              SaveFolderRow(
+                folder: _prefs.saveFolder,
+                onChoose: _chooseSaveFolder,
               ),
+            TextField(
+              controller: _subjectCtrl,
+              decoration: field.copyWith(labelText: 'Patient ID'),
             ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 160,
-              child: TextField(
-                controller: _taskCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Task (task-)',
-                  isDense: true,
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                SizedBox(
+                  width: 120,
+                  child: TextField(
+                    controller: _runCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: field.copyWith(labelText: 'Run'),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _taskCtrl,
+                    decoration: field.copyWith(labelText: 'Task'),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 90,
-              child: TextField(
-                controller: _runCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Run',
-                  isDense: true,
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: _newSession,
+                  icon: const Icon(Icons.note_add_outlined),
+                  label: const Text('New session'),
                 ),
-              ),
+                OutlinedButton.icon(
+                  onPressed: _open,
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('Open saved session'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(
+                  started ? Icons.check_circle_outline : Icons.info_outline,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    started
+                        ? 'Session started: ${_bidsName(_labels).filename}'
+                        : 'Enter the patient ID, then start a new session '
+                              'or open a saved one.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        Row(
+      ),
+    );
+
+    final clinical = GroupCard(
+      title: 'Clinical details',
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _choiceField(
+                    controller: _pathologyCtrl,
+                    label: 'Pathology',
+                    options: pathologies,
+                    typed: false,
+                    locked:
+                        sessionValueIn(_authoring.rows, (r) => r.pathology) !=
+                        '',
+                    onSelected: (p) {
+                      if (p == null) return;
+                      setState(() {});
+                      if (_selectedClinicalPreset == null &&
+                          presets.buttons.contains(p)) {
+                        _applyClinicalPreset(p, presets, limits);
+                      }
+                    },
+                  ),
+                ),
+                gear(
+                  'Edit pathologies',
+                  () => _editList(
+                    'Pathologies',
+                    pathologies,
+                    (l) => _prefs.pathologies = l,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _choiceField(
+                    controller: _targetCtrl,
+                    label: 'Anatomical target',
+                    options: targets,
+                    typed: false,
+                    locked:
+                        sessionValueIn(_authoring.rows, (r) => r.target) != '',
+                  ),
+                ),
+                gear(
+                  'Edit targets',
+                  () => _editList(
+                    'Anatomical targets',
+                    targets,
+                    (l) => _prefs.targets = l,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        if (c.maxWidth < 900) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              session,
+              const SizedBox(height: 16),
+              clinical,
+              const SizedBox(height: 16),
+              _modelCard(catalog),
+            ],
+          );
+        }
+        return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Expanded(child: session),
+            const SizedBox(width: 16),
             Expanded(
-              child: _choiceField(
-                controller: _pathologyCtrl,
-                label: 'Pathology',
-                options: presets.buttons,
-                typed: false,
-                locked:
-                    sessionValueIn(_authoring.rows, (r) => r.pathology) != '',
-                onSelected: (p) {
-                  if (p == null) return;
-                  setState(() {});
-                  if (_selectedClinicalPreset == null) {
-                    _applyClinicalPreset(p, presets, limits);
-                  }
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _choiceField(
-                controller: _targetCtrl,
-                label: 'Anatomical target',
-                options: presets.targets[_pathologyCtrl.text] ?? const [],
-                locked: sessionValueIn(_authoring.rows, (r) => r.target) != '',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  clinical,
+                  const SizedBox(height: 16),
+                  _modelCard(catalog),
+                ],
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            OutlinedButton.icon(
-              onPressed: _newSession,
-              icon: const Icon(Icons.note_add_outlined),
-              label: const Text('New'),
-            ),
-            const SizedBox(width: 12),
-            OutlinedButton.icon(
-              onPressed: _open,
-              icon: const Icon(Icons.folder_open),
-              label: const Text('Open existing TSV'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          _authoring.rows.isEmpty
-              ? 'Empty session. The first insert is block 0.'
-              : '${_authoring.rows.length} rows loaded; next block '
-                    '${_authoring.blockId}, append ${_authoring.appendId}.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 16),
-        _modelCard(catalog),
-      ],
+        );
+      },
     );
   }
 
-  /// Add a disease preset's clinical scales, skipping names already listed.
-  /// The first preset chosen is the session's and also loads its ratings.
+  /// Load the session pathology's clinical scales and ratings.
   void _applyClinicalPreset(
     String preset,
     ScalePresets presets,
     StimLimits limits,
   ) {
     setState(() {
-      final first = _selectedClinicalPreset == null;
-      _selectedClinicalPreset ??= preset;
-      final listed = {for (final s in _clinicalScales) s.name.text.trim()};
-      for (final name in clinicalRows(presets, preset)) {
-        if (listed.add(name)) {
-          _clinicalScales.add(_ClinicalScaleEdit()..name.text = name);
-        }
-      }
-      if (first && presets.session.containsKey(preset)) {
-        _loadSessionPresetRows(preset, presets, limits);
-      }
+      _selectedClinicalPreset = preset;
+      _addClinicalScales(preset, presets);
+      _loadSessionPresetRows(preset, presets, limits);
     });
+  }
+
+  /// Add a group's clinical scales, skipping names already listed. Call
+  /// inside setState.
+  void _addClinicalScales(String group, ScalePresets presets) {
+    final listed = {for (final s in _clinicalScales) s.name.text.trim()};
+    for (final name in clinicalRows(presets, group)) {
+      if (listed.add(name)) {
+        _clinicalScales.add(_ClinicalScaleEdit()..name.text = name);
+      }
+    }
+  }
+
+  /// Load the scales of the pathology recorded in an opened file.
+  Future<void> _loadPathologyScales() async {
+    final pathology = _pathologyCtrl.text.trim();
+    if (pathology.isEmpty || _selectedClinicalPreset != null) return;
+    final (_, limits, raw) = await _contracts;
+    final presets = mergeScalePresets(raw, _prefs);
+    if (mounted && presets.buttons.contains(pathology)) {
+      _applyClinicalPreset(pathology, presets, limits);
+    }
+  }
+
+  /// A "+" menu with one submenu per pathology, the session's own first, in
+  /// which a ticked scale is one currently listed; ticking adds it, unticking
+  /// removes it. [onEmpty] adds a blank row.
+  Widget _addScalesMenu({
+    required ScalePresets presets,
+    required String tooltip,
+    required List<String> Function(String group) namesOf,
+    required bool Function(String name) listed,
+    required void Function(String group, String name, bool on) onToggle,
+    VoidCallback? onEmpty,
+  }) {
+    final own = _selectedClinicalPreset;
+    final groups = [
+      if (own != null && presets.buttons.contains(own)) own,
+      for (final g in presets.buttons)
+        if (g != own) g,
+    ];
+    return MenuAnchor(
+      builder: (context, controller, _) => IconButton(
+        icon: const Icon(Icons.add),
+        tooltip: tooltip,
+        onPressed: () =>
+            controller.isOpen ? controller.close() : controller.open(),
+      ),
+      menuChildren: [
+        for (final g in groups)
+          SubmenuButton(
+            menuChildren: [
+              for (final name in namesOf(g))
+                CheckboxMenuButton(
+                  value: listed(name),
+                  closeOnActivate: false,
+                  onChanged: (on) =>
+                      setState(() => onToggle(g, name, on ?? false)),
+                  child: Text(name),
+                ),
+            ],
+            child: Text('Scales for $g'),
+          ),
+        if (onEmpty != null) ...[
+          const Divider(height: 8),
+          MenuItemButton(
+            onPressed: onEmpty,
+            child: const Text('One empty scale'),
+          ),
+        ],
+      ],
+    );
   }
 
   /// Edit + persist the clinical scale presets via the desktop-style group
@@ -1971,7 +2141,15 @@ class _SessionScreenState extends State<SessionScreen> {
       _prefs.clinicalRanges = edited.ranges;
     });
     await saveUserPrefs(_prefs);
-    if (mounted) _snack('Clinical scale presets saved.');
+    final (_, _, raw) = await _contracts;
+    if (!mounted) return;
+    final pathology = _selectedClinicalPreset;
+    if (pathology != null) {
+      setState(
+        () => _addClinicalScales(pathology, mergeScalePresets(raw, _prefs)),
+      );
+    }
+    _snack('Clinical scale presets saved.');
   }
 
   /// Edit and persist the session scale presets via the group editor: all
@@ -1984,27 +2162,19 @@ class _SessionScreenState extends State<SessionScreen> {
     if (edited == null) return;
     setState(() => _prefs.session = edited);
     await saveUserPrefs(_prefs);
-    if (mounted) _snack('Session scale presets saved.');
-  }
-
-  /// Disease preset pill: plain when unselected, a solid brand-green fill with
-  /// a black label when selected.
-  Widget _presetChip(String preset, bool selected, VoidCallback onTap) {
-    // A filled pill rather than a tint plus a coloured border: the brand green
-    // is 1.64:1 on white, so as an outline it would be close to invisible,
-    // while black on it is 12.8:1.
-    return ChoiceChip(
-      label: Text(preset),
-      selected: selected,
-      showCheckmark: false,
-      onSelected: (_) => onTap(),
-      selectedColor: DbsColors.green,
-      side: selected ? BorderSide.none : null,
-      labelStyle: TextStyle(
-        color: selected ? DbsColors.black : null,
-        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-      ),
-    );
+    final (_, limits, raw) = await _contracts;
+    if (!mounted) return;
+    final pathology = _selectedClinicalPreset;
+    if (pathology != null) {
+      setState(
+        () => _loadSessionPresetRows(
+          pathology,
+          mergeScalePresets(raw, _prefs),
+          limits,
+        ),
+      );
+    }
+    _snack('Session scale presets saved.');
   }
 
   Widget _clinicalScalesCard(ScalePresets presets, StimLimits limits) {
@@ -2036,30 +2206,30 @@ class _SessionScreenState extends State<SessionScreen> {
                   tooltip: 'Settings clinical scales',
                   onPressed: () => _editClinicalPresets(presets),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  tooltip: 'Add clinical scale',
-                  onPressed: () =>
+                _addScalesMenu(
+                  presets: presets,
+                  tooltip: 'Add clinical scales',
+                  namesOf: (g) => clinicalRows(presets, g),
+                  listed: (name) =>
+                      _clinicalScales.any((s) => s.name.text.trim() == name),
+                  onToggle: (_, name, on) {
+                    if (on) {
+                      _clinicalScales.add(
+                        _ClinicalScaleEdit()..name.text = name,
+                      );
+                      return;
+                    }
+                    final gone = _clinicalScales
+                        .where((s) => s.name.text.trim() == name)
+                        .toList();
+                    _clinicalScales.removeWhere(gone.contains);
+                    _removedClinical.addAll(gone);
+                  },
+                  onEmpty: () =>
                       setState(() => _clinicalScales.add(_ClinicalScaleEdit())),
                 ),
               ],
             ),
-            if (presets.buttons.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final preset in presets.buttons)
-                      _presetChip(
-                        preset,
-                        _selectedClinicalPreset == preset,
-                        () => _applyClinicalPreset(preset, presets, limits),
-                      ),
-                  ],
-                ),
-              ),
             for (final scale in _clinicalScales)
               Row(
                 children: [
@@ -2130,21 +2300,28 @@ class _SessionScreenState extends State<SessionScreen> {
               'How the patient is on arrival, before any change. '
               'Saved when you press Next.',
             ),
-            TextField(
-              controller: _medicationsCtrl,
-              minLines: 2,
-              maxLines: null,
-              decoration: const InputDecoration(
-                labelText: 'Medications',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
             _stepBody(
               _paramsColumn(leads, limits, left: _leftInit, right: _rightInit),
               _electrodesColumn(leads, _leftInit, _rightInit),
               _clinicalScalesCard(presets, limits),
-              _notesInitCtrl,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: _medicationsCtrl,
+                    minLines: 3,
+                    maxLines: null,
+                    decoration: const InputDecoration(
+                      labelText: 'Medications',
+                      border: OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _notesField(_notesInitCtrl),
+                ],
+              ),
+              observationsFirst: true,
             ),
           ],
         ),
@@ -2157,153 +2334,39 @@ class _SessionScreenState extends State<SessionScreen> {
     child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
   );
 
-  // ---- Step 2: Session scales (definition only, no TSV write) ----
-
-  void _applySessionPreset(
-    String preset,
-    ScalePresets presets,
-    StimLimits limits,
-  ) {
-    setState(() => _loadSessionPresetRows(preset, presets, limits));
-  }
-
-  /// Add a preset's rating rows, skipping names already listed. Call inside
-  /// setState.
+  /// Add a group's rating rows, and refresh the range, step and target of rows
+  /// already listed under the same name. Call inside setState.
   void _loadSessionPresetRows(
     String preset,
     ScalePresets presets,
     StimLimits limits,
   ) {
     final fallback = limits.sessionScale;
-    _selectedSessionPreset ??= preset;
-    final listed = {for (final s in _sessionScales) s.name.text.trim()};
+    final listed = {for (final s in _sessionScales) s.name.text.trim(): s};
     for (final row in sessionRows(presets, preset)) {
-      if (!listed.add(row.name)) continue;
-      _sessionScales.add(
-        _SessionScaleEdit(
-          min: double.tryParse(row.min) ?? fallback.min,
-          max: double.tryParse(row.max) ?? fallback.max,
-          name: row.name,
-          mode: scaleModeFromString(row.mode),
-          step: double.tryParse(row.step),
-        ),
-      );
+      final min = double.tryParse(row.min) ?? fallback.min;
+      final max = double.tryParse(row.max) ?? fallback.max;
+      if (listed[row.name] case final s?) {
+        s.minCtrl.text = _fmtValue(min);
+        s.maxCtrl.text = _fmtValue(max);
+        s.mode = scaleModeFromString(row.mode);
+        s.step = double.tryParse(row.step);
+        continue;
+      }
+      _sessionScales.add(_sessionScaleFrom(row, limits));
     }
   }
 
-  Widget _scalesStep(StimLimits limits, ScalePresets presets) {
-    final range = limits.sessionScale;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Session scales configuration',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.settings),
-              tooltip: 'Settings session scales',
-              onPressed: () => _editSessionPresets(presets),
-            ),
-            IconButton(
-              icon: const Icon(Icons.add),
-              tooltip: 'Add session scale',
-              onPressed: () => setState(
-                () => _sessionScales.add(
-                  _SessionScaleEdit(min: range.min, max: range.max),
-                ),
-              ),
-            ),
-          ],
-        ),
-        if (presets.buttons.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final preset in presets.buttons)
-                  _presetChip(
-                    preset,
-                    _selectedSessionPreset == preset,
-                    () => _applySessionPreset(preset, presets, limits),
-                  ),
-              ],
-            ),
-          ),
-        for (final scale in _sessionScales)
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: scale.name,
-                  decoration: const InputDecoration(
-                    labelText: 'Scale name',
-                    isDense: true,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 80,
-                child: TextField(
-                  controller: scale.minCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Min',
-                    isDense: true,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 80,
-                child: TextField(
-                  controller: scale.maxCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Max',
-                    isDense: true,
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.remove_circle_outline),
-                tooltip: 'Remove session scale',
-                onPressed: () => setState(() {
-                  _sessionScales.remove(scale);
-                  _removedSession.add(scale);
-                }),
-              ),
-            ],
-          ),
-        Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            _sessionScales.isEmpty
-                ? 'No session scales. Recording inserts write one '
-                      'scale-less row (like the desktop).'
-                : 'These scales are rated in the Recording step; nothing is '
-                      'written to the TSV here.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ),
-      ],
-    );
-  }
+  _SessionScaleEdit _sessionScaleFrom(SessionScaleRow row, StimLimits limits) =>
+      _SessionScaleEdit(
+        min: double.tryParse(row.min) ?? limits.sessionScale.min,
+        max: double.tryParse(row.max) ?? limits.sessionScale.max,
+        name: row.name,
+        mode: scaleModeFromString(row.mode),
+        step: double.tryParse(row.step),
+      );
 
-  // ---- Step 3: Recording ----
-
-  /// One rating row: name, a bar bounded by the Step-2 min/max, and the
+  /// One rating row: name, a bar bounded by the scale's min/max, and the
   /// not-assessed switch, written as the contract's omitted literal.
   Widget _ratingRow(_SessionScaleEdit scale, StimLimits limits) {
     final min = scale.minOr(limits.sessionScale.min);
@@ -2339,7 +2402,7 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  Widget _ratingsCard(StimLimits limits) {
+  Widget _ratingsCard(StimLimits limits, ScalePresets presets) {
     return Card(
       // Warm fill + outline to match GroupCard (dark-safe; no M3 blue).
       color: DbsColors.cardFill(
@@ -2356,15 +2419,54 @@ class _SessionScreenState extends State<SessionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Session scale ratings',
-              style: Theme.of(context).textTheme.titleMedium,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Ratings for this configuration',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  tooltip: 'Settings session scales',
+                  onPressed: () => _editSessionPresets(presets),
+                ),
+                _addScalesMenu(
+                  presets: presets,
+                  tooltip: 'Add ratings',
+                  namesOf: (g) => [
+                    for (final r in sessionRows(presets, g)) r.name,
+                  ],
+                  listed: (name) =>
+                      _sessionScales.any((s) => s.name.text.trim() == name),
+                  onToggle: (g, name, on) {
+                    if (on) {
+                      _sessionScales.add(
+                        _sessionScaleFrom(
+                          sessionRows(
+                            presets,
+                            g,
+                          ).firstWhere((r) => r.name == name),
+                          limits,
+                        ),
+                      );
+                      return;
+                    }
+                    final gone = _sessionScales
+                        .where((s) => s.name.text.trim() == name)
+                        .toList();
+                    _sessionScales.removeWhere(gone.contains);
+                    _removedSession.addAll(gone);
+                  },
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             if (_sessionScales.isEmpty)
               const Text(
-                'No session scales defined. Add them in the '
-                'Session scales step.',
+                'No ratings yet. Choose the pathology in Setup, or add '
+                'ratings with +.',
               )
             else
               for (final scale in _sessionScales) _ratingRow(scale, limits),
@@ -2379,6 +2481,7 @@ class _SessionScreenState extends State<SessionScreen> {
   Widget _recordingStep(
     ElectrodeCatalog catalog,
     StimLimits limits,
+    ScalePresets presets,
     _Leads leads,
   ) {
     return Column(
@@ -2388,8 +2491,8 @@ class _SessionScreenState extends State<SessionScreen> {
         _stepBody(
           _paramsColumn(leads, limits, left: _leftRec, right: _rightRec),
           _electrodesColumn(leads, _leftRec, _rightRec),
-          _ratingsCard(limits),
-          _notesRecCtrl,
+          _ratingsCard(limits, presets),
+          _notesField(_notesRecCtrl),
         ),
         const SizedBox(height: 12),
         SwitchListTile(
@@ -2549,8 +2652,7 @@ class _SessionScreenState extends State<SessionScreen> {
           final contents = <Widget Function()>[
             () => _setupStep(catalog, presets, limits),
             () => _initialStep(limits, presets, leads),
-            () => _scalesStep(limits, presets),
-            () => _recordingStep(catalog, limits, leads),
+            () => _recordingStep(catalog, limits, presets, leads),
             () => _finishView(leads),
           ];
           final l = _labels;
@@ -2570,8 +2672,11 @@ class _SessionScreenState extends State<SessionScreen> {
                     if (_modelName case final left?)
                       'Lead $left'
                           '${_rightModelName == null ? '' : ' / $_rightModelName'}',
-                    if (_sessionDetails.ipg.isNotEmpty)
-                      'IPG ${_sessionDetails.ipg}',
+                    if (_sessionDetails.leftIpg.isNotEmpty)
+                      _sessionDetails.rightIpg == _sessionDetails.leftIpg
+                          ? 'IPG ${_sessionDetails.leftIpg}'
+                          : 'IPG ${_sessionDetails.leftIpg} / '
+                                '${_sessionDetails.rightIpg}',
                   ],
                   onTap: () => _goTo(0),
                 ),

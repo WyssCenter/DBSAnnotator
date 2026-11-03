@@ -10,6 +10,7 @@ import 'package:dbs_annotator/ui/scale_slider.dart';
 import 'package:dbs_annotator/ui/session_screen.dart';
 import 'package:dbs_annotator/ui/stim_params_form.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Headless tests for the Complete-Workflow 4-step wizard. Contracts are
@@ -54,6 +55,49 @@ void main() {
     await tester.pump();
   }
 
+  Future<void> choosePathology(WidgetTester tester, String pathology) async {
+    await tester.tap(find.widgetWithText(DropdownMenu<String>, 'Pathology'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(pathology).last);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> openScales(
+    WidgetTester tester,
+    String tooltip,
+    String group,
+  ) async {
+    await tester.ensureVisible(find.byTooltip(tooltip));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip(tooltip));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Scales for $group'));
+    await tester.pumpAndSettle();
+  }
+
+  bool? ticked(WidgetTester tester, String name) => tester
+      .widget<CheckboxMenuButton>(find.widgetWithText(CheckboxMenuButton, name))
+      .value;
+
+  Future<void> closeMenu(WidgetTester tester) async {
+    for (var i = 0; i < 2; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+    }
+  }
+
+  Future<void> tickScale(
+    WidgetTester tester,
+    String tooltip,
+    String group,
+    String name,
+  ) async {
+    await openScales(tester, tooltip, group);
+    await tester.tap(find.widgetWithText(CheckboxMenuButton, name));
+    await tester.pumpAndSettle();
+    await closeMenu(tester);
+  }
+
   /// Advance the wizard [steps] times with the bottom bar's Next button.
   Future<void> tapNext(WidgetTester tester, [int steps = 1]) async {
     for (var i = 0; i < steps; i++) {
@@ -73,7 +117,7 @@ void main() {
       find.textContaining('press New, or open a saved session'),
       findsOneWidget,
     );
-    expect(find.text('Patient ID (sub-)'), findsOneWidget);
+    expect(find.text('Patient ID'), findsOneWidget);
     expect(find.text('Frequency'), findsNothing);
   });
 
@@ -81,7 +125,7 @@ void main() {
     tester,
   ) async {
     await pumpWizard(tester, open: false);
-    await tester.tap(find.text('New'));
+    await tester.tap(find.text('New session'));
     await tester.pump();
     expect(find.text('Enter the patient ID first.'), findsOneWidget);
     expect(find.textContaining('Where should'), findsNothing);
@@ -96,21 +140,22 @@ void main() {
     for (final step in [
       'Setup',
       'Initial assessment',
-      'Ratings',
       'Programming',
       'Finish',
     ]) {
       expect(find.text(step), findsWidgets);
     }
+    expect(find.text('Ratings'), findsNothing);
 
     // Setup: patient and run, New / Open, and the electrode; no stimulation.
-    expect(find.text('Patient ID (sub-)'), findsOneWidget);
-    expect(find.text('New'), findsOneWidget);
-    expect(find.text('Open existing TSV'), findsOneWidget);
+    expect(find.text('Patient ID'), findsOneWidget);
+    expect(find.text('New session'), findsOneWidget);
+    expect(find.text('Open saved session'), findsOneWidget);
     expect(find.text('Same model on both sides'), findsOneWidget);
     expect(find.text('Frequency'), findsNothing);
 
-    // Initial assessment: L/R stimulation, clinical pills, no insert button.
+    // Initial assessment: L/R stimulation and clinical scales, no buttons
+    // per pathology and no insert button.
     await tapNext(tester);
     // The default model (Medtronic SenSight B33005) is preselected, so both
     // canvases render immediately instead of the "select a model" placeholder.
@@ -120,28 +165,18 @@ void main() {
     expect(find.text('Amplitude'), findsNWidgets(2));
     expect(find.text('Pulse width'), findsNWidgets(2));
     expect(find.text('Insert baseline'), findsNothing);
-    for (final name in scalePresets.buttons) {
-      expect(find.widgetWithText(ChoiceChip, name), findsOneWidget);
-    }
+    expect(find.byType(ChoiceChip), findsNothing);
 
-    // A pill adds that preset's scales; names already listed are skipped.
-    await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'OCD'));
-    await tester.tap(find.widgetWithText(ChoiceChip, 'OCD'));
-    await tester.pump();
+    // + opens each pathology's scales as tick boxes; ticking adds a scale,
+    // and a listed scale shows ticked wherever it appears.
+    await tickScale(tester, 'Add clinical scales', 'OCD', 'Y-BOCS');
     expect(find.widgetWithText(TextField, 'Y-BOCS'), findsOneWidget);
-    await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'MDD'));
-    await tester.tap(find.widgetWithText(ChoiceChip, 'MDD'));
-    await tester.pump();
-    expect(find.widgetWithText(TextField, 'Y-BOCS'), findsOneWidget);
-    expect(
-      find.text('Score'),
-      findsNWidgets(
-        {
-          ...scalePresets.clinical['OCD']!,
-          ...scalePresets.clinical['MDD']!,
-        }.length,
-      ),
-    );
+    await openScales(tester, 'Add clinical scales', 'OCD');
+    expect(ticked(tester, 'Y-BOCS'), isTrue);
+    expect(ticked(tester, 'Y-BOCS-o'), isFalse);
+    await closeMenu(tester);
+    await tickScale(tester, 'Add clinical scales', 'MDD', 'HAM-D');
+    expect(find.text('Score'), findsNWidgets(2));
 
     // Next writes ONE is_initial=1 block, one row per scored scale.
     await tester.enterText(find.widgetWithText(TextField, 'Score').first, '12');
@@ -163,7 +198,6 @@ void main() {
     expect(authoring.blockId, 1);
 
     // Programming lists the initial assessment in the review table.
-    await tapNext(tester);
     expect(find.text('Initial'), findsWidgets);
     expect(find.text('Y-BOCS'), findsWidgets);
     expect(find.text('Save configuration'), findsOneWidget);
@@ -196,12 +230,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('PD').last);
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Anatomical target'),
-      'STN',
+    await tester.tap(
+      find.widgetWithText(DropdownMenu<String>, 'Anatomical target'),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('STN').last);
+    await tester.pumpAndSettle();
     await tester.enterText(
-      find.widgetWithText(TextField, 'IPG (implanted pulse generator)'),
+      find.widgetWithText(TextField, 'IPG model'),
       'Medtronic Percept PC',
     );
     await tester.pump();
@@ -214,7 +250,7 @@ void main() {
       'Levodopa 100 mg',
     );
     await tester.enterText(find.widgetWithText(TextField, 'Score').first, '30');
-    await tapNext(tester, 2);
+    await tapNext(tester);
 
     final starSwitch = find.text('Star this configuration');
     await tester.ensureVisible(starSwitch);
@@ -242,7 +278,8 @@ void main() {
         (r) =>
             r.pathology == 'PD' &&
             r.target == 'STN' &&
-            r.ipgModel == 'Medtronic Percept PC',
+            r.leftIpgModel == 'Medtronic Percept PC' &&
+            r.rightIpgModel == 'Medtronic Percept PC',
       ),
       isTrue,
     );
@@ -374,26 +411,17 @@ void main() {
     expect(find.text('Not a number'), findsNothing);
   });
 
-  testWidgets('session scales defined in Step 2 become Step-3 rating rows; '
-      'an omitted scale is inserted as "n/a"', (tester) async {
+  testWidgets('the pathology chosen in Setup sets the ratings; an omitted '
+      'scale is inserted as "n/a"', (tester) async {
     final authoring = SessionAuthoring();
     await pumpWizard(tester, authoring: authoring);
-    await tapNext(tester, 2); // Step 2.
+    await choosePathology(tester, 'PD');
+    await tapNext(tester, 2);
 
-    // A session pill adds that preset's (name, min, max) rows.
-    await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'PD'));
-    await tester.tap(find.widgetWithText(ChoiceChip, 'PD'));
-    await tester.pump();
+    // Programming: one rating row per PD scale, each with a bar and an omit
+    // ("not assessed") toggle.
     final pdRows = scalePresets.session['PD']!;
     const first = 'MDS-UPDRS 3.3 Rigidity RUE';
-    expect(find.widgetWithText(TextField, first), findsOneWidget);
-    expect(find.text('Min'), findsNWidgets(pdRows.length));
-    expect(find.text('Max'), findsNWidgets(pdRows.length));
-
-    // Programming: one rating row per scale, each with a bar and an omit
-    // ("not assessed") toggle.
-    await tapNext(tester);
-    // One custom ScaleSlider (bar + chevrons + X-omit) per Step-2 scale.
     expect(find.byType(ScaleSlider), findsNWidgets(pdRows.length));
     expect(find.text(first), findsOneWidget);
 
@@ -423,5 +451,15 @@ void main() {
     // The recording rows appear in the inserted-entries review table.
     expect(find.text('Rec'), findsWidgets);
     expect(find.text('No entries inserted yet.'), findsNothing);
+
+    // The session's own pathology shows its ratings ticked; ticking another
+    // pathology's rating adds it, unticking one removes it.
+    await openScales(tester, 'Add ratings', 'PD');
+    expect(ticked(tester, first), isTrue);
+    await closeMenu(tester);
+    await tickScale(tester, 'Add ratings', 'ET', 'Action tremor');
+    expect(find.byType(ScaleSlider), findsNWidgets(pdRows.length + 1));
+    await tickScale(tester, 'Add ratings', 'PD', 'MDS-UPDRS 3.1 Speech');
+    expect(find.byType(ScaleSlider), findsNWidgets(pdRows.length));
   });
 }

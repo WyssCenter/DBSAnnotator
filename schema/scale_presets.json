@@ -8,38 +8,31 @@
     "Dystonia",
     "TS"
   ],
-  "targets": {
-    "OCD": [
-      "ALIC",
-      "VC/VS",
-      "NAcc",
-      "STN",
-      "BNST"
-    ],
-    "MDD": [
-      "SCC",
-      "ALIC",
-      "VC/VS",
-      "MFB",
-      "NAcc"
-    ],
-    "PD": [
-      "STN",
-      "GPi"
-    ],
-    "ET": [
-      "VIM"
-    ],
-    "Dystonia": [
-      "GPi",
-      "STN"
-    ],
-    "TS": [
-      "CM-Pf",
-      "GPi",
-      "ALIC"
-    ]
-  },
+  "pathologies": [
+    "PD",
+    "ET",
+    "Dystonia",
+    "OCD",
+    "MDD",
+    "TS",
+    "Epilepsy",
+    "Chronic pain"
+  ],
+  "targets": [
+    "STN",
+    "GPi",
+    "VIM",
+    "ALIC",
+    "VC/VS",
+    "NAcc",
+    "BNST",
+    "SCC",
+    "MFB",
+    "CM-Pf",
+    "ANT",
+    "PPN",
+    "Fornix"
+  ],
   "clinical": {
     "OCD": [
       "Y-BOCS",

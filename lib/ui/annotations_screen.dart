@@ -336,7 +336,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
               child: TextField(
                 controller: _subjectCtrl,
                 decoration: const InputDecoration(
-                  labelText: 'Patient ID (sub-)',
+                  labelText: 'Patient ID',
                   isDense: true,
                 ),
               ),
@@ -347,7 +347,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
               child: TextField(
                 controller: _taskCtrl,
                 decoration: const InputDecoration(
-                  labelText: 'Task (task-)',
+                  labelText: 'Task',
                   isDense: true,
                 ),
               ),

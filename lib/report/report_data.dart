@@ -1144,14 +1144,20 @@ SessionReportData buildSessionReportData({
   final initScales = _collectScalePairs(initSessionRows);
   final initNotes = latestInit?.notes.trim() ?? '';
   final starred = starredBlocksIn(rows);
+  final leftIpg = sessionValueIn(rows, (r) => r.leftIpgModel);
+  final rightIpg = sessionValueIn(rows, (r) => r.rightIpgModel);
   final sessionDetails = [
-    for (final (label, field) in [
-      ('Pathology', (SessionRow r) => r.pathology),
-      ('Target', (SessionRow r) => r.target),
-      ('IPG', (SessionRow r) => r.ipgModel),
+    for (final (label, value) in [
+      ('Pathology', sessionValueIn(rows, (r) => r.pathology)),
+      ('Target', sessionValueIn(rows, (r) => r.target)),
+      (
+        'IPG',
+        rightIpg.isEmpty || rightIpg == leftIpg
+            ? leftIpg
+            : 'left $leftIpg, right $rightIpg',
+      ),
     ])
-      if (sessionValueIn(rows, field) case final v when v.isNotEmpty)
-        '$label: $v',
+      if (value.isNotEmpty) '$label: $value',
   ].join('    ');
 
   final blocks = <int, List<SessionRow>>{};

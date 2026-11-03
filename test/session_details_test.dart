@@ -18,7 +18,8 @@ void main() {
       scales: const [(name: 'UPDRS-III', value: '32')],
       pathology: 'PD',
       target: 'STN',
-      ipgModel: 'Medtronic Percept PC',
+      leftIpgModel: 'Medtronic Percept PC',
+      rightIpgModel: 'Medtronic Percept PC',
       medications: 'Levodopa 100 mg three times a day',
       at: at,
     )
@@ -27,7 +28,8 @@ void main() {
       stim: const {'left_amplitude': '2'},
       pathology: 'PD',
       target: 'STN',
-      ipgModel: 'Medtronic Percept PC',
+      leftIpgModel: 'Medtronic Percept PC',
+      rightIpgModel: 'Medtronic Percept PC',
       at: at,
     )
     ..addInsert(
@@ -35,7 +37,8 @@ void main() {
       stim: const {'left_amplitude': '3'},
       pathology: 'PD',
       target: 'STN',
-      ipgModel: 'Medtronic Percept PC',
+      leftIpgModel: 'Medtronic Percept PC',
+      rightIpgModel: 'Medtronic Percept PC',
       starred: true,
       at: at,
     );
@@ -44,7 +47,10 @@ void main() {
     final back = parseSessionTsv(visit().serialize());
     expect(sessionValueIn(back, (r) => r.pathology), 'PD');
     expect(sessionValueIn(back, (r) => r.target), 'STN');
-    expect(sessionValueIn(back, (r) => r.ipgModel), 'Medtronic Percept PC');
+    expect(
+      sessionValueIn(back, (r) => r.rightIpgModel),
+      'Medtronic Percept PC',
+    );
     expect(back.first.medications, 'Levodopa 100 mg three times a day');
     expect(back.skip(1).every((r) => r.medications.isEmpty), isTrue);
   });
@@ -78,6 +84,21 @@ void main() {
     expect(doc, contains('Pathology: PD'));
     expect(doc, contains('Medications: Levodopa'));
     expect(doc, contains('Starred by the clinician during the visit'));
+  });
+
+  test('two different IPGs are named per side', () {
+    final a = SessionAuthoring()
+      ..addInsert(
+        isInitial: false,
+        stim: const {},
+        leftIpgModel: 'Medtronic Activa SC',
+        rightIpgModel: 'Abbott Infinity 5',
+        at: at,
+      );
+    expect(
+      buildSessionReportData(rows: a.rows).sessionDetails,
+      'IPG: left Medtronic Activa SC, right Abbott Infinity 5',
+    );
   });
 
   test('without stars the report adds no star legend', () {

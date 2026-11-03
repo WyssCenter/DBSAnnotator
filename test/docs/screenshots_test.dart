@@ -502,6 +502,16 @@ Future<void> _startNew(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Choose the example's pathology in Setup, which loads its scales.
+Future<void> _choosePathology(WidgetTester tester) async {
+  await _tapFinder(
+    tester,
+    find.widgetWithText(DropdownMenu<String>, 'Pathology'),
+  );
+  await tester.tap(find.text(_preset).last);
+  await tester.pumpAndSettle();
+}
+
 /// Tap `Next` in the wizard's bottom bar.
 Future<void> _next(WidgetTester tester) async => _tapText(tester, 'Next');
 
@@ -561,7 +571,7 @@ Future<void> _selectProgram(WidgetTester tester, {String program = 'B'}) async {
 
 /// Step 0: a patient and a run, so the BIDS filename the app composes is real.
 Future<void> _seedFileStep(WidgetTester tester) async {
-  await _type(tester, 'Patient ID (sub-)', _subjectId);
+  await _type(tester, 'Patient ID', _subjectId);
   await _type(tester, 'Run', _runId);
 }
 
@@ -770,9 +780,9 @@ void main() {
       ),
     );
     await _seedFileStep(tester);
+    await _choosePathology(tester);
     await _next(tester);
     await _seedConfiguration(tester, catalog.models[_defaultModel]!);
-    await _tapText(tester, _preset);
     await _type(tester, 'Notes', _initialNotes);
     await _shootFitted(tester, 'session_step1_config');
   });
@@ -792,8 +802,8 @@ void main() {
       size: const Size(_narrow, _maxHeight),
     );
     await _seedFileStep(tester);
+    await _choosePathology(tester);
     await _next(tester);
-    await _tapText(tester, _preset);
     await _shootFitted(
       tester,
       'session_step1_narrow',
@@ -839,23 +849,6 @@ void main() {
     );
   });
 
-  testWidgets('session: session scales configuration', (tester) async {
-    final (catalog, limits, presets) = await _contracts();
-    await _pump(
-      tester,
-      SessionScreen(
-        catalog: catalog,
-        limits: limits,
-        scalePresets: presets,
-        authoring: SessionAuthoring(),
-      ),
-    );
-    await _next(tester);
-    await _next(tester);
-    await _tapText(tester, _preset);
-    await _shootFitted(tester, 'session_step2_scales');
-  });
-
   testWidgets('session: recording and charts', (tester) async {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
@@ -870,8 +863,6 @@ void main() {
     await _seedFileStep(tester);
     await _next(tester);
     await _seedConfiguration(tester, catalog.models[_defaultModel]!);
-    await _next(tester);
-    await _tapText(tester, _preset);
     await _next(tester);
 
     await _seedRatings(tester);
@@ -908,8 +899,6 @@ void main() {
     await _next(tester);
     await _seedConfiguration(tester, catalog.models[_defaultModel]!);
     await _next(tester);
-    await _tapText(tester, _preset);
-    await _next(tester);
     await _seedRatings(tester);
     await _shootRegion(
       tester,
@@ -932,7 +921,7 @@ void main() {
         authoring: _seededAuthoring(),
       ),
     );
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < 3; i++) {
       await _next(tester);
     }
     await _tapText(tester, 'Confirm');
@@ -954,8 +943,8 @@ void main() {
         authoring: SessionAuthoring(),
       ),
     );
+    await _choosePathology(tester);
     await _next(tester);
-    await _tapText(tester, _preset);
 
     for (final entry in const [
       ('Edit programs', 'dialog_programs'),
@@ -979,9 +968,9 @@ void main() {
         authoring: SessionAuthoring(),
       ),
     );
+    await _choosePathology(tester);
     await _next(tester);
     await _next(tester);
-    await _tapText(tester, _preset);
     await _tapTooltip(tester, 'Settings session scales');
     // Unlike the clinical variant, each row here carries a Min and a Max,
     // which is why both dialogs are documented rather than one.
@@ -1000,8 +989,6 @@ void main() {
       ),
     );
     await _next(tester);
-    await _next(tester);
-    await _tapText(tester, _preset);
     await _next(tester);
 
     await _tapText(tester, 'Scale targets');
@@ -1032,7 +1019,7 @@ void main() {
       ),
     );
     await _seedFileStep(tester);
-    await _tapText(tester, 'New');
+    await _tapText(tester, 'New session');
     await _shootDialog(tester, 'dialog_save_location');
     await _tapText(tester, 'Cancel');
 

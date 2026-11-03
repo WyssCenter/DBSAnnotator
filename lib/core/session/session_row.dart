@@ -23,7 +23,8 @@ class SessionRow {
     this.target = '',
     this.leftElectrodeModel = '',
     this.rightElectrodeModel = '',
-    this.ipgModel = '',
+    this.leftIpgModel = '',
+    this.rightIpgModel = '',
     this.programId = '',
     this.leftStimFreq = '',
     this.leftAnode = '',
@@ -65,7 +66,11 @@ class SessionRow {
   /// The lead model per side, as named in `schema/electrode_models.json`.
   final String leftElectrodeModel;
   final String rightElectrodeModel;
-  final String ipgModel;
+
+  /// The implanted pulse generator per side, the same name when one device
+  /// drives both leads.
+  final String leftIpgModel;
+  final String rightIpgModel;
   final String programId;
   final String leftStimFreq;
   final String leftAnode;
@@ -100,7 +105,8 @@ class SessionRow {
     target: readColumn(m, 'target'),
     leftElectrodeModel: readColumn(m, 'left_electrode_model'),
     rightElectrodeModel: readColumn(m, 'right_electrode_model'),
-    ipgModel: readColumn(m, 'ipg_model'),
+    leftIpgModel: readColumn(m, 'left_ipg_model'),
+    rightIpgModel: readColumn(m, 'right_ipg_model'),
     programId: readColumn(m, 'program_id'),
     leftStimFreq: readColumn(m, 'left_stim_freq'),
     leftAnode: readColumn(m, 'left_anode'),
@@ -150,7 +156,8 @@ class SessionRow {
     'target': target,
     'left_electrode_model': leftElectrodeModel,
     'right_electrode_model': rightElectrodeModel,
-    'ipg_model': ipgModel,
+    'left_ipg_model': leftIpgModel,
+    'right_ipg_model': rightIpgModel,
     'program_id': programId,
     'left_stim_freq': leftStimFreq,
     'left_anode': leftAnode,

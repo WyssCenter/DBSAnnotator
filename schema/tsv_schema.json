@@ -63,9 +63,14 @@
         "description": "Right lead model, as named in ``schema/electrode_models.json``. The same as the left when both leads are the same model."
       },
       {
-        "name": "ipg_model",
+        "name": "left_ipg_model",
         "type": "string",
-        "description": "Implanted pulse generator model, as named in ``schema/electrode_models.json`` or typed. Recorded only: the app does not change any setting from it. Empty in older files."
+        "description": "Implanted pulse generator driving the left lead, as named in ``schema/electrode_models.json`` or typed. Recorded only: the app does not change any setting from it. Empty in older files."
+      },
+      {
+        "name": "right_ipg_model",
+        "type": "string",
+        "description": "Implanted pulse generator driving the right lead. The same as the left when one device drives both leads."
       },
       {
         "name": "program_id",

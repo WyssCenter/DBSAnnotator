@@ -59,8 +59,10 @@ void main() {
     final model = (await loadElectrodeCatalog()).models[_model]!;
     await startVideo(tester, const HomeScreen());
     await tapText(tester, 'Complete workflow');
-    await typeInto(tester, 'Patient ID (sub-)', '01');
-    await tapText(tester, 'New');
+    await typeInto(tester, 'Patient ID', '01');
+    await tapText(tester, 'Pathology');
+    await tap(tester, find.text('OCD').last);
+    await tapText(tester, 'New session');
     await tapText(tester, 'Loose TSV');
 
     // Stimulation first: presets on the left, typed on the right.
@@ -76,14 +78,12 @@ void main() {
     await _tapLead(tester, model, 1, (l) => _contact(l, 3, 0), taps: 2);
     await _tapLead(tester, model, 1, (l) => l.caseRect.center);
 
-    // Then the pathology and its clinical scores.
-    await tapText(tester, 'OCD');
+    // Then the clinical scores the pathology loaded.
     await typeInto(tester, 'Score', '28');
     await typeInto(tester, 'Score', '15', at: 1);
     await typeInto(tester, 'Notes', 'Baseline on admission settings.');
     await tapText(tester, 'Next');
     await pause(tester, 1500);
-    await tapText(tester, 'Next');
 
     // Three configurations, each changing one thing.
     await _preset(tester, '5');
