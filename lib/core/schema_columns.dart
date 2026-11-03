@@ -10,10 +10,14 @@ const List<String> sessionColumns = <String>[
   'append_id',
   'is_initial',
   'is_final',
+  'is_starred',
   'scale_name',
   'scale_value',
+  'pathology',
+  'target',
   'left_electrode_model',
   'right_electrode_model',
+  'ipg_model',
   'program_id',
   'left_stim_freq',
   'left_anode',
@@ -25,6 +29,7 @@ const List<String> sessionColumns = <String>[
   'right_cathode',
   'right_amplitude',
   'right_pulse_width',
+  'medications',
   'notes',
 ];
 

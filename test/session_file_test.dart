@@ -127,12 +127,12 @@ void main() {
       // and not first in someone's analysis script.
       expect(
         serializeSessionTsv(const []).trimRight(),
-        'acq_time\tblock_id\tappend_id\tis_initial\tis_final\t'
-        'scale_name\tscale_value\tleft_electrode_model\t'
-        'right_electrode_model\tprogram_id\t'
+        'acq_time\tblock_id\tappend_id\tis_initial\tis_final\tis_starred\t'
+        'scale_name\tscale_value\tpathology\ttarget\tleft_electrode_model\t'
+        'right_electrode_model\tipg_model\tprogram_id\t'
         'left_stim_freq\tleft_anode\tleft_cathode\tleft_amplitude\t'
         'left_pulse_width\tright_stim_freq\tright_anode\tright_cathode\t'
-        'right_amplitude\tright_pulse_width\tnotes',
+        'right_amplitude\tright_pulse_width\tmedications\tnotes',
       );
     });
 

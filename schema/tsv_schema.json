@@ -28,6 +28,11 @@
         "description": "``1`` on the rows of the block the patient was left on at the end of the visit, as marked by the clinician; ``0`` elsewhere. Empty in older files; no block is ``1`` when the clinician did not mark one."
       },
       {
+        "name": "is_starred",
+        "type": "integer",
+        "description": "``1`` on the rows of a block the clinician starred during the visit as a particularly good configuration; ``0`` elsewhere. Any number of blocks may be starred. A star records a clinical impression, not a ranking. Empty in older files."
+      },
+      {
         "name": "scale_name",
         "type": "string",
         "description": "Clinical or session scale name (or newline-separated names)."
@@ -38,6 +43,16 @@
         "description": "Scale value, or ``n/a`` when the scale was not assessed at this block."
       },
       {
+        "name": "pathology",
+        "type": "string",
+        "description": "Condition being treated, chosen once for the session from the app's list (``PD``, ``ET``, ``Dystonia``, ``OCD``, ``MDD``, ``TS``) or typed. The same on every row. Empty in older files."
+      },
+      {
+        "name": "target",
+        "type": "string",
+        "description": "Anatomical target of the leads (e.g. ``STN``, ``GPi``, ``VIM``), chosen once for the session. The same on every row. Empty in older files."
+      },
+      {
         "name": "left_electrode_model",
         "type": "string",
         "description": "Left lead model, as named in ``schema/electrode_models.json``. Older files have one ``electrode_model`` column for both leads, which is read as both."
@@ -46,6 +61,11 @@
         "name": "right_electrode_model",
         "type": "string",
         "description": "Right lead model, as named in ``schema/electrode_models.json``. The same as the left when both leads are the same model."
+      },
+      {
+        "name": "ipg_model",
+        "type": "string",
+        "description": "Implanted pulse generator model, as named in ``schema/electrode_models.json`` or typed. Recorded only: the app does not change any setting from it. Empty in older files."
       },
       {
         "name": "program_id",
@@ -105,6 +125,11 @@
         "type": "float",
         "units": "us",
         "description": "Right pulse width."
+      },
+      {
+        "name": "medications",
+        "type": "string",
+        "description": "Medications as recorded in the initial assessment, free text. Written on the initial-assessment rows (``is_initial`` ``1``) and empty on the others."
       },
       {
         "name": "notes",

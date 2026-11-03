@@ -1,6 +1,6 @@
 /// The `_beh.json` sidecar that documents a TSV's columns.
 ///
-/// Of a programming-session file's 22 columns only `notes` resembles anything
+/// Of a programming-session file's columns only `notes` resembles anything
 /// BIDS defines, and the spec's answer is the sidecar: "any additional columns
 /// in a TSV file SHOULD be documented in an accompanying JSON sidecar file".
 /// Descriptions come from `schema/tsv_schema.json`, which also feeds the docs.
@@ -112,7 +112,7 @@ String annotationSidecarJson(
 /// The sidecar for the combined table, pretty-printed, in header key order.
 ///
 /// Composed from two contract sections because `aggregate_tsv` declares only
-/// the four identity columns; the other 19 are session columns carried through
+/// the four identity columns; the others are session columns carried through
 /// unchanged. [computedAcqTime] notes on `acq_time` that a row from a legacy
 /// file had its timestamp derived rather than recorded.
 String aggregateSidecarJson(

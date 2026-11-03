@@ -16,10 +16,14 @@ class SessionRow {
     this.appendId = '',
     this.isInitial = '',
     this.isFinal = '',
+    this.isStarred = '',
     this.scaleName = '',
     this.scaleValue = '',
+    this.pathology = '',
+    this.target = '',
     this.leftElectrodeModel = '',
     this.rightElectrodeModel = '',
+    this.ipgModel = '',
     this.programId = '',
     this.leftStimFreq = '',
     this.leftAnode = '',
@@ -31,6 +35,7 @@ class SessionRow {
     this.rightCathode = '',
     this.rightAmplitude = '',
     this.rightPulseWidth = '',
+    this.medications = '',
     this.notes = '',
   });
 
@@ -47,12 +52,20 @@ class SessionRow {
   /// `1` on the rows of the block the patient was left on, `0` elsewhere, and
   /// empty in files written before the column existed.
   final String isFinal;
+
+  /// `1` on the rows of a block the clinician starred, `0` elsewhere.
+  final String isStarred;
   final String scaleName;
   final String scaleValue;
+
+  /// The condition and the leads' anatomical target, the same on every row.
+  final String pathology;
+  final String target;
 
   /// The lead model per side, as named in `schema/electrode_models.json`.
   final String leftElectrodeModel;
   final String rightElectrodeModel;
+  final String ipgModel;
   final String programId;
   final String leftStimFreq;
   final String leftAnode;
@@ -64,6 +77,9 @@ class SessionRow {
   final String rightCathode;
   final String rightAmplitude;
   final String rightPulseWidth;
+
+  /// Free text from the initial assessment, empty on recording rows.
+  final String medications;
   final String notes;
 
   /// Build from a TSV record keyed by `sessionColumns`; missing columns become
@@ -77,10 +93,14 @@ class SessionRow {
     appendId: readColumn(m, 'append_id'),
     isInitial: readColumn(m, 'is_initial'),
     isFinal: readColumn(m, 'is_final'),
+    isStarred: readColumn(m, 'is_starred'),
     scaleName: readColumn(m, 'scale_name'),
     scaleValue: readColumn(m, 'scale_value'),
+    pathology: readColumn(m, 'pathology'),
+    target: readColumn(m, 'target'),
     leftElectrodeModel: readColumn(m, 'left_electrode_model'),
     rightElectrodeModel: readColumn(m, 'right_electrode_model'),
+    ipgModel: readColumn(m, 'ipg_model'),
     programId: readColumn(m, 'program_id'),
     leftStimFreq: readColumn(m, 'left_stim_freq'),
     leftAnode: readColumn(m, 'left_anode'),
@@ -92,6 +112,7 @@ class SessionRow {
     rightCathode: readColumn(m, 'right_cathode'),
     rightAmplitude: readColumn(m, 'right_amplitude'),
     rightPulseWidth: readColumn(m, 'right_pulse_width'),
+    medications: readColumn(m, 'medications'),
     notes: readColumn(m, 'notes'),
   );
 
@@ -122,10 +143,14 @@ class SessionRow {
     'append_id': appendId,
     'is_initial': isInitial,
     'is_final': isFinal,
+    'is_starred': isStarred,
     'scale_name': scaleName,
     'scale_value': scaleValue,
+    'pathology': pathology,
+    'target': target,
     'left_electrode_model': leftElectrodeModel,
     'right_electrode_model': rightElectrodeModel,
+    'ipg_model': ipgModel,
     'program_id': programId,
     'left_stim_freq': leftStimFreq,
     'left_anode': leftAnode,
@@ -137,6 +162,7 @@ class SessionRow {
     'right_cathode': rightCathode,
     'right_amplitude': rightAmplitude,
     'right_pulse_width': rightPulseWidth,
+    'medications': medications,
     'notes': notes,
   };
 }
@@ -153,6 +179,24 @@ String electrodeModelIn(Iterable<SessionRow> rows, {bool right = false}) {
   }
   return '';
 }
+
+/// The first non-empty value [field] takes in [rows], or ''.
+String sessionValueIn(
+  Iterable<SessionRow> rows,
+  String Function(SessionRow) field,
+) {
+  for (final row in rows) {
+    final value = field(row).trim();
+    if (value.isNotEmpty) return value;
+  }
+  return '';
+}
+
+/// The blocks [rows] mark as starred.
+Set<String> starredBlocksIn(Iterable<SessionRow> rows) => {
+  for (final row in rows)
+    if (isInitialValue(row.isStarred)) row.blockId,
+};
 
 /// The block [rows] mark as the one the patient was left on, or null.
 String? finalBlockIn(Iterable<SessionRow> rows) {

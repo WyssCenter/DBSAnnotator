@@ -3,6 +3,7 @@
 /// counters.
 library;
 
+import '../schema_columns.dart';
 import 'session_file.dart';
 import 'session_row.dart';
 
@@ -37,6 +38,11 @@ class SessionAuthoring {
     String programId = '',
     String leftElectrodeModel = '',
     String rightElectrodeModel = '',
+    String pathology = '',
+    String target = '',
+    String ipgModel = '',
+    String medications = '',
+    bool starred = false,
     String notes = '',
     DateTime? at,
     int? replacing,
@@ -49,6 +55,11 @@ class SessionAuthoring {
       programId: programId,
       leftElectrodeModel: leftElectrodeModel,
       rightElectrodeModel: rightElectrodeModel,
+      pathology: pathology,
+      target: target,
+      ipgModel: ipgModel,
+      medications: medications,
+      starred: starred,
       notes: notes,
       leftStimFreq: stim['left_stim_freq'] ?? '',
       leftAnode: stim['left_anode'] ?? '',
@@ -81,6 +92,15 @@ class SessionAuthoring {
       final mark = blockId != null && rows[i].blockId == blockId ? '1' : '0';
       if (rows[i].isFinal == mark) continue;
       rows[i] = SessionRow.fromMap({...rows[i].toMap(), 'is_final': mark});
+    }
+  }
+
+  /// Star or unstar every row of [blockId].
+  void setStarred(String blockId, bool starred) {
+    final mark = initialCell(starred);
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].blockId != blockId || rows[i].isStarred == mark) continue;
+      rows[i] = SessionRow.fromMap({...rows[i].toMap(), 'is_starred': mark});
     }
   }
 

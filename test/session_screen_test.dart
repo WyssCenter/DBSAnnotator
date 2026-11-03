@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:dbs_annotator/core/electrode/electrode_model.dart';
 import 'package:dbs_annotator/core/session/authoring.dart';
 import 'package:dbs_annotator/core/session/scale_presets.dart';
+import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:dbs_annotator/ui/electrode_view.dart';
 import 'package:dbs_annotator/ui/scale_slider.dart';
 import 'package:dbs_annotator/ui/session_screen.dart';
@@ -183,6 +184,84 @@ void main() {
           .widget<FilledButton>(find.widgetWithText(FilledButton, 'Next'))
           .onPressed,
       isNull,
+    );
+  });
+
+  testWidgets('setup details reach every row, medications the initial '
+      'assessment, and stars any configuration', (tester) async {
+    final authoring = SessionAuthoring();
+    await pumpWizard(tester, authoring: authoring);
+
+    await tester.tap(find.widgetWithText(DropdownMenu<String>, 'Pathology'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('PD').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Anatomical target'),
+      'STN',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'IPG (implanted pulse generator)'),
+      'Medtronic Percept PC',
+    );
+    await tester.pump();
+
+    // Choosing the pathology loaded its clinical scales.
+    await tapNext(tester);
+    expect(find.widgetWithText(TextField, 'MDS-UPDRS'), findsOneWidget);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Medications'),
+      'Levodopa 100 mg',
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Score').first, '30');
+    await tapNext(tester, 2);
+
+    final starSwitch = find.text('Star this configuration');
+    await tester.ensureVisible(starSwitch);
+    await tester.tap(starSwitch);
+    await tester.pump();
+    for (var i = 0; i < 2; i++) {
+      final save = find.text('Save configuration');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.pump();
+    }
+    expect(starredBlocksIn(authoring.rows), {'1'});
+
+    // An earlier configuration is starred from the table.
+    final starInTable = find.byTooltip('Star this configuration');
+    await tester.ensureVisible(starInTable);
+    await tester.pumpAndSettle();
+    await tester.tap(starInTable);
+    await tester.pump();
+    expect(starredBlocksIn(authoring.rows), {'1', '2'});
+
+    final rows = authoring.rows;
+    expect(
+      rows.every(
+        (r) =>
+            r.pathology == 'PD' &&
+            r.target == 'STN' &&
+            r.ipgModel == 'Medtronic Percept PC',
+      ),
+      isTrue,
+    );
+    expect(rows.first.medications, 'Levodopa 100 mg');
+    expect(
+      rows.where((r) => r.isInitial == '0').every((r) => r.medications == ''),
+      isTrue,
+    );
+
+    // Once recorded, the session's pathology can no longer be changed.
+    await tester.tap(find.textContaining('PD  ·  STN'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<DropdownMenu<String>>(
+            find.widgetWithText(DropdownMenu<String>, 'Pathology'),
+          )
+          .enabled,
+      isFalse,
     );
   });
 

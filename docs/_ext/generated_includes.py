@@ -1,7 +1,7 @@
 """Render the TSV column tables from the committed schema contract at build time.
 
-The tables in :doc:`output_format` describe 19 session columns and 2 annotation
-columns. Hand-maintaining that in reStructuredText guarantees it drifts from the
+The tables in :doc:`output_format` describe every session and annotation
+column. Hand-maintaining that in reStructuredText guarantees it drifts from the
 code, so it is generated instead, out of ``schema/tsv_schema.json``, which is
 the same file the application loads at runtime and several tests assert against.
 

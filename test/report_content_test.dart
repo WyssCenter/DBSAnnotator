@@ -44,7 +44,7 @@ void main() {
         for (final row in data.tableData)
           if (row[index].isNotEmpty) row.first: row[index],
       };
-      expect(byBlock['3'], contains('0.45'));
+      expect(byBlock['3'], contains('0.44'));
       expect(byBlock['3'], byBlock['4']);
       // The R row leaves them blank rather than repeating them.
       expect(data.tableData[1][time], isEmpty);
@@ -72,15 +72,20 @@ void main() {
       final byName = {for (final r in data.response) r.name: r};
       expect(
         byName.keys,
-        containsAll(['Obsessions', 'Compulsions', 'Anxiety', 'Mood']),
+        containsAll([
+          'MDS-UPDRS 3.3 Rigidity RUE',
+          'MDS-UPDRS 3.4 Finger tapping R',
+          'MDS-UPDRS 3.17 Rest tremor RUE',
+          'MDS-UPDRS 3.10 Gait',
+        ]),
       );
-      expect(byName['Obsessions']!.first, 8.00);
-      expect(byName['Obsessions']!.last, 2.75);
+      expect(byName['MDS-UPDRS 3.3 Rigidity RUE']!.first, 3);
+      expect(byName['MDS-UPDRS 3.3 Rigidity RUE']!.last, 1);
     });
 
     test('n scales rated per block, so the index is interpretable', () {
       // Every block in the example rates all five.
-      expect(data.scalesRated.values.toSet(), {5});
+      expect(data.scalesRated.values.toSet(), {4});
     });
 
     test('the Time cell carries the gap from the previous block', () {
@@ -249,7 +254,7 @@ void main() {
       // on the third decimal.
       expect(
         rankedReportData(_example()).targetsText,
-        contains('Obsessions: min of 0-10'),
+        contains('MDS-UPDRS 3.3 Rigidity RUE: min of 0-4'),
       );
     });
   });

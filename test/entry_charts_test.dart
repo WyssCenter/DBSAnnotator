@@ -52,7 +52,12 @@ void main() {
       final scales = data.panels.first;
       expect(
         scales.series.keys,
-        containsAll(['Obsessions', 'Compulsions', 'Anxiety', 'Mood', 'Energy']),
+        containsAll([
+          'MDS-UPDRS 3.3 Rigidity RUE',
+          'MDS-UPDRS 3.4 Finger tapping R',
+          'MDS-UPDRS 3.17 Rest tremor RUE',
+          'MDS-UPDRS 3.10 Gait',
+        ]),
       );
     });
 

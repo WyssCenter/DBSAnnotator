@@ -174,6 +174,9 @@ Uint8List buildSessionDocx({
   body.write(
     docxPara('Patient: sub-$subjectId    Session: ${data.sessionStamp}'),
   );
+  if (data.sessionDetails.isNotEmpty) {
+    body.write(docxPara(data.sessionDetails));
+  }
   body.write(
     docxPara(
       'Generated on: ${data.generatedOn} by $appName v$appVersion'
@@ -212,9 +215,9 @@ Uint8List buildSessionDocx({
   // (b) Baseline assessment. Headings and labels must match the PDF word for
   // word: two documents of one session that differ are a discovery problem.
   if (sections.contains(ReportSection.baseline)) {
-    body.write(docxHeading('Baseline assessment (pre-session)'));
+    body.write(docxHeading('Initial assessment (before programming)'));
     if (!data.hasInitial) {
-      body.write(docxPara('No baseline (is_initial = 1) rows recorded.'));
+      body.write(docxPara('No initial assessment recorded.'));
     } else {
       if (data.initScales.isNotEmpty) {
         // A two-column table, not bullets: Y-BOCS bulleted alike with its own
@@ -230,7 +233,10 @@ Uint8List buildSessionDocx({
           ),
         );
       } else {
-        body.write(docxPara('(no baseline scales)'));
+        body.write(docxPara('(no clinical scales)'));
+      }
+      if (data.medications.isNotEmpty) {
+        body.write(docxPara('Medications: ${data.medications}', size: 18));
       }
       if (data.initNotes.isNotEmpty) {
         body.write(docxPara('Notes: ${data.initNotes}', size: 18));
@@ -289,6 +295,7 @@ Uint8List buildSessionDocx({
         ),
       );
       body.write(_legendBlock(data));
+      if (data.hasStars) body.write(docxPara(kStarredLegend, size: 16));
     }
   }
 

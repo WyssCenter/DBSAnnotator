@@ -32,6 +32,7 @@ class ScalePresets {
     required this.clinical,
     required this.session,
     this.clinicalRanges = const {},
+    this.targets = const {},
   });
 
   factory ScalePresets.fromJson(Map<String, dynamic> json) {
@@ -80,11 +81,16 @@ class ScalePresets {
         ),
     };
 
+    final targetsJson = json['targets'] as Map<String, dynamic>? ?? {};
     return ScalePresets(
       buttons: buttons,
       clinical: clinical,
       session: session,
       clinicalRanges: clinicalRanges,
+      targets: {
+        for (final e in targetsJson.entries)
+          e.key: (e.value as List).map((t) => t as String).toList(),
+      },
     );
   }
 
@@ -100,6 +106,9 @@ class ScalePresets {
   /// since a scale such as Y-BOCS has one range in every group it appears in.
   /// Used only to set the clinical figure's y axis.
   final Map<String, ScaleRange> clinicalRanges;
+
+  /// Pathology -> usual anatomical targets, offered as suggestions in Setup.
+  final Map<String, List<String>> targets;
 }
 
 /// [ranges] as numbers, leaving out any that do not parse or are empty.

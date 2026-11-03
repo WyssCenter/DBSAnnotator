@@ -83,7 +83,7 @@ void main() {
     // heading the shared data implies, using the exact strings the PDF uses.
     for (final heading in const [
       'Session report',
-      'Baseline assessment (pre-session)',
+      'Initial assessment (before programming)',
       'Session data',
       'Electrode configuration',
       'Programming summary',
@@ -146,7 +146,10 @@ void main() {
     expect(data.responseGrid.first.skip(1), [
       for (final r in data.response) r.name,
     ]);
-    expect(docx.indexOf('Change'), lessThan(docx.indexOf('Baseline')));
+    expect(
+      docx.indexOf('Change'),
+      lessThan(docx.indexOf('Initial assessment')),
+    );
   });
 
   test('both formats build from the same data without throwing', () async {

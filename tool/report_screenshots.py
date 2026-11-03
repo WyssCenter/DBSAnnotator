@@ -44,7 +44,7 @@ STOPS = {
 SECTIONS = {
     "session_report": {
         "summary": "At start of session",
-        "baseline": "Baseline assessment (pre-session)",
+        "baseline": "Initial assessment (before programming)",
         "session_data": ("Session data", "Figure 1."),
         "electrodes": "Electrode configuration",
         "programming_summary": "Programming summary",

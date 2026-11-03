@@ -8,6 +8,38 @@
     "Dystonia",
     "TS"
   ],
+  "targets": {
+    "OCD": [
+      "ALIC",
+      "VC/VS",
+      "NAcc",
+      "STN",
+      "BNST"
+    ],
+    "MDD": [
+      "SCC",
+      "ALIC",
+      "VC/VS",
+      "MFB",
+      "NAcc"
+    ],
+    "PD": [
+      "STN",
+      "GPi"
+    ],
+    "ET": [
+      "VIM"
+    ],
+    "Dystonia": [
+      "GPi",
+      "STN"
+    ],
+    "TS": [
+      "CM-Pf",
+      "GPi",
+      "ALIC"
+    ]
+  },
   "clinical": {
     "OCD": [
       "Y-BOCS",

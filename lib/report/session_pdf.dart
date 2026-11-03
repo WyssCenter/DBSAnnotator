@@ -396,6 +396,7 @@ Future<ReportBytes> buildSessionPdf({
           'Patient: sub-${t(subjectId)}    '
           'Session: ${data.sessionStamp}',
         ),
+        if (data.sessionDetails.isNotEmpty) pw.Text(t(data.sessionDetails)),
         pw.Text(
           'Generated on: ${data.generatedOn} by $appName v$appVersion'
           '${data.sourceFile.isEmpty ? '' : '  |  Source: '
@@ -481,9 +482,9 @@ Future<ReportBytes> buildSessionPdf({
 
         // Initial clinical notes, from the latest baseline session only.
         if (sections.contains(ReportSection.baseline)) ...[
-          pw.Header(level: 1, text: 'Baseline assessment (pre-session)'),
+          pw.Header(level: 1, text: 'Initial assessment (before programming)'),
           if (!data.hasInitial)
-            pw.Text('No baseline (is_initial = 1) rows recorded.')
+            pw.Text('No initial assessment recorded.')
           else ...[
             if (data.initScales.isNotEmpty)
               reportGrid([
@@ -491,7 +492,14 @@ Future<ReportBytes> buildSessionPdf({
                 for (final pair in data.initScales) [pair.name, pair.value],
               ], t)
             else
-              pw.Text('(no baseline scales)'),
+              pw.Text('(no clinical scales)'),
+            if (data.medications.isNotEmpty) ...[
+              pw.SizedBox(height: 4),
+              pw.Text(
+                'Medications: ${t(data.medications)}',
+                style: const pw.TextStyle(fontSize: 9),
+              ),
+            ],
             if (data.initNotes.isNotEmpty) ...[
               pw.SizedBox(height: 4),
               pw.Text(
@@ -597,6 +605,8 @@ Future<ReportBytes> buildSessionPdf({
               },
             ),
             ..._legendBlock(data, t),
+            if (data.hasStars)
+              pw.Text(kStarredLegend, style: const pw.TextStyle(fontSize: 8)),
           ],
           pw.SizedBox(height: 8),
         ],

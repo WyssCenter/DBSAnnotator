@@ -178,6 +178,7 @@ ScalePresets mergeScalePresets(ScalePresets base, UserPrefs prefs) {
     clinical: clinical,
     session: session,
     clinicalRanges: clinicalRanges,
+    targets: base.targets,
   );
 }
 

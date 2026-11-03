@@ -72,7 +72,11 @@ class ElectrodeModel {
 /// Models keyed by name plus manufacturer grouping for the UI; mirrors
 /// `ELECTRODE_MODELS` and `MANUFACTURERS` in the Python config module.
 class ElectrodeCatalog {
-  const ElectrodeCatalog({required this.models, required this.manufacturers});
+  const ElectrodeCatalog({
+    required this.models,
+    required this.manufacturers,
+    this.ipgs = const {},
+  });
 
   /// Parses `{manufacturers: {mfr: [names]}, models: {name: {...}}}`.
   factory ElectrodeCatalog.fromJson(Map<String, dynamic> json) {
@@ -82,20 +86,26 @@ class ElectrodeCatalog {
         entry.key: ElectrodeModel.fromJson(entry.value as Map<String, dynamic>),
     };
 
-    final manufacturersJson = json['manufacturers'] as Map<String, dynamic>;
-    final manufacturers = <String, List<String>>{
-      for (final entry in manufacturersJson.entries)
+    Map<String, List<String>> groups(Object? raw) => {
+      for (final entry in (raw as Map<String, dynamic>? ?? {}).entries)
         entry.key: (entry.value as List)
             .map((e) => e as String)
             .toList(growable: false),
     };
 
-    return ElectrodeCatalog(models: models, manufacturers: manufacturers);
+    return ElectrodeCatalog(
+      models: models,
+      manufacturers: groups(json['manufacturers']),
+      ipgs: groups(json['ipgs']),
+    );
   }
 
   final Map<String, ElectrodeModel> models;
 
   final Map<String, List<String>> manufacturers;
+
+  /// Implanted pulse generator names per manufacturer, offered in Setup.
+  final Map<String, List<String>> ipgs;
 }
 
 /// Loads the bundled electrode catalog; tests read `schema/` via `dart:io`.

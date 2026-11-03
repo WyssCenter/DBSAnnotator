@@ -194,6 +194,10 @@ class _SessionScreenState extends State<SessionScreen> {
   // Notes are per-context: the initial-config notes persist across inserts (the
   // user keeps refining them); recording notes clear after each block.
   final _notesInitCtrl = TextEditingController();
+  final _pathologyCtrl = TextEditingController();
+  final _targetCtrl = TextEditingController();
+  final _ipgCtrl = TextEditingController();
+  final _medicationsCtrl = TextEditingController();
   final _notesRecCtrl = TextEditingController();
 
   // Electrode/param state is INDEPENDENT per step: editing the recording config
@@ -228,6 +232,9 @@ class _SessionScreenState extends State<SessionScreen> {
 
   /// Whether the block about to be inserted is the one the patient leaves on.
   bool _leavesOn = false;
+
+  /// Whether the block about to be inserted is starred.
+  bool _starNext = false;
   // Chosen save path (from New/Open); when set, inserts autosave to it.
   String? _savePath;
   // Working copy in the app's own storage, written on every insert whatever
@@ -304,6 +311,7 @@ class _SessionScreenState extends State<SessionScreen> {
       _initialBlock = null;
       _initialSaved = null;
       if (bids != null) _fillLabels(bids);
+      _fillSessionDetails(_authoring.rows);
       _currentStep = 3;
     });
     _snack('Reopened $name. Export it to save it outside the app.');
@@ -413,6 +421,10 @@ class _SessionScreenState extends State<SessionScreen> {
     _runCtrl.dispose();
     _notesInitCtrl.dispose();
     _notesRecCtrl.dispose();
+    _pathologyCtrl.dispose();
+    _targetCtrl.dispose();
+    _ipgCtrl.dispose();
+    _medicationsCtrl.dispose();
     _leftInit.dispose();
     _rightInit.dispose();
     _leftRec.dispose();
@@ -545,20 +557,27 @@ class _SessionScreenState extends State<SessionScreen> {
         (name: s.name.text.trim(), value: s.score.text.trim()),
     ];
     final notes = _notesInitCtrl.text.trim();
+    final medications = _medicationsCtrl.text.trim();
     final models = (_modelName ?? '', _rightModelName ?? _modelName ?? '');
+    final details = _sessionDetails;
     final signature = jsonEncode([
       stim,
       [for (final s in scales) '${s.name}=${s.value}'],
       notes,
+      medications,
       _selectedProgram,
       models.$1,
       models.$2,
+      details.pathology,
+      details.target,
+      details.ipg,
     ]);
     if (signature == _initialSaved) return true;
     final empty =
         stim.values.every((v) => v.isEmpty) &&
         scales.every((s) => s.value.isEmpty) &&
-        notes.isEmpty;
+        notes.isEmpty &&
+        medications.isEmpty;
     if (empty && _initialBlock == null) return true;
     if (!_stimInRange(limits, _leftInit, _rightInit)) return false;
     _invalidateEntryCharts();
@@ -569,6 +588,10 @@ class _SessionScreenState extends State<SessionScreen> {
       programId: _selectedProgram ?? '',
       leftElectrodeModel: models.$1,
       rightElectrodeModel: models.$2,
+      pathology: details.pathology,
+      target: details.target,
+      ipgModel: details.ipg,
+      medications: medications,
       notes: notes,
       replacing: _initialBlock,
     );
@@ -577,6 +600,20 @@ class _SessionScreenState extends State<SessionScreen> {
     _autosave();
     _snack('Initial assessment saved.');
     return true;
+  }
+
+  /// Pathology, target and IPG as chosen in Setup, written on every row.
+  ({String pathology, String target, String ipg}) get _sessionDetails => (
+    pathology: _pathologyCtrl.text.trim(),
+    target: _targetCtrl.text.trim(),
+    ipg: _ipgCtrl.text.trim(),
+  );
+
+  /// Fill pathology, target and IPG from an opened or recovered file.
+  void _fillSessionDetails(List<SessionRow> rows) {
+    _pathologyCtrl.text = sessionValueIn(rows, (r) => r.pathology);
+    _targetCtrl.text = sessionValueIn(rows, (r) => r.target);
+    _ipgCtrl.text = sessionValueIn(rows, (r) => r.ipgModel);
   }
 
   /// Move to [step], saving the initial assessment when leaving it and asking
@@ -619,18 +656,30 @@ class _SessionScreenState extends State<SessionScreen> {
       programId: _selectedProgram ?? '',
       leftElectrodeModel: _modelName ?? '',
       rightElectrodeModel: _rightModelName ?? _modelName ?? '',
+      pathology: _sessionDetails.pathology,
+      target: _sessionDetails.target,
+      ipgModel: _sessionDetails.ipg,
+      starred: _starNext,
       notes: _notesRecCtrl.text.trim(),
     );
     if (_leavesOn) _authoring.markFinalBlock(inserted.first.blockId);
     setState(() {
       _notesRecCtrl.clear();
       _leavesOn = false;
+      _starNext = false;
     });
     _autosave();
     _snack(
       'Inserted recording block ${inserted.first.blockId} '
       '(${inserted.length} row${inserted.length == 1 ? '' : 's'}).',
     );
+  }
+
+  void _toggleStar(String blockId) {
+    final on = starredBlocksIn(_authoring.rows).contains(blockId);
+    setState(() => _authoring.setStarred(blockId, !on));
+    _invalidateEntryCharts();
+    _autosave();
   }
 
   /// Write every entry to disk as it is inserted.
@@ -890,6 +939,7 @@ class _SessionScreenState extends State<SessionScreen> {
       _initialBlock = null;
       _initialSaved = null;
       if (bids != null) _fillLabels(bids);
+      _fillSessionDetails(_authoring.rows);
       if (named.isNotEmpty && !unknownModel) {
         _modelName = named;
         _rightModelName = namedRight.isEmpty || namedRight == named
@@ -1312,7 +1362,7 @@ class _SessionScreenState extends State<SessionScreen> {
 
     final same = _rightModelName == null;
     return GroupCard(
-      title: 'Electrode',
+      title: 'Devices',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1347,10 +1397,40 @@ class _SessionScreenState extends State<SessionScreen> {
                 reset([_rightInit, _rightRec]);
               }),
             ),
+          const SizedBox(height: 12),
+          _choiceField(
+            controller: _ipgCtrl,
+            label: 'IPG (implanted pulse generator)',
+            options: [for (final names in catalog.ipgs.values) ...names],
+            locked: sessionValueIn(_authoring.rows, (r) => r.ipgModel) != '',
+          ),
         ],
       ),
     );
   }
+
+  /// A field offering [options]; when [typed], other text is accepted too.
+  /// [locked] once the session's rows record a value, so it stays the same
+  /// for the whole session.
+  Widget _choiceField({
+    required TextEditingController controller,
+    required String label,
+    required List<String> options,
+    required bool locked,
+    ValueChanged<String?>? onSelected,
+    bool typed = true,
+  }) => DropdownMenu<String>(
+    controller: controller,
+    label: Text(label),
+    enabled: !locked,
+    expandedInsets: EdgeInsets.zero,
+    enableFilter: typed,
+    requestFocusOnTap: typed,
+    onSelected: onSelected,
+    dropdownMenuEntries: [
+      for (final o in options) DropdownMenuEntry(value: o, label: o),
+    ],
+  );
 
   /// Both leads' models, the right falling back to the left when they match.
   _Leads _leads(ElectrodeCatalog catalog) => (
@@ -1745,7 +1825,11 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  Widget _setupStep(ElectrodeCatalog catalog) {
+  Widget _setupStep(
+    ElectrodeCatalog catalog,
+    ScalePresets presets,
+    StimLimits limits,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1783,6 +1867,38 @@ class _SessionScreenState extends State<SessionScreen> {
                   labelText: 'Run',
                   isDense: true,
                 ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _choiceField(
+                controller: _pathologyCtrl,
+                label: 'Pathology',
+                options: presets.buttons,
+                typed: false,
+                locked:
+                    sessionValueIn(_authoring.rows, (r) => r.pathology) != '',
+                onSelected: (p) {
+                  if (p == null) return;
+                  setState(() {});
+                  if (_selectedClinicalPreset == null) {
+                    _applyClinicalPreset(p, presets, limits);
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _choiceField(
+                controller: _targetCtrl,
+                label: 'Anatomical target',
+                options: presets.targets[_pathologyCtrl.text] ?? const [],
+                locked: sessionValueIn(_authoring.rows, (r) => r.target) != '',
               ),
             ),
           ],
@@ -2014,6 +2130,16 @@ class _SessionScreenState extends State<SessionScreen> {
               'How the patient is on arrival, before any change. '
               'Saved when you press Next.',
             ),
+            TextField(
+              controller: _medicationsCtrl,
+              minLines: 2,
+              maxLines: null,
+              decoration: const InputDecoration(
+                labelText: 'Medications',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
             _stepBody(
               _paramsColumn(leads, limits, left: _leftInit, right: _rightInit),
               _electrodesColumn(leads, _leftInit, _rightInit),
@@ -2267,6 +2393,16 @@ class _SessionScreenState extends State<SessionScreen> {
         ),
         const SizedBox(height: 12),
         SwitchListTile(
+          value: _starNext,
+          onChanged: (v) => setState(() => _starNext = v),
+          secondary: Icon(_starNext ? Icons.star : Icons.star_border),
+          title: const Text('Star this configuration'),
+          subtitle: const Text(
+            'Marks it as particularly good. Any number can be starred, '
+            'earlier ones too, from the table below.',
+          ),
+        ),
+        SwitchListTile(
           value: _leavesOn,
           onChanged: (v) => setState(() => _leavesOn = v),
           title: const Text('Patient leaves on this'),
@@ -2347,6 +2483,7 @@ class _SessionScreenState extends State<SessionScreen> {
                 children: [
                   SessionEntriesTable(
                     rows: _authoring.rows,
+                    onToggleStar: _toggleStar,
                     bestBlocks: _entryCharts().bestXs,
                     secondBlocks: _entryCharts().secondXs,
                   ),
@@ -2410,7 +2547,7 @@ class _SessionScreenState extends State<SessionScreen> {
           Widget when(int step, Widget Function() builder) =>
               _currentStep == step ? builder() : const SizedBox.shrink();
           final contents = <Widget Function()>[
-            () => _setupStep(catalog),
+            () => _setupStep(catalog, presets, limits),
             () => _initialStep(limits, presets, leads),
             () => _scalesStep(limits, presets),
             () => _recordingStep(catalog, limits, leads),
@@ -2425,9 +2562,16 @@ class _SessionScreenState extends State<SessionScreen> {
                   parts: [
                     'Patient ${l.subject}',
                     'Run ${l.run}',
+                    for (final detail in [
+                      _sessionDetails.pathology,
+                      _sessionDetails.target,
+                    ])
+                      if (detail.isNotEmpty) detail,
                     if (_modelName case final left?)
                       'Lead $left'
                           '${_rightModelName == null ? '' : ' / $_rightModelName'}',
+                    if (_sessionDetails.ipg.isNotEmpty)
+                      'IPG ${_sessionDetails.ipg}',
                   ],
                   onTap: () => _goTo(0),
                 ),

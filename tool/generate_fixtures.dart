@@ -12,22 +12,23 @@
 // properties of this data, so preserve all of the following or re-derive the
 // expected values:
 //
-//  * 1 baseline block (`is_initial=1`, clinical scales) + 7 recording blocks
-//    × 5 session scales = 35 rated rows.
+//  * 1 initial-assessment block (`is_initial=1`, clinical scales) + 7
+//    recording blocks × 4 MDS-UPDRS III items = 28 rated rows.
 //  * Blocks 6 and 7 are a replicate pair: byte-identical across all ten
 //    stimulation columns, rated 9 seconds apart. They are the session's own
 //    measure of re-rating noise.
-//  * Blocks 3 and 4 carry the same five ratings under different stimulation,
+//  * Blocks 3 and 4 carry the same four ratings under different stimulation,
 //    so the record cannot tell a re-rating from values carried forward.
-//  * Replicate spread must exceed between-setting separation: 0.070 (blocks
-//    6 to 7) against 0.010 (blocks 2 vs 3). A test asserts that inequality
+//  * Replicate spread must exceed between-setting separation: 0.125 (blocks
+//    6 to 7) against 0.0625 (blocks 2 vs 3). A test asserts that inequality
 //    directly, because it is what makes the report's own warning true.
 //  * 6 distinct stimulation settings across the 7 recording blocks.
 //  * At least one current-split block, so percentage rendering is covered
 //    (block 4 splits three ways, exercising the 33/33/34 remainder case).
 //
-// Every scale is targeted `min` over 0 to 10, so a block's aggregate index is
-// the mean of `1 - value/10` over its five ratings. The designed ranking is
+// Every item is scored 0 to 4 in whole steps and targeted `min` over 0 to 4,
+// so a block's aggregate index is the mean of `1 - value/4` over its four
+// ratings, in steps of 1/16. The designed ranking is
 // 7, 6, 2, 3, 4, 1, 5: the best setting is blocks 6+7 and block 1 is rank 6.
 // `main` prints the indices themselves.
 
@@ -45,6 +46,9 @@ import 'package:dbs_annotator/core/tsv.dart';
 final DateTime _start = DateTime.utc(2026, 2, 3, 9);
 
 const String _model = 'Medtronic SenSight B33005';
+const String _pathology = 'PD';
+const String _target = 'STN';
+const String _ipg = 'Medtronic Percept PC';
 const String _program = 'B';
 const String _freq = '130';
 const String _pulseWidth = '60';
@@ -56,16 +60,15 @@ typedef _Block = ({
   String leftAmplitude,
   String rightCathode,
   String rightAmplitude,
-  List<double> ratings, // Obsessions, Compulsions, Anxiety, Mood, Energy
+  List<int> ratings, // in the order of _sessionScales
   String notes,
 });
 
 const List<String> _sessionScales = [
-  'Obsessions',
-  'Compulsions',
-  'Anxiety',
-  'Mood',
-  'Energy',
+  'MDS-UPDRS 3.3 Rigidity RUE',
+  'MDS-UPDRS 3.4 Finger tapping R',
+  'MDS-UPDRS 3.17 Rest tremor RUE',
+  'MDS-UPDRS 3.10 Gait',
 ];
 
 const List<_Block> _blocks = [
@@ -75,7 +78,7 @@ const List<_Block> _blocks = [
     leftAmplitude: '3.0_2.0',
     rightCathode: 'E3',
     rightAmplitude: '4.0',
-    ratings: [8.00, 7.50, 5.00, 6.50, 4.00],
+    ratings: [3, 3, 2, 2],
     notes: 'starting configuration carried over from the last visit',
   ),
   (
@@ -84,7 +87,7 @@ const List<_Block> _blocks = [
     leftAmplitude: '3.0_2.0',
     rightCathode: 'E3',
     rightAmplitude: '5.0',
-    ratings: [6.50, 6.00, 4.50, 6.00, 4.00],
+    ratings: [2, 2, 2, 2],
     notes: '',
   ),
   (
@@ -93,7 +96,7 @@ const List<_Block> _blocks = [
     leftAmplitude: '3.0_2.0',
     rightCathode: 'E3',
     rightAmplitude: '6.0',
-    ratings: [6.25, 6.25, 4.75, 5.75, 4.50],
+    ratings: [2, 3, 2, 2],
     notes: '',
   ),
   (
@@ -102,8 +105,8 @@ const List<_Block> _blocks = [
     leftAmplitude: '3.0_2.0',
     rightCathode: 'E2a_E2b_E2c',
     rightAmplitude: '2.0_2.0_2.0',
-    ratings: [6.25, 6.25, 4.75, 5.75, 4.50],
-    notes: 'transient warmth on the right, settled within a minute',
+    ratings: [2, 3, 2, 2],
+    notes: 'transient tingling in the left hand, settled within a minute',
   ),
   (
     seconds: 710,
@@ -111,8 +114,8 @@ const List<_Block> _blocks = [
     leftAmplitude: '3.0_2.0',
     rightCathode: 'E2a_E2b_E2c',
     rightAmplitude: '2.5_2.5_2.5',
-    ratings: [7.00, 7.25, 8.00, 6.75, 7.50],
-    notes: 'reported feeling anxious and low; amplitude reduced',
+    ratings: [3, 3, 3, 3],
+    notes: 'slurred speech and unsteady gait; amplitude reduced',
   ),
   (
     seconds: 870,
@@ -120,8 +123,8 @@ const List<_Block> _blocks = [
     leftAmplitude: '4.0',
     rightCathode: 'E3',
     rightAmplitude: '5.0',
-    ratings: [4.00, 3.75, 4.25, 5.50, 3.50],
-    notes: 'settled, obsessions much reduced',
+    ratings: [2, 1, 1, 2],
+    notes: 'tremor gone at rest, rigidity much reduced',
   ),
   // Nine seconds after block 6, on identical stimulation: too short to be a
   // plausible re-administration, which makes this pair the noise floor.
@@ -131,21 +134,17 @@ const List<_Block> _blocks = [
     leftAmplitude: '4.0',
     rightCathode: 'E3',
     rightAmplitude: '5.0',
-    ratings: [2.75, 3.00, 4.00, 4.75, 3.00],
+    ratings: [1, 1, 0, 2],
     notes: 're-rated on the same setting',
   ),
 ];
 
-/// The baseline assessment: clinical instruments, before any change. `Y-BOCS`
-/// is the sum of its obsession and compulsion subscales.
+/// The initial assessment: clinical instruments, before any change.
 const List<ScaleEntry> _clinicalScales = [
-  (name: 'Y-BOCS', value: '28'),
-  (name: 'Y-BOCS-o', value: '15'),
-  (name: 'Y-BOCS-c', value: '13'),
-  (name: 'MADRS', value: '24'),
+  (name: 'UPDRS-III', value: '38'),
+  (name: 'PDQ-39', value: '31'),
+  (name: 'UDysRS', value: '14'),
 ];
-
-String _fmt(double v) => v.toStringAsFixed(2);
 
 List<SessionRow> _rows() => [
   ...buildInsertRows(
@@ -156,7 +155,11 @@ List<SessionRow> _rows() => [
     programId: _program,
     leftElectrodeModel: _model,
     rightElectrodeModel: _model,
-    notes: 'baseline assessment before any change this visit',
+    pathology: _pathology,
+    target: _target,
+    ipgModel: _ipg,
+    medications: 'Levodopa/carbidopa 100/25 mg four times a day',
+    notes: 'assessed before any change, one hour after the morning dose',
     leftStimFreq: _freq,
     leftAnode: 'case',
     leftCathode: _blocks.first.leftCathode,
@@ -175,11 +178,14 @@ List<SessionRow> _rows() => [
       appendId: 1,
       scales: [
         for (var s = 0; s < _sessionScales.length; s++)
-          (name: _sessionScales[s], value: _fmt(_blocks[i].ratings[s])),
+          (name: _sessionScales[s], value: '${_blocks[i].ratings[s]}'),
       ],
       programId: _program,
       leftElectrodeModel: _model,
       rightElectrodeModel: _model,
+      pathology: _pathology,
+      target: _target,
+      ipgModel: _ipg,
       notes: _blocks[i].notes,
       leftStimFreq: _freq,
       leftAnode: 'case',
@@ -256,6 +262,7 @@ void main() {
   // the visit's notes say, so the reports show a marked final configuration.
   final authoring = SessionAuthoring()..rows.addAll(_rows());
   authoring.markFinalBlock('${_blocks.length}');
+  authoring.setStarred('${_blocks.length}', true);
   final rows = authoring.rows;
   const dir = 'test/fixtures';
   const stem = 'sub-01_ses-20260203_task-programming_run-01';
@@ -274,7 +281,7 @@ void main() {
   }
   for (final block in byBlock.keys) {
     final v = byBlock[block]!;
-    final index = 1 - (v.reduce((a, b) => a + b) / v.length) / 10;
-    stdout.writeln('  block $block  index ${index.toStringAsFixed(3)}');
+    final index = 1 - (v.reduce((a, b) => a + b) / v.length) / 4;
+    stdout.writeln('  block $block  index ${index.toStringAsFixed(4)}');
   }
 }
