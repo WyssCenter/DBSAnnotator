@@ -44,25 +44,14 @@ import 'scale_targets_dialog.dart';
 import 'save_target.dart';
 import 'scale_slider.dart';
 import 'share_util.dart';
-import 'setting_presets_dialog.dart';
+import 'devices_dialog.dart';
+import 'stim_defaults_dialog.dart';
 import 'wizard_parts.dart';
 import 'stim_params_form.dart';
 import 'theme.dart';
 
-/// Complete-Workflow authoring as the desktop's 4-step wizard
-/// (step0..step3_view.py), driven by a Material [Stepper]:
-///
-/// - Step 0, File: patient/run, start empty or open an existing TSV.
-/// - Step 1, Initial configuration: baseline stimulation and clinical scales,
-///   inserted as ONE is_initial=1 block.
-/// - Step 2, Session scales: define the (name, min, max) scale set that Step 3
-///   rates. Nothing is written to the TSV here.
-/// - Step 3, Recording: stimulation and one slider/omit row per Step-2 scale,
-///   inserted as is_initial=0 blocks; TSV and PDF export.
-///
-/// Produces the same `task-programming` TSV the desktop writes, via
-/// [SessionAuthoring]. Offline pattern as in annotations_screen.dart:
-/// in-memory rows, Open via file_picker, Export via share_plus.
+/// A programming session in four steps: Setup, Initial assessment,
+/// Programming and Finish, written as a `task-programming` TSV.
 class SessionScreen extends StatefulWidget {
   const SessionScreen({
     super.key,
@@ -95,7 +84,7 @@ String _fmtValue(double v) {
   return out;
 }
 
-/// One Step-1 clinical scale row: name + typed numeric score.
+/// One clinical scale of the initial assessment: name and score.
 class _ClinicalScaleEdit {
   final name = TextEditingController();
   final score = TextEditingController();
@@ -106,8 +95,8 @@ class _ClinicalScaleEdit {
   }
 }
 
-/// One session scale: defined in Step 2 (name/min/max) and rated in Step 3
-/// (slider [value] + [omitted] "not assessed" toggle).
+/// One rating of Programming: its bounds, slider [value] and [omitted]
+/// "not assessed" toggle.
 class _SessionScaleEdit {
   _SessionScaleEdit({
     required double min,
@@ -149,9 +138,7 @@ class _SessionScaleEdit {
   }
 }
 
-/// One side's stimulation inputs (form controllers + electrode contacts).
-/// Shared by Step 1 and Step 3, like the desktop keeps the last-used
-/// settings when moving between steps.
+/// One side's stimulation inputs: form controllers and electrode contacts.
 class _SideInputs {
   final freq = TextEditingController();
   final amp = TextEditingController();
@@ -174,21 +161,12 @@ class _SideInputs {
   }
 }
 
-/// The `task-` label of a programming session unless the user names another.
-const _defaultTask = 'programming';
-
 const _stepNames = ['Setup', 'Initial assessment', 'Programming', 'Finish'];
 const _finishStep = 3;
 
 class _SessionScreenState extends State<SessionScreen> {
   late SessionAuthoring _authoring = widget.authoring ?? SessionAuthoring();
-  final _subjectCtrl = TextEditingController();
-  final _taskCtrl = TextEditingController(text: _defaultTask);
-  final _runCtrl = TextEditingController(text: '01');
-  final _sessionCtrl = TextEditingController(
-    text: BidsName.sessionStamp(DateTime.now()),
-  );
-  final _acqCtrl = TextEditingController();
+  final _ids = BidsEntries('programming');
   // Notes are per-context: the initial-config notes persist across inserts (the
   // user keeps refining them); recording notes clear after each block.
   final _notesInitCtrl = TextEditingController();
@@ -251,7 +229,7 @@ class _SessionScreenState extends State<SessionScreen> {
   // True when that path is an iOS sandbox copy rather than the user's own
   // file. See [pickedPathAutosavesToOriginal].
   bool _savePathIsSandboxCopy = false;
-  // Currently-applied disease preset, for the selected pill styling.
+  // The indication whose scales are loaded.
   String? _selectedClinicalPreset;
   // Selected program name (desktop program combo).
   String? _selectedProgram;
@@ -315,7 +293,7 @@ class _SessionScreenState extends State<SessionScreen> {
       _datasetName = null;
       _initialBlock = null;
       _initialSaved = null;
-      if (bids != null) _fillLabels(bids);
+      if (bids != null) _ids.fill(bids);
       _fillSessionDetails(_authoring.rows);
       _selectedClinicalPreset = null;
       _currentStep = 2;
@@ -365,7 +343,7 @@ class _SessionScreenState extends State<SessionScreen> {
         ),
   ];
 
-  /// Edit the targets, then push them back onto the Step-2 rows so Step 2, the
+  /// Edit the targets, then push them back onto the ratings so they, the
   /// figure and the report all stay in agreement.
   Future<void> _editScaleTargets() async {
     final updated = await showScaleTargetsDialog(context, _scalePrefs());
@@ -387,7 +365,7 @@ class _SessionScreenState extends State<SessionScreen> {
   /// step and both builders, so the two formats cannot disagree and
   /// `DateTime.now()` is read a single time.
   ///
-  /// The Step-2 scale bounds and optimisation modes go through as [ScalePref]s.
+  /// The rating bounds and optimisation modes go through as [ScalePref]s.
   /// Without them the report falls back to a 0-10 default, and the chart's
   /// y-axis clamp and the whole ranking ignore what the user typed.
   SessionReportData _reportData() => buildSessionReportData(
@@ -426,11 +404,7 @@ class _SessionScreenState extends State<SessionScreen> {
   @override
   void dispose() {
     if (activeSessionGuard == _mayLeave) activeSessionGuard = null;
-    _subjectCtrl.dispose();
-    _taskCtrl.dispose();
-    _runCtrl.dispose();
-    _sessionCtrl.dispose();
-    _acqCtrl.dispose();
+    _ids.dispose();
     _notesInitCtrl.dispose();
     _notesRecCtrl.dispose();
     _pathologyCtrl.dispose();
@@ -468,10 +442,8 @@ class _SessionScreenState extends State<SessionScreen> {
     return v == null ? t : encodeAmplitude(v, const []);
   }
 
-  // ---- Insert (Step 1 baseline / Step 3 recording) ----
-
   /// True when every stim field is blank or within limits; otherwise shows
-  /// the blocking snackbar (Step-1 and Step-3 inserts share this guard).
+  /// the blocking snackbar.
   bool _stimInRange(StimLimits limits, _SideInputs left, _SideInputs right) {
     final outOfRange = [
       rangeError(left.freq.text, limits.frequency),
@@ -535,18 +507,6 @@ class _SessionScreenState extends State<SessionScreen> {
       return encodeAmplitude(total, side.ampSplit);
     }
     return _encodeAmplitudeCell(side.amp.text);
-  }
-
-  /// Navigate to [step], seeding the recording config from the initial config
-  /// the first time the Recording step (3) is opened, so recording STARTS from
-  /// the initial config but is then edited independently. Call inside setState.
-  void _goToStep(int step) {
-    if (step == 2 && !_recSeeded) {
-      _copySide(_leftInit, _leftRec);
-      _copySide(_rightInit, _rightRec);
-      _recSeeded = true;
-    }
-    _currentStep = step;
   }
 
   /// Copy one side's electrode + param state (for seeding recording from
@@ -651,11 +611,13 @@ class _SessionScreenState extends State<SessionScreen> {
     await saveUserPrefs(_prefs);
   }
 
+  bool get _started => _workingPath != null || widget.authoring != null;
+
   /// Move to [step], saving the initial assessment when leaving it and asking
   /// which configuration the patient leaves on when entering Finish.
   Future<void> _goTo(int step) async {
     if (step == _currentStep) return;
-    if (step > 0 && _workingPath == null && widget.authoring == null) {
+    if (step > 0 && !_started) {
       _snack(
         'Enter the patient ID and press New, or open a saved session, '
         'so the data has somewhere to be saved.',
@@ -663,16 +625,45 @@ class _SessionScreenState extends State<SessionScreen> {
       return;
     }
     if (_currentStep == 1) {
-      final (catalog, limits, _) = await _contracts;
+      final (rawCatalog, limits, _) = await _contracts;
+      final catalog = rawCatalog.withDevices(_prefs.devices);
       if (!mounted || !_saveInitial(catalog, limits)) return;
     }
     if (step == _finishStep && !await _confirmLeftOn()) return;
-    if (mounted) setState(() => _goToStep(step));
+    if (step == 1) {
+      final limits = (await _contracts).$2.withDefaults(_prefs.stimDefaults);
+      _fillStimDefaults(limits.defaults[_pathologyCtrl.text.trim()]);
+    }
+    if (!mounted) return;
+    setState(() {
+      if (step == 2 && !_recSeeded) {
+        _copySide(_leftInit, _leftRec);
+        _copySide(_rightInit, _rightRec);
+        _recSeeded = true;
+      }
+      _currentStep = step;
+    });
   }
 
-  /// Step 3: one recording block (is_initial=0). Omitted scales write the
-  /// contract literal ("NaN"); rated scales write the slider value with the
-  /// desktop formatting.
+  /// Start both initial sides from the indication's [defaults], unless any
+  /// stimulation value is already there.
+  void _fillStimDefaults(List<num>? defaults) {
+    final sides = [_leftInit, _rightInit];
+    if (defaults == null ||
+        sides.any(
+          (s) => [s.freq, s.amp, s.pulseWidth].any((c) => c.text.isNotEmpty),
+        )) {
+      return;
+    }
+    for (final s in sides) {
+      s.freq.text = presetLabel(defaults[0]);
+      s.amp.text = presetLabel(defaults[1]);
+      s.pulseWidth.text = presetLabel(defaults[2]);
+    }
+  }
+
+  /// One Programming block (is_initial=0); omitted ratings write the
+  /// contract's omitted literal.
   void _insertRecording(ElectrodeCatalog catalog, StimLimits limits) {
     if (!_stimInRange(limits, _leftRec, _rightRec)) return;
     _invalidateEntryCharts();
@@ -728,7 +719,7 @@ class _SessionScreenState extends State<SessionScreen> {
     // Resolved here rather than only in New/Open, because the wizard lets the
     // File step be skipped entirely: without this a whole visit recorded that
     // way would be held in memory.
-    final work = _workingPath ?? await workingPath(_bidsName(_labels).filename);
+    final work = _workingPath ?? await workingPath(_ids.name.filename);
     _workingPath = work;
     try {
       await _writer.write(work, _authoring.serialize());
@@ -809,7 +800,7 @@ class _SessionScreenState extends State<SessionScreen> {
         sessionSidecarJson(
           contract,
           appVersion: appVersion,
-          task: _labels.task,
+          task: _ids.name.task,
         ),
       );
     } catch (_) {
@@ -817,23 +808,13 @@ class _SessionScreenState extends State<SessionScreen> {
     }
   }
 
-  /// Ask for the folder new session files go into, and remember it.
-  Future<String?> _chooseSaveFolder() async {
-    final folder = await pickSaveFolder();
-    if (folder == null || !mounted) return null;
-    setState(() => _prefs.saveFolder = folder);
-    saveUserPrefs(_prefs);
-    return folder;
-  }
-
   Future<void> _newSession() async {
-    final subject = _subjectCtrl.text.trim();
+    final subject = _ids.subject.text.trim();
     if (subject.isEmpty) {
       _snack('Enter the patient ID first.');
       return;
     }
-    final run = _runCtrl.text.trim().isEmpty ? '01' : _runCtrl.text.trim();
-    final bids = _bidsName((subject: subject, task: _labels.task, run: run));
+    final bids = _ids.name;
     final name = bids.filename;
     final authoring = SessionAuthoring();
 
@@ -851,8 +832,7 @@ class _SessionScreenState extends State<SessionScreen> {
         _datasetRoot = into.root;
         _datasetName = into.name;
         _savePathIsSandboxCopy = false;
-        _subjectCtrl.text = subject;
-        _runCtrl.text = into.name.run;
+        _ids.run.text = into.name.run;
         _initialBlock = null;
         _initialSaved = null;
       });
@@ -863,9 +843,7 @@ class _SessionScreenState extends State<SessionScreen> {
       return;
     }
 
-    final folder = canWriteChosenFolder
-        ? _prefs.saveFolder ?? await _chooseSaveFolder()
-        : null;
+    final folder = canWriteChosenFolder ? await chooseSaveFolder(_prefs) : null;
     if (canWriteChosenFolder && folder == null) return;
     if (!mounted) return;
     final NewTsvTarget? target;
@@ -903,8 +881,6 @@ class _SessionScreenState extends State<SessionScreen> {
       _datasetRoot = null;
       _datasetName = null;
       _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(p);
-      _subjectCtrl.text = subject;
-      _runCtrl.text = run;
       _initialBlock = null;
       _initialSaved = null;
     });
@@ -949,7 +925,7 @@ class _SessionScreenState extends State<SessionScreen> {
     // The file names its own electrode model, so the dropdown follows it. A
     // mismatch is not cosmetic: it labels one lead's contacts with another
     // lead's geometry, in the diagrams here and in the report.
-    final catalog = (await _contracts).$1;
+    final catalog = (await _contracts).$1.withDevices(_prefs.devices);
     final named = electrodeModelIn(_authoring.rows);
     final namedRight = electrodeModelIn(_authoring.rows, right: true);
     final unknownModel = [
@@ -968,7 +944,7 @@ class _SessionScreenState extends State<SessionScreen> {
       _datasetName = null;
       _initialBlock = null;
       _initialSaved = null;
-      if (bids != null) _fillLabels(bids);
+      if (bids != null) _ids.fill(bids);
       _fillSessionDetails(_authoring.rows);
       _selectedClinicalPreset = null;
       if (named.isNotEmpty && !unknownModel) {
@@ -991,42 +967,6 @@ class _SessionScreenState extends State<SessionScreen> {
         'instead.',
       );
     }
-  }
-
-  /// BIDS labels for a filename: sanitised, because these fields are free text
-  /// and become a path component.
-  ({String subject, String task, String run}) get _labels {
-    final subject = BidsName.label(_subjectCtrl.text.trim());
-    final task = BidsName.label(_taskCtrl.text.trim());
-    final run = BidsName.index(_runCtrl.text.trim());
-    return (
-      subject: subject.isEmpty ? 'unknown' : subject,
-      task: task.isEmpty ? _defaultTask : task,
-      run: run,
-    );
-  }
-
-  void _fillLabels(BidsName bids) {
-    _subjectCtrl.text = bids.subject;
-    _taskCtrl.text = bids.task.isEmpty ? _defaultTask : bids.task;
-    _runCtrl.text = bids.run;
-    if (bids.session.isNotEmpty) _sessionCtrl.text = bids.session;
-    _acqCtrl.text = bids.acquisition;
-  }
-
-  /// The BIDS entities for everything this screen writes: the session TSV, its
-  /// sidecar and the report derivative all carry the same ones.
-  BidsName _bidsName(({String subject, String task, String run}) labels) {
-    final session = BidsName.label(_sessionCtrl.text.trim());
-    return BidsName(
-      subject: labels.subject,
-      session: session.isEmpty
-          ? BidsName.sessionStamp(DateTime.now())
-          : session,
-      task: labels.task,
-      run: labels.run,
-      acquisition: BidsName.label(_acqCtrl.text.trim()),
-    );
   }
 
   /// Report sections the user last chose (all of them, by default).
@@ -1063,7 +1003,7 @@ class _SessionScreenState extends State<SessionScreen> {
     }
     await exportFile(
       context,
-      filename: _bidsName(_labels).filename,
+      filename: _ids.name.filename,
       anchor: _exportKey,
       build: () async =>
           (bytes: utf8.encode(_authoring.serialize()), warning: null),
@@ -1096,7 +1036,7 @@ class _SessionScreenState extends State<SessionScreen> {
       anchor: _exportKey,
       entries: [
         datasetEntry(
-          name: _bidsName(_labels),
+          name: _ids.name,
           tsv: _authoring.serialize(),
           contract: contract,
           kind: 'session_tsv',
@@ -1119,13 +1059,11 @@ class _SessionScreenState extends State<SessionScreen> {
     final attestation = await askAttestation(context, rated: true);
     if (attestation == null || !mounted) return;
 
-    final l = _labels;
     // A report is a derivative, not raw data: `_report` is not a BIDS suffix.
-    // Built from the same entities as the TSV so the two files sort together,
-    // and through the one builder so they cannot drift.
-    final filename = _bidsName(
-      l,
-    ).withSuffix('report', extension: docx ? 'docx' : 'pdf').filename;
+    final l = _ids.name;
+    final filename = l
+        .withSuffix('report', extension: docx ? 'docx' : 'pdf')
+        .filename;
 
     await exportFile(
       context,
@@ -1270,8 +1208,6 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  // ---- Shared UI pieces ----
-
   /// Two rows: the configuration (parameters beside electrodes) and the
   /// observations (scales beside notes), the observations first when
   /// [observationsFirst]. Narrow screens stack everything in one column.
@@ -1311,6 +1247,13 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
+  Future<void> _editDevices(ElectrodeCatalog catalog) async {
+    final result = await showDevicesDialog(context, devices: catalog.devices);
+    if (result == null || !mounted) return;
+    setState(() => _prefs.devices = result);
+    await saveUserPrefs(_prefs);
+  }
+
   Widget _modelCard(ElectrodeCatalog catalog) {
     // ElectrodeView resets on model change; mirror it in every captured pair
     // of the side whose lead changed (initial and recording).
@@ -1319,16 +1262,6 @@ class _SessionScreenState extends State<SessionScreen> {
         s.states = {};
         s.caseState = ContactState.off;
       }
-    }
-
-    final makers = {...catalog.manufacturers.keys, ...catalog.ipgs.keys};
-    final ipgs = _prefs.ipgs ?? [for (final n in catalog.ipgs.values) ...n];
-    final ipgGroups = <String, List<String>>{};
-    for (final name in ipgs) {
-      final maker =
-          makers.where((m) => name.startsWith('$m ')).firstOrNull ??
-          name.split(' ').first;
-      (ipgGroups[maker] ??= []).add(name);
     }
 
     Widget menu(
@@ -1380,16 +1313,9 @@ class _SessionScreenState extends State<SessionScreen> {
           onChanged: onChanged == null ? null : (v) => onChanged(v ?? true),
         );
 
-    Widget heading(String text, [Widget? action]) => SizedBox(
-      height: 40,
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(text, style: Theme.of(context).textTheme.labelLarge),
-          ),
-          ?action,
-        ],
-      ),
+    Widget heading(String text) => Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Text(text, style: Theme.of(context).textTheme.labelLarge),
     );
 
     final same = _rightModelName == null;
@@ -1397,6 +1323,11 @@ class _SessionScreenState extends State<SessionScreen> {
         sessionValueIn(_authoring.rows, (r) => r.leftIpgModel) != '';
     return GroupCard(
       title: 'Devices',
+      action: IconButton(
+        icon: const Icon(Icons.settings),
+        tooltip: 'Devices settings',
+        onPressed: () => _editDevices(catalog),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: Column(
@@ -1432,21 +1363,10 @@ class _SessionScreenState extends State<SessionScreen> {
                 }),
               ),
             const Divider(height: 24),
-            heading(
-              'Implanted pulse generator (IPG)',
-              IconButton(
-                icon: const Icon(Icons.settings),
-                tooltip: 'Edit IPG models',
-                onPressed: () => _editList(
-                  'IPG models (manufacturer and model)',
-                  ipgs,
-                  (l) => _prefs.ipgs = l,
-                ),
-              ),
-            ),
+            heading('Implanted pulse generator (IPG)'),
             menu(
               _sameIpg ? 'IPG model' : 'Left IPG model',
-              ipgGroups,
+              catalog.ipgs,
               controller: _leftIpgCtrl,
               enabled: !ipgLocked,
             ),
@@ -1458,7 +1378,7 @@ class _SessionScreenState extends State<SessionScreen> {
             if (!_sameIpg)
               menu(
                 'Right IPG model',
-                ipgGroups,
+                catalog.ipgs,
                 controller: _rightIpgCtrl,
                 enabled: !ipgLocked,
               ),
@@ -1468,23 +1388,20 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  /// A field offering [options]; when [typed], other text is accepted too.
-  /// [locked] once the session's rows record a value, so it stays the same
-  /// for the whole session.
+  /// A pick-only field offering [options], [locked] once the session's rows
+  /// record a value.
   Widget _choiceField({
     required TextEditingController controller,
     required String label,
     required List<String> options,
     required bool locked,
     ValueChanged<String?>? onSelected,
-    bool typed = true,
   }) => DropdownMenu<String>(
     controller: controller,
     label: Text(label),
     enabled: !locked,
     expandedInsets: EdgeInsets.zero,
-    enableFilter: typed,
-    requestFocusOnTap: typed,
+    requestFocusOnTap: false,
     onSelected: onSelected,
     dropdownMenuEntries: [
       for (final o in options) DropdownMenuEntry(value: o, label: o),
@@ -1591,29 +1508,14 @@ class _SessionScreenState extends State<SessionScreen> {
           IconButton(
             icon: const Icon(Icons.settings, size: 18),
             tooltip: 'Edit programs',
-            onPressed: _editPrograms,
+            onPressed: () => _editList('Programs', _programs, (l) {
+              _prefs.programs = l;
+              if (!l.contains(_selectedProgram)) _selectedProgram = null;
+            }),
           ),
         ],
       ),
     );
-  }
-
-  /// Edit + persist the program-name list (desktop program editor).
-  Future<void> _editPrograms() async {
-    final result = await showDialog<List<String>>(
-      context: context,
-      builder: (_) => ListEditorDialog(
-        title: 'Programs',
-        items: List<String>.of(_programs),
-      ),
-    );
-    if (result == null) return;
-    _prefs.programs = result;
-    await saveUserPrefs(_prefs);
-    if (!mounted) return;
-    setState(() {
-      if (!result.contains(_selectedProgram)) _selectedProgram = null;
-    });
   }
 
   /// Active cathode labels for [side] (from the encoded cathode string), which
@@ -1645,10 +1547,6 @@ class _SessionScreenState extends State<SessionScreen> {
             amplitude: side.amp,
             pulseWidth: side.pulseWidth,
           ),
-          // Rebuild only the split when the amplitude controller changes, so
-          // the per-cathode mA labels track edits from typing, the steppers,
-          // and the preset chips (all mutate side.amp) without rebuilding the
-          // heavy electrode canvas.
           ListenableBuilder(
             listenable: side.amp,
             builder: (context, _) => AmplitudeSplit(
@@ -1662,8 +1560,6 @@ class _SessionScreenState extends State<SessionScreen> {
         ],
       ),
     );
-    // Deselecting a side's electrode dims its parameters as an "off" hint, but
-    // they stay editable (locking input just blocked typing / preset chips).
     return Opacity(opacity: side.enabled ? 1 : 0.6, child: card);
   }
 
@@ -1689,8 +1585,8 @@ class _SessionScreenState extends State<SessionScreen> {
             ),
             IconButton(
               icon: const Icon(Icons.settings, size: 18),
-              tooltip: 'Edit parameter presets',
-              onPressed: () => _editStimPresets(limits),
+              tooltip: 'Default settings per DBS indication',
+              onPressed: () => _editStimDefaults(limits),
             ),
           ],
         ),
@@ -1701,24 +1597,17 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  /// Edit + persist the stimulation quick-pick preset lists via the desktop
-  /// "Edit Setting Presets" dialog (3 tabs: Frequency / Amplitude / Pulse
-  /// width). Seeded from the effective [limits] presets; saved to [UserPrefs]
-  /// so the StimParamsForm chips update live (via withPresets) and persist.
-  Future<void> _editStimPresets(StimLimits limits) async {
-    final result = await showSettingPresetsDialog(
+  /// Edit and keep the starting settings of each DBS indication.
+  Future<void> _editStimDefaults(StimLimits limits) async {
+    final presets = (await _contracts).$3;
+    if (!mounted) return;
+    final result = await showStimDefaultsDialog(
       context,
       limits: limits,
-      frequencies: limits.frequencyPresets,
-      amplitudes: limits.amplitudePresets,
-      pulseWidths: limits.pulseWidthPresets,
+      indications: _prefs.pathologies ?? presets.pathologies,
     );
     if (result == null) return;
-    setState(() {
-      _prefs.stimFrequencies = result.frequencies;
-      _prefs.stimAmplitudes = result.amplitudes;
-      _prefs.stimPulseWidths = result.pulseWidths;
-    });
+    setState(() => _prefs.stimDefaults = result);
     await saveUserPrefs(_prefs);
   }
 
@@ -1891,7 +1780,7 @@ class _SessionScreenState extends State<SessionScreen> {
   ) {
     final pathologies = _prefs.pathologies ?? presets.pathologies;
     final targets = _prefs.targets ?? presets.targets;
-    final started = _workingPath != null || widget.authoring != null;
+    final started = _started;
     const field = InputDecoration(border: OutlineInputBorder());
     Widget gear(String tooltip, VoidCallback onPressed) => IconButton(
       icon: const Icon(Icons.settings),
@@ -1906,41 +1795,7 @@ class _SessionScreenState extends State<SessionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (canWriteChosenFolder)
-              SaveFolderRow(
-                folder: _prefs.saveFolder,
-                onChoose: _chooseSaveFolder,
-              ),
-            TextField(
-              controller: _subjectCtrl,
-              decoration: field.copyWith(labelText: 'Patient ID'),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                for (final (i, (ctrl, label, flex)) in [
-                  (_runCtrl, 'Run', 2),
-                  (_sessionCtrl, 'Session', 3),
-                  (_taskCtrl, 'Task', 3),
-                  (_acqCtrl, 'Acquisition', 3),
-                ].indexed) ...[
-                  if (i > 0) const SizedBox(width: 12),
-                  Expanded(
-                    flex: flex,
-                    child: TextField(
-                      controller: ctrl,
-                      keyboardType: ctrl == _runCtrl
-                          ? TextInputType.number
-                          : null,
-                      decoration: field.copyWith(
-                        labelText: label,
-                        hintText: ctrl == _acqCtrl ? 'Optional' : null,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
+            BidsNameFields(entries: _ids, decoration: field),
             const SizedBox(height: 16),
             Wrap(
               spacing: 12,
@@ -1969,20 +1824,13 @@ class _SessionScreenState extends State<SessionScreen> {
                 Expanded(
                   child: Text(
                     started
-                        ? 'Session started: ${_bidsName(_labels).filename}'
+                        ? 'Session started: ${_ids.name.filename}'
                         : 'Enter the patient ID, then start a new session '
                               'or open a saved one.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'The entry names follow the BIDS naming convention: '
-              'sub-<Patient ID>_ses-<Session>_task-<Task>_acq-<Acquisition>'
-              '_run-<Run>. Acquisition is added only when filled in.',
-              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
         ),
@@ -2003,7 +1851,6 @@ class _SessionScreenState extends State<SessionScreen> {
                     controller: _pathologyCtrl,
                     label: 'DBS indication',
                     options: pathologies,
-                    typed: false,
                     locked:
                         sessionValueIn(_authoring.rows, (r) => r.pathology) !=
                         '',
@@ -2035,7 +1882,6 @@ class _SessionScreenState extends State<SessionScreen> {
                     controller: _targetCtrl,
                     label: 'Anatomical target',
                     options: targets,
-                    typed: false,
                     locked:
                         sessionValueIn(_authoring.rows, (r) => r.target) != '',
                   ),
@@ -2649,8 +2495,6 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  // ---- Wizard scaffold ----
-
   /// Leaving asks whether to keep the recovery copy; see `close_guard.dart`.
   Future<bool> _mayLeave() => confirmLeaveSession(context, _workingPath);
 
@@ -2684,14 +2528,9 @@ class _SessionScreenState extends State<SessionScreen> {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final (catalog, rawLimits, rawPresets) = snapshot.data!;
-          // Layer the user's saved overrides (F7) over the bundled contract so
-          // edited presets show immediately and survive relaunch.
-          final limits = rawLimits.withPresets(
-            frequencies: _prefs.stimFrequencies,
-            amplitudes: _prefs.stimAmplitudes,
-            pulseWidths: _prefs.stimPulseWidths,
-          );
+          final (rawCatalog, rawLimits, rawPresets) = snapshot.data!;
+          final catalog = rawCatalog.withDevices(_prefs.devices);
+          final limits = rawLimits.withDefaults(_prefs.stimDefaults);
           final presets = mergeScalePresets(rawPresets, _prefs);
           final leads = _leads(catalog);
           // Only the active step builds its (heavy) content: keeps one
@@ -2705,7 +2544,7 @@ class _SessionScreenState extends State<SessionScreen> {
             () => _recordingStep(catalog, limits, presets, leads),
             () => _finishView(leads),
           ];
-          final l = _labels;
+          final l = _ids.name;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

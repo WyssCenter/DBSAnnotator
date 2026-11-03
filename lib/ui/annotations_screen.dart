@@ -34,20 +34,11 @@ class AnnotationsScreen extends StatefulWidget {
   State<AnnotationsScreen> createState() => _AnnotationsScreenState();
 }
 
-/// The `task-` label of a notes file unless the user names another.
-const _defaultTask = 'notes';
-
 class _AnnotationsScreenState extends State<AnnotationsScreen> {
   // Serialised, atomic autosave to the user's file. See [SafeFileWriter].
   final _writer = SafeFileWriter();
 
-  final _subjectCtrl = TextEditingController();
-  final _taskCtrl = TextEditingController(text: _defaultTask);
-  final _runCtrl = TextEditingController(text: '01');
-  final _sessionCtrl = TextEditingController(
-    text: BidsName.sessionStamp(DateTime.now()),
-  );
-  final _acqCtrl = TextEditingController();
+  final _ids = BidsEntries('notes');
   final _noteCtrl = TextEditingController();
   final _entries = <Annotation>[];
 
@@ -80,11 +71,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
   @override
   void dispose() {
     if (activeSessionGuard == _mayLeave) activeSessionGuard = null;
-    _subjectCtrl.dispose();
-    _taskCtrl.dispose();
-    _runCtrl.dispose();
-    _sessionCtrl.dispose();
-    _acqCtrl.dispose();
+    _ids.dispose();
     _noteCtrl.dispose();
     super.dispose();
   }
@@ -128,7 +115,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       _savePath = null;
       _datasetRoot = null;
       _datasetName = null;
-      if (bids != null) _fillLabels(bids);
+      if (bids != null) _ids.fill(bids);
       _currentStep = 1;
     });
     _snack('Reopened $name. Export it to save it outside the app.');
@@ -136,34 +123,6 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
 
   void _snack(String msg) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-
-  /// The BIDS entities for the notes TSV, its sidecar and the report
-  /// derivative, so all three carry the same ones.
-  ///
-  /// [subject] and [run] are free text that ends up in a path, so they go
-  /// through the sanitisers; run is an index in BIDS, not a label.
-  BidsName _bidsName({String? subject, String? run}) {
-    final s = BidsName.label(subject ?? _subjectCtrl.text.trim());
-    final task = BidsName.label(_taskCtrl.text.trim());
-    final session = BidsName.label(_sessionCtrl.text.trim());
-    return BidsName(
-      subject: s.isEmpty ? 'unknown' : s,
-      session: session.isEmpty
-          ? BidsName.sessionStamp(DateTime.now())
-          : session,
-      task: task.isEmpty ? _defaultTask : task,
-      run: BidsName.index(run ?? _runCtrl.text.trim()),
-      acquisition: BidsName.label(_acqCtrl.text.trim()),
-    );
-  }
-
-  void _fillLabels(BidsName bids) {
-    _subjectCtrl.text = bids.subject;
-    _taskCtrl.text = bids.task.isEmpty ? _defaultTask : bids.task;
-    _runCtrl.text = bids.run;
-    if (bids.session.isNotEmpty) _sessionCtrl.text = bids.session;
-    _acqCtrl.text = bids.acquisition;
-  }
 
   /// Write the `_beh.json` sidecar beside [tsvPath]; see the session screen's
   /// copy for why this is best-effort and silent.
@@ -176,7 +135,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
         annotationSidecarJson(
           contract,
           appVersion: appVersion,
-          task: _bidsName().task,
+          task: _ids.name.task,
         ),
       );
     } catch (_) {
@@ -184,23 +143,13 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     }
   }
 
-  /// Ask for the folder new files go into, and remember it.
-  Future<String?> _chooseSaveFolder() async {
-    final folder = await pickSaveFolder();
-    if (folder == null || !mounted) return null;
-    setState(() => _prefs.saveFolder = folder);
-    saveUserPrefs(_prefs);
-    return folder;
-  }
-
   Future<void> _newSession() async {
-    final subject = _subjectCtrl.text.trim();
+    final subject = _ids.subject.text.trim();
     if (subject.isEmpty) {
       _snack('Enter the patient ID first.');
       return;
     }
-    final run = _runCtrl.text.trim().isEmpty ? '01' : _runCtrl.text.trim();
-    final bids = _bidsName(subject: subject, run: run);
+    final bids = _ids.name;
     final name = bids.filename;
 
     // Loose file, or straight into a dataset: the answer decides where every
@@ -216,8 +165,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
         _workingPath = work;
         _datasetRoot = into.root;
         _datasetName = into.name;
-        _subjectCtrl.text = subject;
-        _runCtrl.text = into.name.run;
+        _ids.run.text = into.name.run;
         _currentStep = 1;
       });
       _snack(
@@ -227,9 +175,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       return;
     }
 
-    final folder = canWriteChosenFolder
-        ? _prefs.saveFolder ?? await _chooseSaveFolder()
-        : null;
+    final folder = canWriteChosenFolder ? await chooseSaveFolder(_prefs) : null;
     if (canWriteChosenFolder && folder == null) return;
     if (!mounted) return;
     final NewTsvTarget? target;
@@ -266,8 +212,6 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       _workingPath = work;
       _datasetRoot = null;
       _datasetName = null;
-      _subjectCtrl.text = subject;
-      _runCtrl.text = run;
       _currentStep = 1;
     });
     _snack('New notes file: ${target.location}');
@@ -320,7 +264,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       _workingPath = work;
       _datasetRoot = null;
       _datasetName = null;
-      if (bids != null) _fillLabels(bids);
+      if (bids != null) _ids.fill(bids);
       _currentStep = 1;
     });
     _snack('Opened ${picked.name} (${loaded.length} notes).');
@@ -330,52 +274,9 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (canWriteChosenFolder)
-          SaveFolderRow(folder: _prefs.saveFolder, onChoose: _chooseSaveFolder),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _subjectCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Patient ID',
-                  isDense: true,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            for (final (i, (ctrl, label, flex)) in [
-              (_runCtrl, 'Run', 2),
-              (_sessionCtrl, 'Session', 3),
-              (_taskCtrl, 'Task', 3),
-              (_acqCtrl, 'Acquisition', 3),
-            ].indexed) ...[
-              if (i > 0) const SizedBox(width: 12),
-              Expanded(
-                flex: flex,
-                child: TextField(
-                  controller: ctrl,
-                  keyboardType: ctrl == _runCtrl ? TextInputType.number : null,
-                  decoration: InputDecoration(
-                    labelText: label,
-                    hintText: ctrl == _acqCtrl ? 'Optional' : null,
-                    isDense: true,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'The entry names follow the BIDS naming convention: '
-          'sub-<Patient ID>_ses-<Session>_task-<Task>_acq-<Acquisition>'
-          '_run-<Run>. Acquisition is added only when filled in.',
-          style: Theme.of(context).textTheme.bodySmall,
+        BidsNameFields(
+          entries: _ids,
+          decoration: const InputDecoration(isDense: true),
         ),
         const SizedBox(height: 16),
         Row(
@@ -492,7 +393,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     }
     await exportFile(
       context,
-      filename: _bidsName().filename,
+      filename: _ids.name.filename,
       anchor: _exportKey,
       build: () async => (
         bytes: utf8.encode(writeAnnotations(_entries.reversed.toList())),
@@ -521,7 +422,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       anchor: _exportKey,
       entries: [
         datasetEntry(
-          name: _bidsName(),
+          name: _ids.name,
           tsv: writeAnnotations(oldestFirst),
           contract: contract,
           kind: 'annotation_tsv',
@@ -539,7 +440,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     }
     final attestation = await askAttestation(context, rated: false);
     if (attestation == null || !mounted) return;
-    final name = _bidsName();
+    final name = _ids.name;
     final subject = name.subject;
     // `_report` is not a BIDS suffix; a report is a derivative, not raw data.
     // Same entities as the TSV so the two files sort together.
@@ -724,8 +625,8 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
           if (_currentStep > 0)
             SessionStrip(
               parts: [
-                'Patient ${_subjectCtrl.text.trim()}',
-                'Run ${_runCtrl.text.trim()}',
+                'Patient ${_ids.subject.text.trim()}',
+                'Run ${_ids.run.text.trim()}',
               ],
               onTap: () => _goTo(0),
             ),

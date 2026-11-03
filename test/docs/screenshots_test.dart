@@ -944,11 +944,16 @@ void main() {
       ),
     );
     await _choosePathology(tester);
+    await _tapTooltip(tester, 'Devices settings');
+    await _shootDialog(tester, 'dialog_devices');
+    await _tapTooltip(tester, 'Lead design');
+    await _shootDialog(tester, 'dialog_lead_design');
+    await _tapText(tester, 'Cancel');
     await _next(tester);
 
     for (final entry in const [
       ('Edit programs', 'dialog_programs'),
-      ('Edit parameter presets', 'dialog_parameter_presets'),
+      ('Default settings per DBS indication', 'dialog_parameter_presets'),
       ('Settings clinical scales', 'dialog_clinical_scales'),
     ]) {
       await _tapTooltip(tester, entry.$1);

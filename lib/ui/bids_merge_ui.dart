@@ -340,8 +340,6 @@ Future<({String? root, BidsName name})?> askNewTarget(
 
   final folder = await pickCheckedDatasetFolder(context);
   if (folder == null || !context.mounted) return null;
-  // A name already filed moves to the next free run: the dataset can hold
-  // any number of recordings per session, but two cannot share a file name.
   final name = nextFreeRun(proposed, {for (final f in folder.existing) f.path});
   if (!await confirmRecordInto(context, folder.root, name, what: what)) {
     return null;

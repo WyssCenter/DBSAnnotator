@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../core/prefs/user_prefs.dart';
+
 /// Whether a path from the document picker autosaves back to the file the
 /// user chose. False on iOS/iPadOS, where `UIDocumentPickerViewController`
 /// returns a sandbox copy: autosaving to it is still worth doing, but the UI
@@ -105,16 +107,25 @@ typedef NewTsvTarget = ({
   bool fellBack,
 });
 
-/// Ask for the folder new session files are created in. Null when cancelled.
-Future<String?> pickSaveFolder() async {
-  if (debugSaveDir case final dir?) return dir.path;
+/// Ask for the folder a new file is created in, opening at the last one,
+/// and remember the choice in [prefs]. Null when cancelled.
+Future<String?> chooseSaveFolder(UserPrefs prefs) async {
+  final String? folder;
   try {
-    return await FilePicker.getDirectoryPath(
-      dialogTitle: 'Choose the folder for session files',
-    );
+    folder =
+        debugSaveDir?.path ??
+        await FilePicker.getDirectoryPath(
+          dialogTitle: 'Choose the folder to save this session in',
+          initialDirectory: prefs.saveFolder,
+        );
   } catch (_) {
     return null;
   }
+  if (folder != null) {
+    prefs.saveFolder = folder;
+    await saveUserPrefs(prefs);
+  }
+  return folder;
 }
 
 /// Create a new TSV seeded with [header] and report where it went: in

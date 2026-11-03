@@ -67,6 +67,44 @@ class ElectrodeModel {
   final List<bool> levelDirectional;
 
   bool isLevelDirectional(int levelIdx) => levelDirectional[levelIdx];
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'num_contacts': numContacts,
+    'contact_height': contactHeight,
+    'contact_spacing': contactSpacing,
+    'lead_diameter': leadDiameter,
+    'is_directional': isDirectional,
+    'tip_contact': tipContact,
+    'segments_per_level': segmentsPerLevel,
+    'directional_levels': directionalLevels,
+    'level_directional': levelDirectional,
+  };
+
+  /// This lead with another name or contact layout; the sizes stay.
+  ElectrodeModel redesigned({
+    String? name,
+    List<bool>? levelDirectional,
+    int? segmentsPerLevel,
+    bool? tipContact,
+  }) {
+    final levels = levelDirectional ?? this.levelDirectional;
+    return ElectrodeModel(
+      name: name ?? this.name,
+      numContacts: levels.length,
+      contactHeight: contactHeight,
+      contactSpacing: contactSpacing,
+      leadDiameter: leadDiameter,
+      isDirectional: levels.contains(true),
+      tipContact: tipContact ?? this.tipContact,
+      segmentsPerLevel: segmentsPerLevel ?? this.segmentsPerLevel,
+      directionalLevels: [
+        for (final (i, d) in levels.indexed)
+          if (d) i,
+      ],
+      levelDirectional: List.unmodifiable(levels),
+    );
+  }
 }
 
 /// Models keyed by name plus manufacturer grouping for the UI; mirrors
@@ -106,7 +144,44 @@ class ElectrodeCatalog {
 
   /// Implanted pulse generator names per manufacturer, offered in Setup.
   final Map<String, List<String>> ipgs;
+
+  /// Each manufacturer's leads, with their contact layout, and IPGs.
+  Devices get devices => {
+    for (final maker in {...manufacturers.keys, ...ipgs.keys})
+      maker: (
+        leads: {
+          for (final name in manufacturers[maker] ?? const <String>[])
+            name: models[name]!,
+        },
+        ipgs: [...?ipgs[maker]],
+      ),
+  };
+
+  /// This catalog offering the user's [devices]; null keeps the bundled ones.
+  /// Every bundled model stays drawable, so older files keep their diagrams.
+  ElectrodeCatalog withDevices(Devices? devices) => devices == null
+      ? this
+      : ElectrodeCatalog(
+          models: {
+            ...models,
+            for (final d in devices.values)
+              for (final MapEntry(:key, :value) in d.leads.entries)
+                key: value.redesigned(name: key),
+          },
+          manufacturers: {
+            for (final MapEntry(:key, :value) in devices.entries)
+              if (value.leads.isNotEmpty) key: value.leads.keys.toList(),
+          },
+          ipgs: {
+            for (final MapEntry(:key, :value) in devices.entries)
+              if (value.ipgs.isNotEmpty) key: value.ipgs,
+          },
+        );
 }
+
+/// Per manufacturer: each lead's name and contact layout, and IPG names.
+typedef Devices =
+    Map<String, ({Map<String, ElectrodeModel> leads, List<String> ipgs})>;
 
 /// Loads the bundled electrode catalog; tests read `schema/` via `dart:io`.
 Future<ElectrodeCatalog> loadElectrodeCatalog() async {

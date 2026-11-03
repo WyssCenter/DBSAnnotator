@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('UserPrefs round-trips through JSON', () {
     final p = UserPrefs(
-      stimFrequencies: [10, 20, 30],
+      stimDefaults: {
+        'PD': [130, 1.5, 60],
+      },
       programs: ['None', 'A', 'Custom'],
       clinical: {
         'OCD': ['Y-BOCS', 'MADRS'],
@@ -17,12 +19,12 @@ void main() {
       },
     );
     final back = UserPrefs.fromJson(p.toJson());
-    expect(back.stimFrequencies, [10, 20, 30]);
+    expect(back.stimDefaults!['PD'], [130, 1.5, 60]);
     expect(back.programs, ['None', 'A', 'Custom']);
     expect(back.clinical!['OCD'], ['Y-BOCS', 'MADRS']);
     expect(back.session!['PD']!.first, ['Tremor', '0', '10']);
     // Unset fields stay null (fall back to bundled defaults).
-    expect(back.stimAmplitudes, isNull);
+    expect(back.saveFolder, isNull);
   });
 
   test('the session report remembers its sections', () {

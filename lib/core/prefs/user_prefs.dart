@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../electrode/electrode_model.dart';
 import '../session/scale_presets.dart';
 
 /// Per-user preset overrides, persisted as JSON in the app-support directory
@@ -12,9 +13,7 @@ import '../session/scale_presets.dart';
 /// `?? <default>`.
 class UserPrefs {
   UserPrefs({
-    this.stimFrequencies,
-    this.stimAmplitudes,
-    this.stimPulseWidths,
+    this.stimDefaults,
     this.programs,
     this.clinical,
     this.clinicalRanges,
@@ -28,13 +27,12 @@ class UserPrefs {
     this.saveFolder,
     this.pathologies,
     this.targets,
-    this.ipgs,
+    this.devices,
   });
 
-  /// Stimulation quick-pick lists (override `limits.json` stimulation_presets).
-  List<num>? stimFrequencies;
-  List<num>? stimAmplitudes;
-  List<num>? stimPulseWidths;
+  /// DBS indication -> [frequency, amplitude, pulse width] to start from,
+  /// overriding `limits.json` stimulation_defaults.
+  Map<String, List<num>>? stimDefaults;
 
   /// Program names (override the default None/A/B/C/D).
   List<String>? programs;
@@ -68,22 +66,23 @@ class UserPrefs {
   /// Folder new session files are created in, on platforms that can write one.
   String? saveFolder;
 
-  /// The Setup indication, target and IPG lists as edited; null means the
+  /// The Setup indication and target lists as edited; null means the
   /// defaults.
   List<String>? pathologies;
   List<String>? targets;
-  List<String>? ipgs;
+
+  /// The leads and IPGs offered in Setup; null means the bundled ones.
+  Devices? devices;
 
   /// Report sections to include, by [ReportSection.name]; null means every
   /// section. Persisted so a dropped section stays dropped on the next export.
   List<String>? reportSections;
 
   factory UserPrefs.fromJson(Map<String, dynamic> j) {
-    List<num>? nums(String k) => (j[k] as List?)?.map((e) => e as num).toList();
     return UserPrefs(
-      stimFrequencies: nums('stim_frequencies'),
-      stimAmplitudes: nums('stim_amplitudes'),
-      stimPulseWidths: nums('stim_pulse_widths'),
+      stimDefaults: (j['stim_defaults'] as Map?)?.map(
+        (k, v) => MapEntry(k as String, (v as List).cast<num>().toList()),
+      ),
       programs: (j['programs'] as List?)?.map((e) => e as String).toList(),
       clinical: (j['clinical'] as Map?)?.map(
         (k, v) =>
@@ -111,7 +110,17 @@ class UserPrefs {
       saveFolder: j['save_folder'] as String?,
       pathologies: (j['pathologies'] as List?)?.cast<String>(),
       targets: (j['targets'] as List?)?.cast<String>(),
-      ipgs: (j['ipgs'] as List?)?.cast<String>(),
+      devices: (j['devices'] as Map?)?.map(
+        (k, v) => MapEntry(k as String, (
+          leads: ((v as Map)['leads'] as Map).map(
+            (name, json) => MapEntry(
+              name as String,
+              ElectrodeModel.fromJson(json as Map<String, dynamic>),
+            ),
+          ),
+          ipgs: (v['ipgs'] as List).cast<String>(),
+        )),
+      ),
       reportSections: (j['report_sections'] as List?)
           ?.map((e) => e as String)
           .toList(),
@@ -119,9 +128,7 @@ class UserPrefs {
   }
 
   Map<String, dynamic> toJson() => {
-    if (stimFrequencies != null) 'stim_frequencies': stimFrequencies,
-    if (stimAmplitudes != null) 'stim_amplitudes': stimAmplitudes,
-    if (stimPulseWidths != null) 'stim_pulse_widths': stimPulseWidths,
+    if (stimDefaults != null) 'stim_defaults': stimDefaults,
     if (programs != null) 'programs': programs,
     if (clinical != null) 'clinical': clinical,
     if (clinicalRanges != null) 'clinical_ranges': clinicalRanges,
@@ -137,7 +144,16 @@ class UserPrefs {
     if (saveFolder != null) 'save_folder': saveFolder,
     if (pathologies != null) 'pathologies': pathologies,
     if (targets != null) 'targets': targets,
-    if (ipgs != null) 'ipgs': ipgs,
+    if (devices case final d?)
+      'devices': {
+        for (final MapEntry(:key, :value) in d.entries)
+          key: {
+            'leads': {
+              for (final l in value.leads.entries) l.key: l.value.toJson(),
+            },
+            'ipgs': value.ipgs,
+          },
+      },
   };
 }
 

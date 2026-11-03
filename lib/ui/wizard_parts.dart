@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../core/bids.dart';
+
 /// The wizard's fixed bottom bar: Back on the left, the current step's name in
 /// the middle, Next on the right. A null callback disables that button.
 class StepControls extends StatelessWidget {
-  const StepControls({super.key, this.onBack, this.onNext, this.label = ''});
+  const StepControls({
+    super.key,
+    this.onBack,
+    this.onNext,
+    required this.label,
+  });
 
   final VoidCallback? onBack;
   final VoidCallback? onNext;
@@ -46,41 +53,103 @@ class StepControls extends StatelessWidget {
   }
 }
 
-/// Where new files are created, with a button to choose or change the folder.
-class SaveFolderRow extends StatelessWidget {
-  const SaveFolderRow({
-    super.key,
-    required this.folder,
-    required this.onChoose,
-  });
+/// The BIDS entries naming a new or opened file.
+class BidsEntries {
+  BidsEntries(this.defaultTask)
+    : task = TextEditingController(text: defaultTask);
 
-  final String? folder;
-  final VoidCallback onChoose;
+  final String defaultTask;
+  final subject = TextEditingController();
+  final run = TextEditingController(text: '01');
+  final session = TextEditingController(
+    text: BidsName.sessionStamp(DateTime.now()),
+  );
+  final TextEditingController task;
+  final acquisition = TextEditingController();
 
-  @override
-  Widget build(BuildContext context) {
-    final chosen = folder;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        children: [
-          const Icon(Icons.folder_outlined),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              chosen == null
-                  ? 'Choose the folder where session files are saved.'
-                  : 'Session files are saved in $chosen',
-            ),
-          ),
-          OutlinedButton(
-            onPressed: onChoose,
-            child: Text(chosen == null ? 'Choose folder' : 'Change'),
-          ),
-        ],
-      ),
+  /// The entries sanitised for a path; empty ones fall back to defaults.
+  BidsName get name {
+    String or(TextEditingController c, String fallback) {
+      final label = BidsName.label(c.text.trim());
+      return label.isEmpty ? fallback : label;
+    }
+
+    return BidsName(
+      subject: or(subject, 'unknown'),
+      session: or(session, BidsName.sessionStamp(DateTime.now())),
+      task: or(task, defaultTask),
+      run: BidsName.index(run.text.trim()),
+      acquisition: or(acquisition, ''),
     );
   }
+
+  void fill(BidsName bids) {
+    subject.text = bids.subject;
+    task.text = bids.task.isEmpty ? defaultTask : bids.task;
+    run.text = bids.run;
+    if (bids.session.isNotEmpty) session.text = bids.session;
+    acquisition.text = bids.acquisition;
+  }
+
+  void dispose() {
+    for (final c in [subject, run, session, task, acquisition]) {
+      c.dispose();
+    }
+  }
+}
+
+/// The [BidsEntries] fields, and how they make the file name.
+class BidsNameFields extends StatelessWidget {
+  const BidsNameFields({
+    super.key,
+    required this.entries,
+    required this.decoration,
+  });
+
+  final BidsEntries entries;
+  final InputDecoration decoration;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      TextField(
+        controller: entries.subject,
+        decoration: decoration.copyWith(labelText: 'Patient ID'),
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          for (final (i, (ctrl, label, flex)) in [
+            (entries.session, 'Session', 3),
+            (entries.task, 'Task', 3),
+            (entries.acquisition, 'Acquisition', 3),
+            (entries.run, 'Run', 2),
+          ].indexed) ...[
+            if (i > 0) const SizedBox(width: 12),
+            Expanded(
+              flex: flex,
+              child: TextField(
+                controller: ctrl,
+                keyboardType: ctrl == entries.run ? TextInputType.number : null,
+                decoration: decoration.copyWith(
+                  labelText: label,
+                  hintText: ctrl == entries.acquisition ? 'Optional' : null,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+      const SizedBox(height: 8),
+      Text(
+        'The entry names follow the BIDS naming convention: '
+        'sub-<Patient ID>_ses-<Session>_task-<Task>_acq-<Acquisition>'
+        '_run-<Run>. Acquisition is added only when filled in.',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    ],
+  );
 }
 
 /// Whose session is open, shown above every step after the first. Tapping it

@@ -224,10 +224,18 @@ ThemeData dbsTheme(Brightness brightness) {
 
 /// A titled card, matching the desktop `QGroupBox`.
 class GroupCard extends StatelessWidget {
-  const GroupCard({super.key, required this.title, required this.child});
+  const GroupCard({
+    super.key,
+    required this.title,
+    required this.child,
+    this.action,
+  });
 
   final String title;
   final Widget child;
+
+  /// Shown at the end of the title row, such as a settings button.
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -254,12 +262,19 @@ class GroupCard extends StatelessWidget {
               // The card's green wash carries the brand; the title carries the
               // text, so it takes the scheme's ink rather than the green, which
               // would be 1.64:1 here.
-              child: Text(
-                title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  ?action,
+                ],
               ),
             ),
             child,

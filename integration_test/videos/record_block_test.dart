@@ -32,10 +32,6 @@ Offset _contact(ElectrodeLayout l, int level, int segment) => l.levels
     .contactRects[ContactKey(level, segment)]!
     .center;
 
-/// A stimulation preset chip on the [side]th parameters card.
-Future<void> _preset(WidgetTester tester, String value, {int side = 0}) =>
-    tap(tester, find.widgetWithText(ActionChip, value).at(side));
-
 /// Rates every session scale at [fractions] of its bar.
 Future<void> _rate(WidgetTester tester, List<double> fractions) async {
   final sliders = find.byType(ScaleSlider);
@@ -64,14 +60,10 @@ void main() {
     await tap(tester, find.text('OCD').last);
     await tapText(tester, 'New session');
     await tapText(tester, 'Loose TSV');
+    await tapText(tester, 'Next');
 
-    // Stimulation first: presets on the left, typed on the right.
-    await _preset(tester, '125');
-    await _preset(tester, '3');
-    await _preset(tester, '60');
-    await typeInto(tester, 'Frequency', '130', at: 1);
+    // Stimulation first: OCD defaults on the left, typed on the right.
     await typeInto(tester, 'Amplitude', '3.5', at: 1);
-    await typeInto(tester, 'Pulse width', '60', at: 1);
     await _tapLead(tester, model, 0, (l) => _contact(l, 2, 1), taps: 2);
     await _tapLead(tester, model, 0, (l) => _contact(l, 2, 2), taps: 2);
     await _tapLead(tester, model, 0, (l) => l.caseRect.center);
@@ -86,15 +78,15 @@ void main() {
     await pause(tester, 1500);
 
     // Three configurations, each changing one thing.
-    await _preset(tester, '5');
+    await typeInto(tester, 'Amplitude', '6');
     await _rate(tester, [0.6, 0.55, 0.5, 0.45, 0.4]);
-    await typeInto(tester, 'Notes', 'Left raised to 5 mA.');
+    await typeInto(tester, 'Notes', 'Left raised to 6 mA.');
     await tapText(tester, 'Save configuration');
-    await _preset(tester, '7');
+    await typeInto(tester, 'Amplitude', '7');
     await _rate(tester, [0.35, 0.4, 0.3, 0.55, 0.5]);
     await typeInto(tester, 'Notes', 'Left raised to 7 mA, less checking.');
     await tapText(tester, 'Save configuration');
-    await _preset(tester, '100');
+    await typeInto(tester, 'Frequency', '100');
     await _rate(tester, [0.2, 0.25, 0.25, 0.65, 0.6]);
     await typeInto(tester, 'Notes', 'Left frequency down to 100 Hz.');
     await tapText(tester, 'Save configuration');

@@ -261,9 +261,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
     final gfx = await renderReportGraphics(
       data,
-      _catalog?.models[electrodeModelIn(_rows)],
+      _catalog?.withDevices(_prefs.devices).models[electrodeModelIn(_rows)],
       sections,
-      right: _catalog?.models[electrodeModelIn(_rows, right: true)],
+      right: _catalog
+          ?.withDevices(_prefs.devices)
+          .models[electrodeModelIn(_rows, right: true)],
     );
     if (docx) {
       return (
@@ -418,9 +420,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 .rows;
             final gfx = await renderReportGraphics(
               visit.session,
-              _catalog?.models[electrodeModelIn(rows)],
+              _catalog?.withDevices(_prefs.devices).models[electrodeModelIn(
+                rows,
+              )],
               const {ReportSection.electrodes},
-              right: _catalog?.models[electrodeModelIn(rows, right: true)],
+              right: _catalog
+                  ?.withDevices(_prefs.devices)
+                  .models[electrodeModelIn(rows, right: true)],
             );
             if (gfx.electrodes != null) leads[visit.filename] = gfx.electrodes!;
           }

@@ -48,6 +48,14 @@
       "Abbott Infinity 7",
       "Abbott Liberta RC",
       "Abbott Brio"
+    ],
+    "PINS Medical": [
+      "PINS Medical G101A",
+      "PINS Medical G102",
+      "PINS Medical G102R"
+    ],
+    "ALEVA": [
+      "ALEVA directSTIM"
     ]
   },
   "models": {

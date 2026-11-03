@@ -391,27 +391,38 @@ void main() {
     expect(find.text('Frequency'), findsNWidgets(2));
   });
 
-  testWidgets('tapping a stimulation quick-pick chip fills the field', (
+  testWidgets('the initial assessment starts from the indication defaults', (
     tester,
   ) async {
     await pumpWizard(tester);
-    await tapNext(tester); // Step 1.
+    await choosePathology(tester, 'PD');
+    await tapNext(tester);
 
-    // One 125 Hz chip per side; tap the Left one.
-    final chip = find.widgetWithText(ActionChip, '125').first;
-    await tester.ensureVisible(chip);
-    await tester.tap(chip);
-    await tester.pump();
+    String text(String label, int side) => tester
+        .widget<TextField>(
+          find.descendant(
+            of: find.widgetWithText(TextFormField, label).at(side),
+            matching: find.byType(TextField),
+          ),
+        )
+        .controller!
+        .text;
+    for (final side in [0, 1]) {
+      expect(text('Frequency', side), '130');
+      expect(text('Amplitude', side), '1.5');
+      expect(text('Pulse width', side), '60');
+    }
+    expect(find.byType(ActionChip), findsNothing);
 
-    final leftFreq = tester.widget<TextField>(
-      find.descendant(
-        of: find.widgetWithText(TextFormField, 'Frequency').first,
-        matching: find.byType(TextField),
-      ),
+    // A changed value is kept when coming back, not reset to the default.
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Amplitude').first,
+      '2',
     );
-    expect(leftFreq.controller!.text, '125');
-    // In range, so the insert is not blocked by validation.
-    expect(find.text('Not a number'), findsNothing);
+    await tester.tap(find.text('Back'));
+    await tester.pumpAndSettle();
+    await tapNext(tester);
+    expect(text('Amplitude', 0), '2');
   });
 
   testWidgets('the pathology chosen in Setup sets the ratings; an omitted '
@@ -440,14 +451,19 @@ void main() {
     await tester.tap(insert);
     await tester.pump();
 
-    // One is_initial=0 block, one row per scale: omitted ones carry the
+    // The PD defaults made the initial assessment worth saving, then one
+    // is_initial=0 block, one row per scale: omitted ones carry the
     // limits.json omitted literal, untouched continuous bars their min.
-    expect(authoring.rows, hasLength(pdRows.length));
-    expect(authoring.rows.first.isInitial, '0');
-    expect(authoring.rows.first.scaleName, first);
-    expect(authoring.rows.first.scaleValue, limits.sessionScaleOmittedTsv);
-    expect(authoring.rows.first.scaleValue, 'n/a');
-    final byName = {for (final r in authoring.rows) r.scaleName: r.scaleValue};
+    final recorded = [
+      for (final r in authoring.rows)
+        if (r.isInitial == '0') r,
+    ];
+    expect(authoring.rows.first.isInitial, '1');
+    expect(recorded, hasLength(pdRows.length));
+    expect(recorded.first.scaleName, first);
+    expect(recorded.first.scaleValue, limits.sessionScaleOmittedTsv);
+    expect(recorded.first.scaleValue, 'n/a');
+    final byName = {for (final r in recorded) r.scaleName: r.scaleValue};
     expect(byName['Dyskinesia'], 'n/a');
     expect(byName['Paresthesia'], '0');
 

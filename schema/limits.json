@@ -5,20 +5,20 @@
       "min": 10,
       "max": 200,
       "step1": 10,
-      "step2": 5
+      "step2": 1
     },
     "amplitude": {
       "min": 0.0,
       "max": 15.0,
       "decimals": 2,
       "step1": 1,
-      "step2": 0.5
+      "step2": 0.1
     },
     "pulse_width": {
       "min": 10,
       "max": 200,
       "step1": 10,
-      "step2": 5
+      "step2": 1
     }
   },
   "session_scale": {
@@ -29,21 +29,16 @@
     "step2": 0.5,
     "omitted_tsv": "n/a"
   },
-  "stimulation_presets": {
-    "frequencies": [
-      55,
-      100,
-      125
-    ],
-    "amplitudes": [
-      3.0,
-      5.0,
-      7.0
-    ],
-    "pulse_widths": [
-      40,
-      60,
-      90
-    ]
+  "stimulation_defaults": {
+    "PD": {
+      "frequency": 130,
+      "amplitude": 1.5,
+      "pulse_width": 60
+    },
+    "OCD": {
+      "frequency": 130,
+      "amplitude": 5.0,
+      "pulse_width": 90
+    }
   }
 }
