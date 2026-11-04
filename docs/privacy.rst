@@ -24,7 +24,7 @@ your own device.
 What is stored, and where
 -------------------------
 
-Three things, all local.
+Four things, all local.
 
 **Your session data**, in the files you create. Session and notes files are written
 only where you choose to save them, through the operating system's own file picker
@@ -34,8 +34,30 @@ or share sheet. If you delete the file, the data is gone.
 entry is written to it as well as to your file, so a crash or a closed window loses
 nothing; the next time you open the workflow the app offers it back. When you
 leave a session the app asks whether to keep this copy or discard it, and it is
-deleted only if you choose to discard it. It is never uploaded, and uninstalling the
-app removes it.
+deleted only if you choose to discard it. The app never uploads it. Uninstalling
+the app removes it on Android, iOS, iPadOS and the Windows Store (MSIX) build; on
+the other desktop builds see the table below for where the folder is.
+
+**Temporary copies for sharing and exporting.** Sharing or exporting a file first
+writes a copy to the app's cache folder. The app deletes that copy right after the
+file is saved or the share finishes. A copy left behind by a crash, or one that
+could not be deleted, is removed at the next export once it is more than an hour
+old. Two helper libraries keep copies of their own, outside the app's control:
+
+- On Android, the file picker copies a file you open into the app's cache, and the
+  share sheet copies a shared file into its own cache folder, which is cleared at
+  the next share.
+- On iOS and iPadOS, the share sheet uses the export copy without copying it, and
+  the file picker copies a file you open into the app's temporary folder. The
+  header file of a new session is also written there, named after the session,
+  and is not deleted.
+
+On iOS and Android, entries you record after opening a file are autosaved into
+the picker's copy of that file in the app's cache or temporary folder, not into
+the file you opened.
+
+The operating system clears these folders when it needs the space, and they are
+removed when the app is uninstalled.
 
 **Your preferences**, in a single small JSON file: the scale and stimulation presets
 you have customised, your program names, the report page size and section
@@ -51,12 +73,29 @@ platform:
      - Location
    * - Windows
      - the app's private application-data folder under ``%LOCALAPPDATA%\Packages\``
+       (Store build), or ``%APPDATA%\ch.wysscenter\dbs_annotator`` (zip build)
    * - macOS
-     - ``~/Library/Application Support/``
+     - ``~/Library/Containers/ch.wysscenter.dbsAnnotator/Data/Library/Application Support/``
    * - Linux
      - ``~/.local/share/``
-   * - iPadOS, Android
+   * - iOS, iPadOS, Android
      - the app's private sandbox, removed when the app is uninstalled
+
+On Windows the Store (MSIX) build removes its data on uninstall. The zip build has no
+uninstaller, so delete ``%APPDATA%\ch.wysscenter\dbs_annotator`` by hand, and the
+cache folder ``%LOCALAPPDATA%\ch.wysscenter\dbs_annotator`` as well. The first of
+these is a roaming folder, so on a domain with roaming profiles it is copied to the
+server with the rest of your profile. On macOS the app is sandboxed, so the folders
+live in a container that stays after the app is moved to the Trash; its cache folder
+is under ``~/Library/Containers/ch.wysscenter.dbsAnnotator/Data/Library/Caches/``. On Linux
+nothing is removed by deleting the extracted tarball, and the cache folder is under
+``~/.cache/``. Delete the folders in the table, and these cache folders, yourself.
+
+Backups follow the platform, for the app's own storage. On Android the app disables
+backup and device-to-device transfer, so the working copy and preferences do not
+leave the device that way. On iOS and iPadOS the app does not exclude its storage
+from an iCloud or computer backup, so they can appear in those backups. On desktop,
+your own backup software sees whatever it is configured to see.
 
 Patient data
 ------------

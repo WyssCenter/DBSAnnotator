@@ -22,10 +22,13 @@ real patient data to a report of any kind. A synthetic example session ships at
 ## What is in scope
 
 The application is **offline by design**: it makes no network connection, has no
-account, no server and no telemetry, and stores nothing outside the files you
-save and one small preferences file. That removes most of the usual attack
-surface: there is no endpoint to attack and no credential to steal. The
-realistic threats are local:
+account, no server and no telemetry. It stores the files you save, one small
+preferences file, a working copy of the session in progress in its own storage,
+and short-lived copies made when you share or export a file. That removes most
+of the usual attack surface: there is no endpoint to attack and no credential
+to steal. Android backup is disabled for the app's own storage; on iOS and
+iPadOS the app does not exclude it from device or iCloud backup. The realistic
+threats are local:
 
 - data written somewhere the user did not intend, or reported as saved when it
   was not
