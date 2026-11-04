@@ -33,11 +33,6 @@ bool get canWriteChosenFolder =>
 /// memory. Real DBS datasets carry imaging and run to gigabytes.
 const int kMaxMergeZipBytes = 200 * 1024 * 1024;
 
-/// Content recorded for a file whose bytes were not read: it exists, so a path
-/// collision is still detected, but it can never compare equal to anything the
-/// app would write.
-const String kUnreadContent = '\u0000unread';
-
 /// Planned content of a binary file, such as a report, whose bytes travel
 /// beside the plan. Never equal to [kUnreadContent], so an existing file at
 /// that path is refused rather than kept.
@@ -164,29 +159,28 @@ Future<void> applyMergeToDirectory(
   );
 }
 
-/// The merged dataset as a new zip, leaving the original untouched.
+/// The merged dataset as a new zip, leaving the original untouched. Every
+/// entry of [source] that the plan does not write is copied byte for byte, so
+/// imaging, PDFs and other files the merge never decodes survive.
 Uint8List mergedZip(
-  List<DatasetFile> existing,
+  Uint8List source,
   MergePlan plan, {
   Map<String, Uint8List> binary = const {},
 }) {
-  final byPath = {for (final f in existing) f.path: f.content};
-  for (final f in plan.write) {
-    byPath[f.path] = f.content;
-  }
+  final written = {for (final f in plan.write) f.path};
   final archive = Archive();
-  for (final path in byPath.keys.toList()..sort()) {
-    if (byPath[path] == kBinaryContent) {
-      if (binary[path] case final bytes?) {
-        archive.addFile(ArchiveFile.bytes(path, bytes));
+  for (final file in ZipDecoder().decodeBytes(source).files) {
+    if (!file.isFile || written.contains(file.name)) continue;
+    archive.addFile(ArchiveFile.bytes(file.name, file.readBytes()!));
+  }
+  for (final f in plan.write) {
+    if (f.content == kBinaryContent) {
+      if (binary[f.path] case final bytes?) {
+        archive.addFile(ArchiveFile.bytes(f.path, bytes));
       }
-      continue;
+    } else {
+      archive.addFile(ArchiveFile.bytes(f.path, utf8.encode(f.content)));
     }
-    final content = byPath[path]!;
-    // A file whose bytes were never read cannot be re-emitted, and writing a
-    // placeholder in its place would corrupt it.
-    if (content == kUnreadContent) continue;
-    archive.addFile(ArchiveFile.bytes(path, utf8.encode(content)));
   }
   return Uint8List.fromList(ZipEncoder().encode(archive));
 }
@@ -198,11 +192,15 @@ const kBidsFolderRule =
     'participants.tsv.';
 
 /// Where an added visit goes, said on every add.
-const kBidsAddRule =
+const kBidsAddRule = '$_kBidsPlacement $_kBidsIndexRows $_kBidsNothingChanged';
+
+const _kBidsPlacement =
     'Each visit is added as sub-<participant>/ses-<session>/beh/, as a '
-    '_beh.tsv with its .json sidecar. The participant gets a row in '
-    'participants.tsv and the visit a row in that session\'s scans.tsv. '
-    'Nothing already in the dataset is changed.';
+    '_beh.tsv with its .json sidecar.';
+const _kBidsIndexRows =
+    'The participant gets a row in participants.tsv and the visit a row in '
+    "that session's scans.tsv.";
+const _kBidsNothingChanged = 'Nothing already in the dataset is changed.';
 
 /// Said where recording into a dataset is offered but cannot be done.
 const kDatasetDesktopOnly =
@@ -272,7 +270,17 @@ Future<({String root, List<DatasetFile> existing})?> pickCheckedDatasetFolder(
   while (true) {
     final root = await pickDatasetFolder();
     if (root == null || !context.mounted) return null;
-    final existing = await readDatasetDirectory(root);
+    final List<DatasetFile> existing;
+    try {
+      existing = await readDatasetDirectory(root);
+    } on FileSystemException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not read that folder: $e')),
+        );
+      }
+      return null;
+    }
     if (!context.mounted) return null;
     switch (await checkDatasetFolder(context, root, existing)) {
       case FolderCheck.proceed:
@@ -517,7 +525,7 @@ Future<bool> confirmRecordInto(
 /// Goes through [planBidsMerge] like every other write into a dataset, so a
 /// `participants.tsv` carrying the study's own columns keeps them, and a file
 /// already filed there is refused rather than overwritten.
-Future<String?> fileIntoDataset({
+Future<({String path, List<String> unread})?> fileIntoDataset({
   required String root,
   required BidsName name,
   required String tsv,
@@ -542,7 +550,10 @@ Future<String?> fileIntoDataset({
   final plan = planBidsMerge(await readDatasetDirectory(root), incoming);
   if (plan.refused.isNotEmpty) return null;
   await applyMergeToDirectory(root, plan);
-  return '$root/${name.relativeDir}/${name.filename}';
+  return (
+    path: '$root/${name.relativeDir}/${name.filename}',
+    unread: plan.unread,
+  );
 }
 
 /// Show exactly what the merge will do and wait for a yes.
@@ -572,7 +583,19 @@ Future<bool> confirmMerge(
             children: [
               Text(target, style: theme.textTheme.bodySmall),
               const SizedBox(height: 8),
-              Text(kBidsAddRule, style: theme.textTheme.bodySmall),
+              Text(
+                plan.unread.isEmpty
+                    ? kBidsAddRule
+                    : '$_kBidsPlacement $_kBidsNothingChanged',
+                style: theme.textTheme.bodySmall,
+              ),
+              if (plan.unread.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  unreadIndexNotice(plan.unread),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
               const SizedBox(height: 12),
               for (final (label, paths) in [
                 ('Added', plan.added),
@@ -708,9 +731,8 @@ Future<String?> pickDatasetFolder() async {
 
 /// A dataset `.zip` picked from storage and read. Null when cancelled or when
 /// it cannot be used, with the reason passed to [say].
-Future<({String name, List<DatasetFile> files})?> pickDatasetZip(
-  void Function(String) say,
-) async {
+Future<({String name, Uint8List bytes, List<DatasetFile> files})?>
+pickDatasetZip(void Function(String) say) async {
   final PlatformFile? picked;
   try {
     picked = await FilePicker.pickFile(type: FileType.any);
@@ -730,10 +752,8 @@ Future<({String name, List<DatasetFile> files})?> pickDatasetZip(
     return null;
   }
   try {
-    return (
-      name: picked.name,
-      files: readDatasetZip(await picked.readAsBytes()),
-    );
+    final bytes = await picked.readAsBytes();
+    return (name: picked.name, bytes: bytes, files: readDatasetZip(bytes));
   } catch (e) {
     say('Could not read that dataset: $e');
     return null;

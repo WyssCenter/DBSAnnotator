@@ -1032,11 +1032,16 @@ void main() {
             'sub-01/ses-20260203/sub-01_ses-20260203_scans.tsv',
           ],
           keptAsIs: const ['dataset_description.json', 'README'],
+          unread: const [],
           refused: const [],
         ), root),
         'Cancel',
       ),
-      ('dialog_keep_recovery', askKeepRecoveryCopy, 'Cancel'),
+      (
+        'dialog_keep_recovery',
+        (c) => askKeepRecoveryCopy(c, onlyCopy: false),
+        'Cancel',
+      ),
       (
         'dialog_reopen_unfinished',
         (c) => askReopenUnfinished(

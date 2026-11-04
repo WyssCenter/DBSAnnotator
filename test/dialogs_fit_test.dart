@@ -94,6 +94,7 @@ final List<_Case> _cases = [
         added: _manyPaths,
         rowMerged: const ['participants.tsv'],
         keptAsIs: const ['README', 'dataset_description.json'],
+        unread: const [],
         refused: [
           ..._manyPaths.take(2),
           'derivatives/dbs-annotator-aggregate/desc-aggregate_beh.tsv',
@@ -121,7 +122,17 @@ final List<_Case> _cases = [
     ),
     then: null,
   ),
-  (name: 'keep recovery copy', open: askKeepRecoveryCopy, then: null),
+  (
+    name: 'keep recovery copy',
+    open: (c) => askKeepRecoveryCopy(c, onlyCopy: false),
+    then: null,
+  ),
+  (
+    name: 'keep recovery copy, only copy and stale',
+    open: (c) => askKeepRecoveryCopy(c, onlyCopy: true, copyMayBeStale: true),
+    then: null,
+  ),
+  (name: 'entries could not be saved', open: askLeaveUnsaved, then: null),
   (
     name: 'session report sections',
     open: (c) => showReportSectionsDialog(

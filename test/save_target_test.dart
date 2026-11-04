@@ -2,6 +2,8 @@
 /// plus the basename helper the report provenance line depends on.
 library;
 
+import 'dart:io';
+
 import 'package:dbs_annotator/ui/save_target.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -50,12 +52,39 @@ void main() {
     test('a null path never autosaves anywhere', () {
       expect(pickedPathAutosavesToOriginal(null), isFalse);
     });
+  });
 
-    // Android's picker also returns a cache copy (file_picker's delegate
-    // copies into getCacheDir()), so `!Platform.isIOS` claims write-back
-    // where there is none; the true per-platform answer needs a device.
-    test('a non-null path is answered without throwing on this host', () {
-      expect(pickedPathAutosavesToOriginal('/tmp/x.tsv'), isA<bool>());
+  group('workingPath', () {
+    test('never reuses a name another session holds', () async {
+      final dir = Directory.systemTemp.createTempSync('dbs_work');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      debugWorkingDir = dir;
+      addTearDown(() => debugWorkingDir = null);
+      final first = await workingPath('sub-01_ses-20260203_beh.tsv');
+      File(first).writeAsStringSync('rows');
+      final second = await workingPath('sub-01_ses-20260203_beh.tsv');
+      expect(second, isNot(first));
+      expect(second, endsWith('sub-01_ses-20260203_beh-2.tsv'));
+    });
+  });
+
+  group('createNewTsv', () {
+    test('refuses the same file spelled another way', () async {
+      final dir = Directory.systemTemp.createTempSync('dbs_same');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      debugSaveDir = dir;
+      addTearDown(() => debugSaveDir = null);
+      final existing = File('${dir.path}/a_beh.tsv')..writeAsStringSync('x');
+      await expectLater(
+        createNewTsv(
+          dialogTitle: 't',
+          fileName: 'a_beh.tsv',
+          header: 'h',
+          avoidPath: '${dir.path}/./${existing.uri.pathSegments.last}',
+        ),
+        throwsA(isA<SameFileException>()),
+      );
+      expect(existing.readAsStringSync(), 'h');
     });
   });
 

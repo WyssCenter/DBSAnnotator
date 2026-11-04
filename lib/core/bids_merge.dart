@@ -27,6 +27,10 @@ typedef MergePlan = ({
   /// Paths the target already has that the merge leaves exactly as they are.
   List<String> keptAsIs,
 
+  /// Index files in [keptAsIs] whose existing content could not be read, so
+  /// the new rows were not added to them.
+  List<String> unread,
+
   /// Incoming files refused because the target already holds that path, which
   /// would mean overwriting recorded clinical data.
   List<String> refused,
@@ -58,6 +62,11 @@ DatasetFolderKind datasetFolderKind(List<DatasetFile> files) {
       : DatasetFolderKind.other;
 }
 
+/// Content recorded for a file whose bytes were not read: it exists, so a path
+/// collision is still detected, but it can never compare equal to anything the
+/// app would write.
+const String kUnreadContent = '\u0000unread';
+
 /// Plan the merge of [incoming] into the dataset described by [existing].
 ///
 /// Both are whole-dataset file lists, so the caller can read the target from a
@@ -71,6 +80,7 @@ MergePlan planBidsMerge(
   final added = <String>[];
   final rowMerged = <String>[];
   final keptAsIs = <String>[];
+  final unread = <String>[];
   final refused = <String>[];
 
   for (final file in incoming) {
@@ -94,6 +104,11 @@ MergePlan planBidsMerge(
       if (current == null) {
         write.add(file);
         added.add(path);
+        continue;
+      }
+      if (current == kUnreadContent) {
+        keptAsIs.add(path);
+        unread.add(path);
         continue;
       }
       final key = path == 'participants.tsv' ? 'participant_id' : 'filename';
@@ -127,6 +142,7 @@ MergePlan planBidsMerge(
     added: added,
     rowMerged: rowMerged,
     keptAsIs: keptAsIs,
+    unread: unread,
     refused: refused,
   );
 }
@@ -184,6 +200,25 @@ BidsName nextFreeRun(BidsName name, Set<String> taken) {
   return n;
 }
 
+final _runEntity = RegExp(r'_run-(\d+)_');
+
+/// The run of a file in [existing] that is [name] at another run with content
+/// [tsv], or null.
+String? _runOfSameRecording(
+  List<DatasetFile> existing,
+  BidsName name,
+  String tsv,
+) {
+  String blanked(String path) => path.replaceFirst(_runEntity, '_run-_');
+  final target = blanked(_pathOf(name));
+  for (final f in existing) {
+    if (f.content == tsv && blanked(f.path) == target) {
+      return _runEntity.firstMatch(f.path)?.group(1);
+    }
+  }
+  return null;
+}
+
 /// [entries], with any whose path a different recording in [existing] (or an
 /// earlier entry) already uses moved to the next free run, so a second
 /// recording is filed beside the first instead of being refused or written
@@ -200,8 +235,18 @@ BidsName nextFreeRun(BidsName name, Set<String> taken) {
   for (final e in entries) {
     var name = e.name;
     if (content[_pathOf(name)] != e.tsv) {
-      name = nextFreeRun(name, taken);
-      if (name.run != BidsName.index(e.name.run)) {
+      final run = _runOfSameRecording(existing, name, e.tsv);
+      name = run == null
+          ? nextFreeRun(name, taken)
+          : BidsName(
+              subject: name.subject,
+              session: name.session,
+              task: name.task,
+              run: run,
+              suffix: name.suffix,
+              extension: name.extension,
+            );
+      if (run == null && name.run != BidsName.index(e.name.run)) {
         renumbered.add('${e.name.filename} as run-${name.run}');
       }
     }
@@ -238,6 +283,14 @@ BidsName nextFreeRun(BidsName name, Set<String> taken) {
     }
   }
   return (unchanged: unchanged, refused: refused);
+}
+
+/// Says that [unread] index files were left as they are, and why.
+String unreadIndexNotice(List<String> unread) {
+  final one = unread.length == 1;
+  return '${unread.join(', ')} could not be read as text, so '
+      '${one ? 'it was' : 'they were'} left unchanged and the new rows were '
+      'not added to ${one ? 'it' : 'them'}.';
 }
 
 /// One line describing [plan], for the confirmation shown before it runs.

@@ -27,14 +27,14 @@ void main() {
     setUp(() => root = Directory.systemTemp.createTempSync('dbs_target'));
     tearDown(() => root.deleteSync(recursive: true));
 
-    Future<String?> put(BidsName name, String kind, {String tsv = 'a'}) =>
-        fileIntoDataset(
+    Future<String?> put(BidsName name, String kind, {String tsv = 'a'}) async =>
+        (await fileIntoDataset(
           root: root.path,
           name: name,
           tsv: tsv,
           kind: kind,
           acqTime: '2026-02-03T09:00:00+00:00',
-        );
+        ))?.path;
 
     test('notes are filed beside the visit, under their own task', () async {
       await put(_name('programming'), 'session_tsv');

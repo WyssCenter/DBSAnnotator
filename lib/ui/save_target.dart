@@ -6,11 +6,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Whether a path from the document picker autosaves back to the file the
-/// user chose. False on iOS/iPadOS, where `UIDocumentPickerViewController`
-/// returns a sandbox copy: autosaving to it is still worth doing, but the UI
-/// must not imply the original changed.
+/// user chose. False on iOS/iPadOS (`UIDocumentPickerViewController`) and
+/// Android (file_picker copies into the cache), which hand back a sandbox
+/// copy: autosaving to it is still worth doing, but the UI must not imply the
+/// original changed.
 bool pickedPathAutosavesToOriginal(String? path) =>
-    path != null && !Platform.isIOS;
+    path != null && !Platform.isIOS && !Platform.isAndroid;
 
 /// Shown wherever a sandbox-copy save path is in effect, so "autosaved" is
 /// never read as "written back to your file".
@@ -58,9 +59,9 @@ Future<Directory> workingDir() async {
   return dir;
 }
 
-/// Working-copy path for [fileName].
+/// Working-copy path for [fileName], suffixed if another session holds it.
 Future<String> workingPath(String fileName) async =>
-    '${(await workingDir()).path}/$fileName';
+    _unusedPath((await workingDir()).path, fileName);
 
 /// Working copies left by a run that never reached an export, newest first.
 Future<List<File>> unfinishedWork() async {
@@ -105,32 +106,70 @@ typedef NewTsvTarget = ({
   bool fellBack,
 });
 
+/// Thrown by [createNewTsv] when the user picks [createNewTsv]'s `avoidPath`.
+class SameFileException implements Exception {
+  @override
+  String toString() =>
+      'that is the file this session is already saved in. Choose another name.';
+}
+
+bool _samePath(String a, String b) {
+  String norm(String p) {
+    final slashed = p.replaceAll('\\', '/');
+    return Platform.isWindows || Platform.isMacOS
+        ? slashed.toLowerCase()
+        : slashed;
+  }
+
+  if (norm(a) == norm(b)) return true;
+  try {
+    return File(a).existsSync() &&
+        File(b).existsSync() &&
+        FileSystemEntity.identicalSync(a, b);
+  } catch (_) {
+    return false;
+  }
+}
+
 /// Ask the user where to create a new TSV, seed it with [header], and report
 /// where it went. Returns null if they cancelled. Creating and seeding are
 /// one step, so the file cannot be left without its header.
+///
+/// Throws [SameFileException] when the choice is [avoidPath], the file holding
+/// the session being replaced. The picker writes the header as soon as a path
+/// is chosen, so after any failure the caller must rewrite that file from
+/// memory.
 Future<NewTsvTarget?> createNewTsv({
   required String dialogTitle,
   required String fileName,
   required String header,
+  String? avoidPath,
 }) async {
   final bytes = Uint8List.fromList(utf8.encode(header));
   if (debugSaveDir case final dir?) {
     final path = '${dir.path}/$fileName';
     await File(path).writeAsBytes(bytes);
+    if (avoidPath != null && _samePath(path, avoidPath)) {
+      throw SameFileException();
+    }
     return (path: path, location: path, fellBack: false);
   }
+  final Uri? uri;
   try {
-    final uri = await FilePicker.saveFile(
+    uri = await FilePicker.saveFile(
       dialogTitle: dialogTitle,
       fileName: fileName,
       bytes: bytes,
       mimeType: 'text/tab-separated-values',
       type: FileType.custom,
       allowedExtensions: const ['tsv'],
+      windowsOptions: const WindowsOptions(lockParentWindow: true),
+      linuxOptions: const LinuxOptions(lockParentWindow: true),
     );
-    if (uri == null) return null; // cancelled
-    final path = pickerUriToPath(uri);
-    return (path: path, location: path ?? uri.toString(), fellBack: false);
+  } on FileSystemException {
+    // The desktop pickers write the bytes themselves after the dialog, so a
+    // locked file or full disk lands here, not in the no-dialog fallback.
+    rethrow;
   } catch (_) {
     // No dialog available, typically a Linux box without zenity/kdialog.
     final dir = await getApplicationDocumentsDirectory();
@@ -139,6 +178,12 @@ Future<NewTsvTarget?> createNewTsv({
     await File(path).writeAsString(header);
     return (path: path, location: path, fellBack: true);
   }
+  if (uri == null) return null; // cancelled
+  final path = pickerUriToPath(uri);
+  if (path != null && avoidPath != null && _samePath(path, avoidPath)) {
+    throw SameFileException();
+  }
+  return (path: path, location: path ?? uri.toString(), fellBack: false);
 }
 
 /// `<dir>/<fileName>`, suffixed `-2`, `-3`, ... if that name is taken.
