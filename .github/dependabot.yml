@@ -83,7 +83,8 @@ updates:
       default-days: 7
     labels: ["dependencies", "ci"]
     groups:
-      # Minors and patches in one PR, auto-merged on green (see
+      # Minors and patches in one PR, merged by hand: SHA pinning cannot
+      # vet a malicious new release (see
       # .github/workflows/dependabot-auto-merge.yml). Majors fall through
       # individually: actions/checkout v4->v7 and astral-sh/setup-uv v5->v10
       # are both waiting, and both change runtime behaviour.

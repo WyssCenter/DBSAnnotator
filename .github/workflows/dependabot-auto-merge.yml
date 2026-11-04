@@ -19,10 +19,9 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Enable auto-merge (CI-proven ecosystems only)
+      - name: Enable auto-merge (pip only)
         if: >-
-          (steps.meta.outputs.package-ecosystem == 'github_actions' ||
-           steps.meta.outputs.package-ecosystem == 'pip') &&
+          steps.meta.outputs.package-ecosystem == 'pip' &&
           steps.meta.outputs.update-type != 'version-update:semver-major'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
@@ -31,8 +30,7 @@ jobs:
 
       - name: Note that this one merges by hand
         if: >-
-          !((steps.meta.outputs.package-ecosystem == 'github_actions' ||
-             steps.meta.outputs.package-ecosystem == 'pip') &&
+          !(steps.meta.outputs.package-ecosystem == 'pip' &&
             steps.meta.outputs.update-type != 'version-update:semver-major')
         run: |
           {
@@ -41,5 +39,6 @@ jobs:
             echo "update type \`${{ steps.meta.outputs.update-type }}\`."
             echo
             echo "\`pub\` changes reach the code that writes clinical documents,"
-            echo "and majors change behaviour. Review and merge by hand."
+            echo "GitHub Actions updates pin a new release by SHA without a human"
+            echo "look, and majors change behaviour. Review and merge by hand."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -348,6 +348,32 @@ TestFlight upload still requires the Apple secrets; without them the iOS job
 compiles, warns in the run summary that nothing was shipped, and stays green.
 Link the TestFlight invite from the Release notes once it exists.
 
+## Admin: put the signing secrets behind an environment
+
+Needs repository admin; maintain access is not enough. The jobs in `ci.yml` that read
+signing or store secrets (windows, android, ios, release) already declare an
+environment: `release` on `v*` tags and `build` everywhere else. Until the secrets are
+moved, behaviour is unchanged: they stay readable as repository secrets.
+
+1. Settings > Environments > New environment, name it `build`. Leave it empty, with no
+   secrets and no protection rules; do not rely on GitHub creating it on first use, since
+   that is not confirmed for Dependabot or fork pull request runs.
+2. Settings > Environments > New environment, name it `release`.
+3. Under Deployment branches and tags choose Selected branches and tags, then Add
+   deployment branch or tag rule, type Tag, pattern `v*`.
+4. Optional: tick Required reviewers and add the people who must approve each release.
+   GitHub approves deployments per environment for a run, and the jobs waiting at
+   the same time are approved together. A tag run asks twice: once for the windows,
+   android and ios build jobs, and once, after they finish, for the release job,
+   which needs all three.
+5. Under Environment secrets add each of these with its current value:
+   `WINDOWS_CERT_BASE64`, `WINDOWS_CERT_PASSWORD`, `ANDROID_KEYSTORE_BASE64`,
+   `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_STORE_PASSWORD`,
+   `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`,
+   `APP_STORE_CONNECT_API_KEY`.
+6. Settings > Secrets and variables > Actions: delete the repository copy of each of
+   the nine secrets. Until then a branch run could still read them.
+
 ## Scale-up later (same artifacts, no rebuild)
 
 The `.aab` goes to a Google Play track, the TestFlight build to the App Store,
