@@ -3,6 +3,9 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart'
+    show FileSaveLocation, XTypeGroup, getSaveLocation;
+import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Whether a path from the document picker autosaves back to the file the
@@ -61,7 +64,7 @@ Future<Directory> workingDir() async {
 
 /// Working-copy path for [fileName], suffixed if another session holds it.
 Future<String> workingPath(String fileName) async =>
-    _unusedPath((await workingDir()).path, fileName);
+    unusedPath((await workingDir()).path, fileName);
 
 /// Working copies left by a run that never reached an export, newest first.
 Future<List<File>> unfinishedWork() async {
@@ -106,11 +109,39 @@ typedef NewTsvTarget = ({
   bool fellBack,
 });
 
-/// Thrown by [createNewTsv] when the user picks [createNewTsv]'s `avoidPath`.
+/// Whether Save-As goes through `file_selector`, which returns the chosen path
+/// without writing anything. `FilePicker.saveFile` writes its bytes to the path
+/// before returning, so it cannot be used where a path must be checked first.
+bool get hasDesktopSaveDialog =>
+    Platform.isWindows || Platform.isMacOS || Platform.isLinux;
+
+/// Refusal wording for the file a session or notes screen is saved in.
+const String sessionFileReason =
+    'that is the file this session is already saved in. Choose another name.';
+
+/// A file a save dialog must not end on, and the refusal to show when it is
+/// chosen.
+typedef AvoidFile = ({String path, String reason});
+
+/// Thrown when the user picks an [AvoidFile]; [toString] is the reason.
 class SameFileException implements Exception {
+  SameFileException(this.reason);
+
+  final String reason;
+
   @override
-  String toString() =>
-      'that is the file this session is already saved in. Choose another name.';
+  String toString() => reason;
+}
+
+/// Whether [path] is the [avoid] file, spelled any way.
+bool isAvoided(String path, AvoidFile? avoid) =>
+    avoid != null && _samePath(path, avoid.path);
+
+/// Throws [SameFileException] when [path] is the [avoid] file.
+void refuseIfAvoided(String path, AvoidFile? avoid) {
+  if (avoid != null && isAvoided(path, avoid)) {
+    throw SameFileException(avoid.reason);
+  }
 }
 
 bool _samePath(String a, String b) {
@@ -131,27 +162,117 @@ bool _samePath(String a, String b) {
   }
 }
 
+/// Asks whether to replace the file called [fileName]; false means keep it.
+typedef ConfirmReplace = Future<bool> Function(String fileName);
+
+/// Whether the desktop Save-As dialog asks before replacing a file. The Linux
+/// one (GtkFileChooserNative via file_selector_linux) does not.
+bool get dialogConfirmsReplace =>
+    debugDialogConfirmsReplace ?? !Platform.isLinux;
+
+/// Stands in for [dialogConfirmsReplace] under `flutter_test`.
+bool? debugDialogConfirmsReplace;
+
+/// Asks in a dialog whether to replace [fileName]. False when dismissed or
+/// when [context] is gone.
+Future<bool> askReplace(BuildContext context, String fileName) async {
+  if (!context.mounted) return false;
+  final replace = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Replace $fileName?'),
+      content: const Text('A file with this name already exists.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Replace'),
+        ),
+      ],
+    ),
+  );
+  return replace ?? false;
+}
+
+/// Thrown by [chooseSavePath] when the dialog could not be shown.
+class SaveDialogUnavailable implements Exception {}
+
+/// Show the desktop Save-As dialog and return the path to write, or null when
+/// cancelled or when the user declined to replace an existing file.
+///
+/// `file_selector` only returns a path. A name typed without [extension] gets
+/// it appended here (the Windows dialog does not add it), and that final path
+/// was never confirmed by the dialog, so it is checked and confirmed here on
+/// every platform. A path as typed is confirmed here only where the dialog does
+/// not ask itself ([dialogConfirmsReplace]). Throws [SameFileException] when
+/// the path is [avoid], and [SaveDialogUnavailable] when no dialog could open.
+Future<String?> chooseSavePath({
+  required String suggestedName,
+  required String extension,
+  required ConfirmReplace confirmReplace,
+  AvoidFile? avoid,
+}) async {
+  final FileSaveLocation? chosen;
+  try {
+    chosen = await getSaveLocation(
+      suggestedName: suggestedName,
+      acceptedTypeGroups: [
+        XTypeGroup(label: extension.toUpperCase(), extensions: [extension]),
+      ],
+    );
+  } catch (_) {
+    throw SaveDialogUnavailable();
+  }
+  if (chosen == null) return null;
+  final suffix = '.$extension';
+  final typed = chosen.path;
+  final path = typed.toLowerCase().endsWith(suffix) ? typed : '$typed$suffix';
+  refuseIfAvoided(path, avoid);
+  final unconfirmed = path != typed || !dialogConfirmsReplace;
+  if (unconfirmed && File(path).existsSync()) {
+    if (!await confirmReplace(pickedBasename(path))) return null;
+  }
+  return path;
+}
+
 /// Ask the user where to create a new TSV, seed it with [header], and report
 /// where it went. Returns null if they cancelled. Creating and seeding are
 /// one step, so the file cannot be left without its header.
 ///
-/// Throws [SameFileException] when the choice is [avoidPath], the file holding
-/// the session being replaced. The picker writes the header as soon as a path
-/// is chosen, so after any failure the caller must rewrite that file from
-/// memory.
+/// Throws [SameFileException] when the choice is [avoid], before anything is
+/// written to it. On desktop the path is only chosen by the dialog, and this
+/// function writes the header once the path is known to be another file.
 Future<NewTsvTarget?> createNewTsv({
   required String dialogTitle,
   required String fileName,
   required String header,
-  String? avoidPath,
+  required ConfirmReplace confirmReplace,
+  AvoidFile? avoid,
 }) async {
-  final bytes = Uint8List.fromList(utf8.encode(header));
+  final headerBytes = Uint8List.fromList(utf8.encode(header));
   if (debugSaveDir case final dir?) {
     final path = '${dir.path}/$fileName';
-    await File(path).writeAsBytes(bytes);
-    if (avoidPath != null && _samePath(path, avoidPath)) {
-      throw SameFileException();
+    refuseIfAvoided(path, avoid);
+    await File(path).writeAsBytes(headerBytes);
+    return (path: path, location: path, fellBack: false);
+  }
+  if (hasDesktopSaveDialog) {
+    final String? path;
+    try {
+      path = await chooseSavePath(
+        suggestedName: fileName,
+        extension: 'tsv',
+        confirmReplace: confirmReplace,
+        avoid: avoid,
+      );
+    } on SaveDialogUnavailable {
+      return _newTsvInDocuments(fileName, header);
     }
+    if (path == null) return null;
+    await File(path).writeAsBytes(headerBytes);
     return (path: path, location: path, fellBack: false);
   }
   final Uri? uri;
@@ -159,39 +280,37 @@ Future<NewTsvTarget?> createNewTsv({
     uri = await FilePicker.saveFile(
       dialogTitle: dialogTitle,
       fileName: fileName,
-      bytes: bytes,
+      bytes: headerBytes,
       mimeType: 'text/tab-separated-values',
       type: FileType.custom,
       allowedExtensions: const ['tsv'],
       windowsOptions: const WindowsOptions(lockParentWindow: true),
       linuxOptions: const LinuxOptions(lockParentWindow: true),
     );
-  } on FileSystemException {
-    // The desktop pickers write the bytes themselves after the dialog, so a
-    // locked file or full disk lands here, not in the no-dialog fallback.
-    rethrow;
   } catch (_) {
-    // No dialog available, typically a Linux box without zenity/kdialog.
-    final dir = await getApplicationDocumentsDirectory();
-    await Directory(dir.path).create(recursive: true);
-    final path = _unusedPath(dir.path, fileName);
-    await File(path).writeAsString(header);
-    return (path: path, location: path, fellBack: true);
+    return _newTsvInDocuments(fileName, header);
   }
   if (uri == null) return null; // cancelled
   final path = pickerUriToPath(uri);
-  if (path != null && avoidPath != null && _samePath(path, avoidPath)) {
-    throw SameFileException();
-  }
+  if (path != null) refuseIfAvoided(path, avoid);
   return (path: path, location: path ?? uri.toString(), fellBack: false);
+}
+
+/// The fallback when no save dialog could be shown.
+Future<NewTsvTarget> _newTsvInDocuments(String fileName, String header) async {
+  final dir = await getApplicationDocumentsDirectory();
+  await Directory(dir.path).create(recursive: true);
+  final path = unusedPath(dir.path, fileName);
+  await File(path).writeAsString(header);
+  return (path: path, location: path, fellBack: true);
 }
 
 /// `<dir>/<fileName>`, suffixed `-2`, `-3`, ... if that name is taken.
 ///
-/// The fallback above shows no dialog, so nothing warns about overwriting,
+/// The fallbacks show no dialog, so nothing warns about overwriting,
 /// and the session stamp is date-only while Patient ID and Run both default
 /// to `01`: same patient, same run, same day collide.
-String _unusedPath(String dir, String fileName) {
+String unusedPath(String dir, String fileName) {
   if (!File('$dir/$fileName').existsSync()) return '$dir/$fileName';
   final dot = fileName.lastIndexOf('.');
   final stem = dot < 0 ? fileName : fileName.substring(0, dot);

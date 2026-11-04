@@ -32,6 +32,15 @@ file is created, and get their own row in that session's ``scans.tsv``. A
 programming session and its notes can therefore share one dataset, told apart by
 their ``task-`` labels.
 
+**Open existing TSV** loads a notes file. A notes file that has columns this app
+does not keep, such as one a colleague added by hand, is handled as a session
+file is: the app names the columns, never writes to that file, and saves your new
+notes in its own recovery copy until you use **Export**, which writes the notes
+without those columns under a name you choose. On the desktop, **Export** and
+**New** refuse the file you opened as a target; on Android and iOS the opened
+file is the app's own copy, so there is nothing to refuse. See
+:doc:`complete_workflow` for the details.
+
 Step 2: Notes
 -------------
 

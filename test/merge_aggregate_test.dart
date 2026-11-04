@@ -3,6 +3,7 @@
 /// are hidden from the BIDS validator.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -17,6 +18,8 @@ import 'package:dbs_annotator/ui/bids_export.dart';
 import 'package:dbs_annotator/ui/bids_merge_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'screen_test_helpers.dart';
 
 final _session = File(
   'test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv',
@@ -436,6 +439,69 @@ void main() {
         expect(File(written.path).readAsStringSync(), 'new');
       },
     );
+
+    test(
+      'a file planned against that changes before the apply stops it',
+      () async {
+        final existing = await readDatasetDirectory(root.path);
+        final incoming = _name('02', 'b');
+        final plan = planFor(existing, incomingVisit(incoming));
+        expect(plan.rowMerged, contains('participants.tsv'));
+        final gate = Completer<void>();
+        final held = inDatasetQueue(() => gate.future);
+        final applied = applyMergeToDirectory(
+          root.path,
+          plan,
+          plannedAgainst: existing,
+        );
+        final refused = expectLater(
+          applied,
+          throwsA(isA<DatasetChangedException>()),
+        );
+
+        put('participants.tsv', 'participant_id\nsub-01\nsub-09\n');
+        gate.complete();
+        await held;
+        await refused;
+
+        expect(read('participants.tsv'), 'participant_id\nsub-01\nsub-09\n');
+        expect(File('${root.path}/${_path(incoming)}').existsSync(), isFalse);
+        expect(read(_aggregateTsv), 'stale');
+        expect(backups(), isEmpty);
+        await expectDatasetQueueIdle();
+      },
+    );
+
+    test(
+      'a file that appeared where the plan adds one stops the apply',
+      () async {
+        final existing = await readDatasetDirectory(root.path);
+        final incoming = _name('02', 'b');
+        final plan = planFor(existing, incomingVisit(incoming));
+        put(_path(incoming), 'recorded meanwhile');
+
+        await expectLater(
+          applyMergeToDirectory(root.path, plan, plannedAgainst: existing),
+          throwsA(isA<DatasetChangedException>()),
+        );
+
+        expect(read(_path(incoming)), 'recorded meanwhile');
+        expect(backups(), isEmpty);
+        await expectDatasetQueueIdle();
+      },
+    );
+
+    test('an unchanged dataset is applied after the check', () async {
+      final existing = await readDatasetDirectory(root.path);
+      final incoming = _name('02', 'b');
+      final plan = planFor(existing, incomingVisit(incoming));
+
+      await applyMergeToDirectory(root.path, plan, plannedAgainst: existing);
+
+      expect(File('${root.path}/${_path(incoming)}').existsSync(), isTrue);
+      expect(read('participants.tsv'), contains('sub-02'));
+      await expectDatasetQueueIdle();
+    });
 
     test('merging the same visit again changes nothing', () async {
       await merge(incomingVisit(_name('02', 'b')));

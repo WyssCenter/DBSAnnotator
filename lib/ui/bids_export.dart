@@ -23,6 +23,7 @@ import '../core/session/aggregate.dart';
 import '../core/session/session_file.dart';
 import '../core/session/tsv_kind.dart';
 import '../report/upload_actions.dart';
+import 'save_target.dart';
 import 'share_util.dart';
 
 /// Zip the dataset built from [entries] and deliver it.
@@ -34,6 +35,7 @@ Future<ExportOutcome> exportBidsDataset(
   required List<DatasetEntry> entries,
   List<DatasetFile> extraFiles = const <DatasetFile>[],
   GlobalKey? anchor,
+  AvoidFile? avoid,
 }) async {
   if (entries.isEmpty) {
     ScaffoldMessenger.of(context)
@@ -51,6 +53,7 @@ Future<ExportOutcome> exportBidsDataset(
     filename: '$stem.zip',
     anchor: anchor,
     failureLabel: 'BIDS export failed',
+    avoid: avoid,
     build: () async {
       final files = buildBidsDataset(
         entries,

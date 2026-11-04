@@ -5,97 +5,12 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dbs_annotator/core/safe_file.dart';
-import 'package:dbs_annotator/ui/annotations_screen.dart';
 import 'package:dbs_annotator/ui/save_target.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Future<void> settleUntil(
-  WidgetTester tester,
-  Directory working,
-  bool Function() done, {
-  Duration cap = const Duration(seconds: 10),
-}) async {
-  bool finished() {
-    try {
-      return done();
-    } catch (_) {
-      return false;
-    }
-  }
-
-  bool idle() {
-    try {
-      return !working
-          .listSync(recursive: true)
-          .any((e) => e.path.endsWith('.tmp'));
-    } catch (_) {
-      return false;
-    }
-  }
-
-  final end = DateTime.now().add(cap);
-  while (!(finished() && idle())) {
-    if (!DateTime.now().isBefore(end)) fail('timed out waiting for $done');
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 20)),
-    );
-    await tester.pump();
-  }
-  for (var round = 0; round < 2; round++) {
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
-  }
-}
-
-Future<void> pumpUntilFound(WidgetTester tester, Finder finder) async {
-  final end = DateTime.now().add(const Duration(seconds: 10));
-  while (finder.evaluate().isEmpty) {
-    if (!DateTime.now().isBefore(end)) fail('timed out waiting for $finder');
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 20)),
-    );
-    await tester.pump(const Duration(milliseconds: 100));
-  }
-}
-
-void removeQuietly(Directory dir) {
-  try {
-    dir.deleteSync(recursive: true);
-  } on FileSystemException {
-    // Windows may still hold a folder open.
-  }
-}
-
-Future<void> openNotesStep(WidgetTester tester) async {
-  await tester.binding.setSurfaceSize(const Size(1000, 1600));
-  addTearDown(() => tester.binding.setSurfaceSize(null));
-  await tester.pumpWidget(
-    MaterialApp(
-      home: Builder(
-        builder: (context) => TextButton(
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute<void>(builder: (_) => const AnnotationsScreen()),
-          ),
-          child: const Text('open'),
-        ),
-      ),
-    ),
-  );
-  await tester.tap(find.text('open'));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('Notes'));
-  await tester.pumpAndSettle();
-}
-
-String workingText(Directory root) => root
-    .listSync(recursive: true)
-    .whereType<File>()
-    .where((f) => !f.path.endsWith('.tmp'))
-    .map((f) => f.readAsStringSync())
-    .join();
+import 'screen_test_helpers.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -273,8 +188,11 @@ void main() {
       () => !workingText(root).contains('a note'),
     );
 
-    expect(saved.listSync().whereType<File>(), isNotEmpty);
-    expect(find.textContaining('New notes file'), findsOneWidget);
+    final created = saved.listSync().whereType<File>().singleWhere(
+      (f) => f.path.endsWith('.tsv'),
+    );
+    final name = created.path.replaceAll('\\', '/').split('/').last;
+    expect(find.text('New notes file: ${saved.path}/$name'), findsOneWidget);
     expect(workingText(root), isNot(contains('a note')));
     expect(find.textContaining('a note'), findsNothing);
   });
@@ -284,7 +202,7 @@ void main() {
   ) async {
     final (root, saved) = await newScreen(tester);
     await startNew(tester);
-    await pumpUntilFound(tester, find.textContaining('New notes file'));
+    await pumpUntilFound(tester, find.textContaining('New notes file: '));
     await tester.pumpAndSettle();
     await addNote(tester, root, 'a note');
     final file = saved.listSync().whereType<File>().singleWhere(
@@ -314,7 +232,7 @@ void main() {
   ) async {
     final (root, saved) = await newScreen(tester);
     await startNew(tester);
-    await pumpUntilFound(tester, find.textContaining('New notes file'));
+    await pumpUntilFound(tester, find.textContaining('New notes file: '));
     await tester.pumpAndSettle();
     await addNote(tester, root, 'a note');
     final file = saved.listSync().whereType<File>().singleWhere(
@@ -344,7 +262,7 @@ void main() {
   ) async {
     final (root, saved) = await newScreen(tester);
     await startNew(tester);
-    await pumpUntilFound(tester, find.textContaining('New notes file'));
+    await pumpUntilFound(tester, find.textContaining('New notes file: '));
     await tester.pumpAndSettle();
     await addNote(tester, root, 'first');
     final file = saved.listSync().whereType<File>().singleWhere(
@@ -379,13 +297,14 @@ void main() {
     );
     expect(find.textContaining('held'), findsWidgets);
 
+    final sizeBefore = file.statSync().size;
     gate.complete();
-    for (var i = 0; i < 40; i++) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 50)),
-      );
-      await tester.pump(const Duration(milliseconds: 100));
-    }
+    await settleUntil(
+      tester,
+      root,
+      () => file.statSync().size > sizeBefore,
+      step: const Duration(milliseconds: 100),
+    );
     expect(file.readAsStringSync(), contains('held'));
     expect(file.readAsStringSync(), contains('first'));
   });

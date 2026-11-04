@@ -1,26 +1,19 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../app_info.dart';
 import '../core/annotation.dart';
 import '../core/bids.dart';
-import '../core/bids_merge.dart';
 import '../core/bids_sidecar.dart';
-import '../core/safe_file.dart';
 import '../core/timestamps.dart';
 import '../core/session/tsv_kind.dart';
 import '../report/annotations_report.dart';
 import '../report/session_docx.dart' show DocxPageSize;
 import 'bids_export.dart';
-import 'bids_merge_ui.dart';
+import 'recording_file.dart';
 import 'report_sections_dialog.dart' show askAttestation;
 import 'save_target.dart';
 import 'share_util.dart';
 import 'theme.dart';
-import 'close_guard.dart';
 
 /// Annotations workflow: a File step (patient / run, New or Open a BIDS
 /// `task-notes` TSV) followed by a Notes step, structured like the
@@ -36,10 +29,23 @@ class AnnotationsScreen extends StatefulWidget {
 /// The `task-` label of a notes file unless the user names another.
 const _defaultTask = 'notes';
 
-class _AnnotationsScreenState extends State<AnnotationsScreen> {
-  // Serialised, atomic autosave to the user's file. See [SafeFileWriter].
-  final _writer = SafeFileWriter();
+const RecordingWords _words = (
+  entry: 'note',
+  what: 'these notes',
+  thing: 'the notes',
+  staysInApp: 'These notes stay in the app.',
+  exportUnderOtherRun: 'Export them under a different run.',
+  savedInApp: 'The notes are saved in the app.',
+  filedOnFirstEntry:
+      'The notes are filed there as soon as the first note is added.',
+  newDialogTitle: 'Create new notes TSV',
+  newFileSaid: 'New notes file',
+  recoveryTitle: 'Unfinished notes found',
+  pickerFailed: 'Could not open the file picker. On Linux it needs the XDG desktop portal.',
+);
 
+class _AnnotationsScreenState extends State<AnnotationsScreen>
+    with RecordingFile<AnnotationsScreen, List<Annotation>> {
   final _subjectCtrl = TextEditingController();
   final _taskCtrl = TextEditingController(text: _defaultTask);
   final _runCtrl = TextEditingController(text: '01');
@@ -47,106 +53,60 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
   final _entries = <Annotation>[];
 
   int _currentStep = 0;
-  // Chosen save path (from New/Open); when set, notes autosave to it.
-  String? _savePath;
-  // Working copy in the app's own storage, written on every note whatever the
-  // picker returned. It is only deleted when the user discards it.
-  String? _workingPath;
-  bool _savePathIsSandboxCopy = false;
-  bool _exportedSinceChange = false;
-  // Bumped on every change, so an export started before one is not counted.
-  int _changes = 0;
-  bool _workingFailed = false;
-  bool _fileFailed = false;
-  // Autosaves run one at a time: a later one must not overwrite newer text,
-  // nor file the notes into the dataset a second time.
-  Future<void> _saving = Future.value();
-  int _pendingSaves = 0;
-  // New or Open is in progress; a second one must not start meanwhile.
-  bool _switching = false;
-  // A leave question is open; a second close or Back must not stack another.
-  bool _leaveAsked = false;
-  // Set when the notes are recorded into a BIDS dataset rather than a loose
-  // file. Filed at the first note, for the reason the session screen gives.
-  String? _datasetRoot;
-  BidsName? _datasetName;
-
-  /// Anchors the iPadOS share popover to the export button. See
-  /// [shareOriginFrom].
-  final _exportKey = GlobalKey();
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _offerRecovery());
-    activeSessionGuard = _mayLeave;
+  RecordingWords get words => _words;
+
+  @override
+  TsvKind get tsvKind => TsvKind.notes;
+
+  @override
+  BidsName get bidsName => _bidsName();
+
+  /// The file is oldest-first; the UI list is newest-first.
+  @override
+  String serialise() => writeAnnotations(_entries.reversed.toList());
+
+  @override
+  bool get hasEntries => _entries.isNotEmpty;
+
+  @override
+  String get firstAcqTime => _entries.last.acqTime;
+
+  @override
+  List<Annotation> readTsv(String content) => parseAnnotations(content);
+
+  @override
+  bool isBlank(List<Annotation> content) => content.isEmpty;
+
+  @override
+  String recoveredCount(List<Annotation> content) => '${content.length} notes';
+
+  @override
+  String openedSummary(List<Annotation> content) => '${content.length} notes';
+
+  @override
+  void show(List<Annotation> content, {required bool reopened}) {
+    _entries
+      ..clear()
+      ..addAll(content.reversed);
+    _currentStep = 1;
+  }
+
+  @override
+  void fillLabels(BidsName name) {
+    _subjectCtrl.text = name.subject;
+    _taskCtrl.text = name.task.isEmpty ? _defaultTask : name.task;
+    _runCtrl.text = name.run;
   }
 
   @override
   void dispose() {
-    if (activeSessionGuard == _mayLeave) activeSessionGuard = null;
     _subjectCtrl.dispose();
     _taskCtrl.dispose();
     _runCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
-  }
-
-  /// Offer back notes the app stopped in the middle of. Asking rather than
-  /// restoring silently: the user may have moved on to another patient.
-  Future<void> _offerRecovery() async {
-    final left = await unfinishedWork();
-    if (!mounted) return;
-    File? file;
-    var loaded = <Annotation>[];
-    for (final candidate in left) {
-      try {
-        final content = await candidate.readAsString();
-        if (sniffTsvKind(content) != TsvKind.notes) continue;
-        loaded = parseAnnotations(content);
-      } catch (_) {
-        continue;
-      }
-      if (loaded.isEmpty) continue;
-      file = candidate;
-      break;
-    }
-    final found = file;
-    if (found == null || !mounted) return;
-
-    final name = pickedBasename(found.path);
-    final keep = await askReopenUnfinished(
-      context,
-      title: 'Unfinished notes found',
-      message:
-          '$name was left open with ${loaded.length} notes recorded. They '
-          'were saved as you went, and can be reopened here.',
-    );
-    if (!mounted || keep == null) return;
-    if (!keep) {
-      await discardWork(found.path);
-      return;
-    }
-    if (_refuseWhileSaving()) return;
-    final bids = BidsName.parse(name);
-    setState(() {
-      _entries
-        ..clear()
-        ..addAll(loaded.reversed);
-      _workingPath = found.path;
-      // No _savePath: guessing it would autosave over a file not chosen here.
-      _savePath = null;
-      _savePathIsSandboxCopy = false;
-      _workingFailed = false;
-      _fileFailed = false;
-      _exportedSinceChange = false;
-      _changes++;
-      _datasetRoot = null;
-      _datasetName = null;
-      if (bids != null) _fillLabels(bids);
-      _currentStep = 1;
-    });
-    _snack('Reopened $name. Export it to save it outside the app.');
   }
 
   void _snack(String msg) =>
@@ -167,211 +127,31 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       subject: s.isEmpty ? 'unknown' : s,
       session:
           session ??
-          _datasetName?.session ??
+          datasetName?.session ??
           BidsName.sessionStamp(DateTime.now()),
       task: task.isEmpty ? _defaultTask : task,
       run: BidsName.index(run ?? _runCtrl.text.trim()),
     );
   }
 
-  void _fillLabels(BidsName bids) {
-    _subjectCtrl.text = bids.subject;
-    _taskCtrl.text = bids.task.isEmpty ? _defaultTask : bids.task;
-    _runCtrl.text = bids.run;
-  }
-
-  /// Write the `_beh.json` sidecar beside [tsvPath]; see the session screen's
-  /// copy for why this is best-effort and silent.
-  Future<void> _writeSidecar(String tsvPath) async {
-    try {
-      final json = tsvPath.replaceFirst(RegExp(r'\.tsv$'), '.json');
-      if (json == tsvPath || File(json).existsSync()) return;
-      final contract = await loadTsvContract();
-      await File(json).writeAsString(
-        annotationSidecarJson(
-          contract,
-          appVersion: appVersion,
-          task: _bidsName().task,
-        ),
-      );
-    } catch (_) {
-      // No sidecar is a documentation loss, not a data loss.
-    }
-  }
-
-  Future<void> _newSession() async {
-    if (_switching) return;
-    _switching = true;
-    try {
-      await _newSessionFlow();
-    } finally {
-      _switching = false;
-    }
-  }
-
-  bool _refuseWhileSaving() {
-    if (!_saveRunning) return false;
-    _snack('A save is still running. Try again in a moment.');
-    return true;
-  }
-
-  Future<void> _newSessionFlow() async {
+  Future<void> _newSession() {
     final subject = _subjectCtrl.text.trim().isEmpty
         ? '01'
         : _subjectCtrl.text.trim();
     final run = _runCtrl.text.trim().isEmpty ? '01' : _runCtrl.text.trim();
-    final bids = _bidsName(
-      subject: subject,
-      run: run,
-      session: BidsName.sessionStamp(DateTime.now()),
-    );
-    final name = bids.filename;
-
-    // Loose file, or straight into a dataset: the answer decides where every
-    // autosave of these notes lands.
-    final into = await askNewTarget(context, bids, what: 'these notes');
-    if (into == null || !mounted) return;
-    final leave = await _askLeave();
-    if (leave == null || !mounted || _refuseWhileSaving()) return;
-    final oldWork = _workingPath;
-    if (into.root != null) {
-      final work = await workingPath(into.name.filename);
-      if (!mounted || _refuseWhileSaving()) return;
-      setState(() {
+    return newFile(
+      proposed: _bidsName(
+        subject: subject,
+        run: run,
+        session: BidsName.sessionStamp(DateTime.now()),
+      ),
+      header: writeAnnotations(const []),
+      start: (filedAs) {
         _entries.clear();
-        _savePath = null;
-        _savePathIsSandboxCopy = false;
-        _workingFailed = false;
-        _fileFailed = false;
-        _exportedSinceChange = false;
-        _changes++;
-        _workingPath = work;
-        _datasetRoot = into.root;
-        _datasetName = into.name;
         _subjectCtrl.text = subject;
-        _runCtrl.text = into.name.run;
+        _runCtrl.text = filedAs?.run ?? run;
         _currentStep = 1;
-      });
-      if (leave == LeaveChoice.discard) await discardWork(oldWork);
-      _snack(
-        'Recording into ${into.root}. '
-        'The notes are filed there as soon as the first note is added.',
-      );
-      return;
-    }
-
-    final NewTsvTarget? target;
-    try {
-      target = await createNewTsv(
-        dialogTitle: 'Create new notes TSV',
-        fileName: name,
-        header: writeAnnotations(const []), // header only
-        avoidPath: _savePath,
-      );
-    } catch (e) {
-      if (mounted) _snack('Could not start a new file: $e');
-      if (_savePath != null) _queueSave();
-      return;
-    }
-    if (target == null || !mounted) return; // dialog shown but cancelled
-    if (target.fellBack && mounted) {
-      _snack('No file dialog available; saved to ${target.location}');
-    }
-    final p = target.path;
-    if (p != null) await _writeSidecar(p);
-    final work = await workingPath(name);
-    if (!mounted || _refuseWhileSaving()) return;
-    setState(() {
-      _entries.clear();
-      _savePath = p;
-      _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(p);
-      _workingFailed = false;
-      _fileFailed = false;
-      _exportedSinceChange = false;
-      _changes++;
-      _workingPath = work;
-      _datasetRoot = null;
-      _datasetName = null;
-      _subjectCtrl.text = subject;
-      _runCtrl.text = run;
-      _currentStep = 1;
-    });
-    if (leave == LeaveChoice.discard) await discardWork(oldWork);
-    _snack('New notes file: ${target.location}');
-  }
-
-  Future<void> _open() async {
-    if (_switching) return;
-    _switching = true;
-    try {
-      await _openFlow();
-    } finally {
-      _switching = false;
-    }
-  }
-
-  Future<void> _openFlow() async {
-    // `pickFile`, not `pickFiles`: file_picker 12 defaults `allowMultiple` to
-    // true, so the plural call would silently accept a multi-selection.
-    final PlatformFile? chosen;
-    try {
-      chosen = await FilePicker.pickFile(type: FileType.any);
-    } catch (e) {
-      if (mounted) {
-        _snack('Open dialog unavailable. On Linux, install "zenity". ($e)');
-      }
-      return;
-    }
-    if (chosen == null) return;
-    final picked = chosen; // non-nullable, so the setState closure can use it
-    final content = await readPickedText(picked);
-    if (content == null) {
-      if (mounted) _snack('Could not read ${picked.name}.');
-      return;
-    }
-    // Refuse the wrong workflow's file before anything sets `_savePath`.
-    //
-    // `parseAnnotations` is total and `sessionColumns` is a superset of
-    // `annotationColumns`, so a session TSV parses here successfully, one
-    // "note" per row. `_savePath` would then point at the clinician's session
-    // file, and the first autosave would replace it with the five annotation
-    // columns: every block, parameter and rating gone, atomically and with no
-    // `.tmp` to recover from. This screen is the only one that writes back to
-    // the file it opened.
-    final kind = sniffTsvKind(content);
-    if (kind != TsvKind.notes) {
-      if (mounted) _snack(tsvKindMismatch(picked.name, kind, TsvKind.notes));
-      return;
-    }
-
-    final loaded = parseAnnotations(content);
-    final leave = await _askLeave();
-    if (leave == null || !mounted || _refuseWhileSaving()) return;
-    final oldWork = _workingPath;
-    final bids = BidsName.parse(picked.name);
-    final work = await workingPath(picked.name);
-    if (!mounted || _refuseWhileSaving()) return;
-    setState(() {
-      _entries
-        ..clear()
-        // File is oldest-first; the UI shows newest-first.
-        ..addAll(loaded.reversed);
-      _savePath = picked.path;
-      _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(picked.path);
-      _workingFailed = false;
-      _fileFailed = false;
-      _exportedSinceChange = false;
-      _changes++;
-      _workingPath = work;
-      _datasetRoot = null;
-      _datasetName = null;
-      if (bids != null) _fillLabels(bids);
-      _currentStep = 1;
-    });
-    if (leave == LeaveChoice.discard) await discardWork(oldWork);
-    _snack(
-      'Opened ${picked.name} (${loaded.length} notes).'
-      '${pickedPathAutosavesToOriginal(picked.path) ? '' : ' $sandboxCopyNotice'}',
+      },
     );
   }
 
@@ -425,7 +205,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
             ),
             const SizedBox(width: 12),
             OutlinedButton.icon(
-              onPressed: _open,
+              onPressed: openFile,
               icon: const Icon(Icons.folder_open),
               label: const Text('Open existing TSV'),
             ),
@@ -449,126 +229,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       _entries.insert(0, Annotation.now(text));
       _noteCtrl.clear();
     });
-    _autosave();
-  }
-
-  /// Write every note to disk as it is added.
-  ///
-  /// The working copy is unconditional; [_savePath] is written too when the
-  /// picker returned a path `dart:io` can open, which on Android it does not.
-  /// Both go through [SafeFileWriter], so a crash mid-write leaves either the
-  /// previous complete file or the new one.
-  Future<void> _autosave() {
-    _exportedSinceChange = false;
-    _changes++;
-    return _queueSave();
-  }
-
-  Future<void> _queueSave() {
-    _pendingSaves++;
-    return _saving = _saving.then((_) => _autosaveOnce());
-  }
-
-  bool get _saveRunning => _pendingSaves > 0;
-
-  Future<void> _autosaveOnce() async {
-    try {
-      await _autosaveBody();
-    } catch (e) {
-      _workingFailed = true;
-      if (mounted) _snack('Could not save this note: $e');
-    } finally {
-      _pendingSaves--;
-    }
-  }
-
-  Future<void> _autosaveBody() async {
-    // The file is oldest-first; the UI list is newest-first.
-    final text = writeAnnotations(_entries.reversed.toList());
-    final hasEntries = _entries.isNotEmpty;
-    final datasetRoot = _datasetRoot;
-    final bidsFilename = _bidsName().filename;
-    try {
-      var work = _workingPath;
-      if (work == null) {
-        work = await workingPath(bidsFilename);
-        _workingPath = work;
-      }
-      await _writer.write(work, text);
-      _workingFailed = false;
-    } catch (e) {
-      _workingFailed = true;
-      if (mounted) {
-        _snack(
-          _savePath == null && datasetRoot == null
-              ? 'Could not save this note: $e'
-              : "Could not update the app's recovery copy: $e",
-        );
-      }
-    }
-    if (datasetRoot != null && _savePath == null && hasEntries) {
-      await _fileIntoDataset(text);
-    }
-    final path = _savePath;
-    if (path == null) {
-      _fileFailed = false;
-      return;
-    }
-    try {
-      await _writer.write(path, text);
-      _fileFailed = false;
-    } catch (e) {
-      _fileFailed = true;
-      if (mounted) {
-        _snack(
-          'Autosave to your file failed: $e.'
-          '${_workingFailed ? ' This note is not saved anywhere yet.' : ' The note is saved in the app.'}',
-        );
-      }
-    }
-  }
-
-  /// Place these notes in the chosen dataset; see [fileIntoDataset].
-  Future<void> _fileIntoDataset(String text) async {
-    final root = _datasetRoot;
-    final name = _datasetName;
-    if (root == null || name == null) return;
-    final acqTime = _entries.last.acqTime;
-    try {
-      final filed = await fileIntoDataset(
-        root: root,
-        name: name,
-        tsv: text,
-        kind: 'annotation_tsv',
-        acqTime: acqTime,
-      );
-      if (filed == null) {
-        if (mounted) {
-          _snack(
-            'That dataset already holds ${name.filename}.'
-            '${_workingFailed ? ' This note is not saved anywhere yet.' : ' These notes stay in the app.'} Export '
-            'them under a different run.',
-          );
-        }
-        if (mounted) setState(() => _datasetRoot = null);
-        return;
-      }
-      if (!mounted) return;
-      setState(() => _savePath = filed.path);
-      _snack(
-        'Filed as ${name.relativeDir}/${name.filename}.'
-        '${filed.unread.isEmpty ? '' : ' ${unreadIndexNotice(filed.unread)}'}'
-        '${filed.warning == null ? '' : ' ${filed.warning}'}',
-      );
-    } catch (e) {
-      if (mounted) {
-        _snack(
-          'Could not file into the dataset: $e.'
-          '${_workingFailed ? ' This note is not saved anywhere yet.' : ' The notes are saved in the app.'}',
-        );
-      }
-      if (mounted) setState(() => _datasetRoot = null);
-    }
+    autosave();
   }
 
   Future<void> _export() async {
@@ -576,19 +237,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       _snack('Add at least one note before exporting.');
       return;
     }
-    final changes = _changes;
-    final outcome = await exportFile(
-      context,
-      filename: _bidsName().filename,
-      anchor: _exportKey,
-      build: () async => (
-        bytes: utf8.encode(writeAnnotations(_entries.reversed.toList())),
-        warning: null,
-      ),
-    );
-    if (outcome == ExportOutcome.saved && changes == _changes) {
-      _exportedSinceChange = true;
-    }
+    await exportTsv();
   }
 
   /// Export these notes as a zipped one-subject BIDS dataset.
@@ -606,23 +255,22 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     }
     if (!mounted) return;
     final oldestFirst = _entries.reversed.toList();
-    final changes = _changes;
-    final outcome = await exportBidsDataset(
-      context,
-      anchor: _exportKey,
-      entries: [
-        datasetEntry(
-          name: _bidsName(),
-          tsv: writeAnnotations(oldestFirst),
-          contract: contract,
-          kind: 'annotation_tsv',
-          acqTime: oldestFirst.first.acqTime,
-        ),
-      ],
+    await countExport(
+      () => exportBidsDataset(
+        context,
+        anchor: exportKey,
+        avoid: exportAvoid,
+        entries: [
+          datasetEntry(
+            name: _bidsName(),
+            tsv: writeAnnotations(oldestFirst),
+            contract: contract,
+            kind: 'annotation_tsv',
+            acqTime: oldestFirst.first.acqTime,
+          ),
+        ],
+      ),
     );
-    if (outcome == ExportOutcome.saved && changes == _changes) {
-      _exportedSinceChange = true;
-    }
   }
 
   /// Export the notes as a PDF or Word report.
@@ -644,13 +292,14 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     await exportFile(
       context,
       filename: filename,
-      anchor: _exportKey,
+      anchor: exportKey,
       failureLabel: 'Report export failed',
+      avoid: exportAvoid,
       build: () async {
         final data = buildAnnotationsReportData(
           entries: _entries,
           subjectId: subject,
-          sourceFile: _savePath == null ? '' : pickedBasename(_savePath!),
+          sourceFile: savePath == null ? '' : pickedBasename(savePath!),
         );
         if (docx) {
           return (
@@ -699,9 +348,14 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
           label: const Text('Insert timestamped note'),
         ),
         const SizedBox(height: 8),
+        if (unkeptNotice case final notice?)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(notice, style: Theme.of(context).textTheme.bodySmall),
+          ),
         MenuAnchor(
           builder: (context, controller, child) => OutlinedButton.icon(
-            key: _exportKey,
+            key: exportKey,
             onPressed: () =>
                 controller.isOpen ? controller.close() : controller.open(),
             icon: const Icon(Icons.ios_share),
@@ -776,49 +430,11 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     );
   }
 
-  /// Ask whether to keep the recovery copy; see `close_guard.dart`. Null to
-  /// stay, including when another question is already open.
-  Future<LeaveChoice?> _askLeave() async {
-    if (_leaveAsked) return null;
-    _leaveAsked = true;
-    try {
-      final stillSaving = !await waitForSaves(() => _saving);
-      if (!mounted) return LeaveChoice.keep;
-      final guard = leaveGuardState(
-        workingFailed: _workingFailed,
-        fileFailed: _fileFailed,
-        hasSavePath: _savePath != null,
-        savePathIsSandboxCopy: _savePathIsSandboxCopy,
-        exportedSinceChange: _exportedSinceChange,
-        hasEntries: _entries.isNotEmpty,
-        stillSaving: stillSaving,
-      );
-      return await askLeaveSession(
-        context,
-        _workingPath,
-        onlyCopy: guard.onlyCopy,
-        copyMayBeStale: guard.copyMayBeStale,
-        entriesUnsaved: guard.entriesUnsaved,
-        stillSaving: stillSaving && _entries.isNotEmpty,
-      );
-    } finally {
-      _leaveAsked = false;
-    }
-  }
-
-  Future<bool> _mayLeave() async {
-    final choice = await _askLeave();
-    if (choice == null) return false;
-    if (choice == LeaveChoice.discard) await discardWork(_workingPath);
-    return true;
-  }
-
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: false,
     onPopInvokedWithResult: (didPop, _) async {
-      if (didPop) return;
-      if (await _mayLeave() && context.mounted) Navigator.pop(context);
+      if (!didPop) await leaveOnBack();
     },
     child: _page(context),
   );

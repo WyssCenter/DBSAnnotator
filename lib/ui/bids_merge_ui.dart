@@ -13,7 +13,8 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, mapEquals, visibleForTesting;
 import 'package:flutter/material.dart';
 
 import '../app_info.dart';
@@ -41,6 +42,37 @@ const int kMaxMergeZipBytes = 200 * 1024 * 1024;
 /// that path is refused rather than kept.
 const String kBinaryContent = '\u0000binary';
 
+/// Tests set this to see which files [readDatasetDirectory] decodes.
+@visibleForTesting
+void Function(String path)? debugDatasetRead;
+
+// Null while idle, so no finished future outlives the zone it was made in.
+Future<void>? _datasetWrites;
+
+/// Tests call this when one ends: a write its fake-async zone left unfinished
+/// would otherwise hold up every later test.
+@visibleForTesting
+void resetDatasetQueue() => _datasetWrites = null;
+
+/// Whether no write into a dataset is queued or running.
+@visibleForTesting
+bool get datasetQueueIdle => _datasetWrites == null;
+
+/// Run [write] after every earlier write into a dataset folder has finished,
+/// whether or not anyone still waits for it. Writers share one `.tmp` file per
+/// target, so two at once can overwrite or rename away each other's.
+@visibleForTesting
+Future<T> inDatasetQueue<T>(Future<T> Function() write) {
+  final previous = _datasetWrites;
+  final run = previous == null ? write() : previous.then((_) => write());
+  late final Future<void> tail;
+  tail = run.then<void>((_) {}, onError: (Object _) {}).whenComplete(() {
+    if (identical(_datasetWrites, tail)) _datasetWrites = null;
+  });
+  _datasetWrites = tail;
+  return run;
+}
+
 bool _isTextPath(String path) =>
     path.endsWith('.tsv') ||
     path.endsWith('.json') ||
@@ -52,7 +84,11 @@ bool _isTextPath(String path) =>
 /// Only the text files the merge can reason about are decoded. Imaging and
 /// anything else is recorded by path alone, which is all that is needed: those
 /// paths are never written, and knowing they exist is what stops a collision.
-Future<List<DatasetFile>> readDatasetDirectory(String root) async {
+/// With [only], files whose relative path it rejects are left out entirely.
+Future<List<DatasetFile>> readDatasetDirectory(
+  String root, {
+  bool Function(String path)? only,
+}) async {
   final dir = Directory(root);
   if (!dir.existsSync()) return const [];
   final out = <DatasetFile>[];
@@ -62,12 +98,13 @@ Future<List<DatasetFile>> readDatasetDirectory(String root) async {
         .substring(root.length)
         .replaceAll(r'\', '/')
         .replaceAll(RegExp('^/+'), '');
-    if (rel.isEmpty) continue;
+    if (rel.isEmpty || (only != null && !only(rel))) continue;
     if (!_isTextPath(rel)) {
       out.add((path: rel, content: kUnreadContent));
       continue;
     }
     try {
+      debugDatasetRead?.call(rel);
       out.add((path: rel, content: await entity.readAsString()));
     } catch (_) {
       out.add((path: rel, content: kUnreadContent));
@@ -278,6 +315,43 @@ MergePlan withRebuiltAggregate(
   );
 }
 
+/// Rebuild the combined table of the dataset at [root] by the rules of a merge
+/// from Reports, writing only when it differs from the one there. Reads the
+/// recorded files, their sidecars and the table's folder, nothing else; raw
+/// data is never written. `notice` is what to tell the user: files left out
+/// and why, or a `.bidsignore` warning; null when there is nothing to say.
+/// Throws when the folder cannot be read or the table cannot be written.
+Future<({List<LeftOutFile> leftOut, String? notice})> refreshDatasetAggregate(
+  String root,
+) => inDatasetQueue(() => _refreshDatasetAggregate(root));
+
+Future<({List<LeftOutFile> leftOut, String? notice})> _refreshDatasetAggregate(
+  String root,
+) async {
+  final contract = await loadTsvContract();
+  bool recorded(String path) =>
+      recordedFiles([(path: path, content: '')]).isNotEmpty;
+  final existing = await readDatasetDirectory(
+    root,
+    only: (path) =>
+        path.startsWith('$aggregateDerivativeDir/') ||
+        recorded(path) ||
+        (path.endsWith('.json') &&
+            recorded(path.replaceFirst(RegExp(r'\.json$'), '.tsv'))),
+  );
+  final plan = withRebuiltAggregate(
+    existing,
+    planBidsMerge(existing, const []),
+    contract,
+  );
+  final warning = await _applyMerge(root, plan);
+  final notice = [
+    if (plan.leftOut.isNotEmpty) leftOutNotice(plan.leftOut),
+    ?warning,
+  ].join(' ');
+  return (leftOut: plan.leftOut, notice: notice.isEmpty ? null : notice);
+}
+
 /// Write [plan] into the dataset at [root].
 ///
 /// Ordered so an interruption can never leave the dataset claiming files that
@@ -289,7 +363,55 @@ MergePlan withRebuiltAggregate(
 ///
 /// Returns [kBidsignoreWarning] when backups were made and `.bidsignore` could
 /// not be updated to hide them, else null.
+///
+/// With [plannedAgainst], the files the plan writes or checks are read again
+/// once the write's turn comes, and a file whose content differs from the one
+/// planned against, or that appeared, throws [DatasetChangedException] with
+/// nothing written.
 Future<String?> applyMergeToDirectory(
+  String root,
+  MergePlan plan, {
+  Map<String, Uint8List> binary = const {},
+  List<DatasetFile>? plannedAgainst,
+}) => inDatasetQueue(() async {
+  if (plannedAgainst != null) {
+    await _requireUnchanged(root, plan, plannedAgainst);
+  }
+  return _applyMerge(root, plan, binary: binary);
+});
+
+/// Thrown when the dataset changed between planning a merge and applying it.
+class DatasetChangedException implements Exception {
+  const DatasetChangedException();
+
+  @override
+  String toString() =>
+      'The dataset changed while the merge was being prepared, so nothing '
+      'was written. Run the merge again.';
+}
+
+Future<void> _requireUnchanged(
+  String root,
+  MergePlan plan,
+  List<DatasetFile> planned,
+) async {
+  final paths = {
+    for (final f in plan.write) f.path,
+    ...plan.refused,
+    ...plan.keptAsIs,
+  };
+  final before = {
+    for (final f in planned)
+      if (paths.contains(f.path)) f.path: f.content,
+  };
+  final now = {
+    for (final f in await readDatasetDirectory(root, only: paths.contains))
+      f.path: f.content,
+  };
+  if (!mapEquals(before, now)) throw const DatasetChangedException();
+}
+
+Future<String?> _applyMerge(
   String root,
   MergePlan plan, {
   Map<String, Uint8List> binary = const {},
@@ -729,9 +851,12 @@ Future<bool> confirmRecordInto(
             Text(
               'when the first entry is recorded, and updated at every entry '
               'after that. $_kBidsPlacement $_kBidsIndexRows '
-              '$_kBidsNothingChanged Recording does not update the combined '
-              'table under $aggregateDerivativeDir/, so it leaves out $what '
-              'until the next merge from the Reports screen rebuilds it.',
+              '$_kBidsNothingChanged The combined table under '
+              '$aggregateDerivativeDir/ is refreshed once when the recording '
+              'ends: when you leave the screen, close the window, or start or '
+              'open another file. If the recording is interrupted, the table '
+              'leaves out $what until the next merge from the Reports screen '
+              'or the next visit recorded into this dataset refreshes it.',
             ),
           ],
         ),
@@ -765,6 +890,23 @@ Future<({String path, List<String> unread, String? warning})?> fileIntoDataset({
   required String tsv,
   required String kind,
   required String acqTime,
+}) => inDatasetQueue(
+  () => _fileIntoDataset(
+    root: root,
+    name: name,
+    tsv: tsv,
+    kind: kind,
+    acqTime: acqTime,
+  ),
+);
+
+Future<({String path, List<String> unread, String? warning})?>
+_fileIntoDataset({
+  required String root,
+  required BidsName name,
+  required String tsv,
+  required String kind,
+  required String acqTime,
 }) async {
   final contract = await loadTsvContract();
   final incoming = buildBidsDataset(
@@ -783,7 +925,7 @@ Future<({String path, List<String> unread, String? warning})?> fileIntoDataset({
   );
   final plan = planBidsMerge(await readDatasetDirectory(root), incoming);
   if (plan.refused.isNotEmpty) return null;
-  final warning = await applyMergeToDirectory(root, plan);
+  final warning = await _applyMerge(root, plan);
   return (
     path: '$root/${name.relativeDir}/${name.filename}',
     unread: plan.unread,
@@ -1136,7 +1278,13 @@ Future<({String path, String? warning})> writeAggregateInto(
   String root, {
   required String tsv,
   required String sidecar,
-}) async {
+}) => inDatasetQueue(() => _writeAggregateInto(root, tsv, sidecar));
+
+Future<({String path, String? warning})> _writeAggregateInto(
+  String root,
+  String tsv,
+  String sidecar,
+) async {
   final dir = '$root/$aggregateDerivativeDir';
   await Directory(dir).create(recursive: true);
   final stamp = DateTime.now().millisecondsSinceEpoch;

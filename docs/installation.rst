@@ -41,7 +41,7 @@ Building from source
 
 For developers who want to run or modify the code. On every platform you need
 `Git <https://git-scm.com>`_ and the
-`Flutter SDK <https://docs.flutter.dev/get-started/install>`_ **3.38.4 or
+`Flutter SDK <https://docs.flutter.dev/get-started/install>`_ **3.47 or
 later**, with Flutter's ``bin`` folder on your ``PATH``. Then get the code:
 
 .. code-block:: bash
@@ -87,10 +87,11 @@ Linux
 
   .. code-block:: bash
 
-     sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev zenity
+     sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev
 
-  ``zenity`` provides the file dialogs; without it the app saves to a fixed
-  folder and tells you where.
+  The save dialog is drawn by GTK. The open dialog comes from the XDG desktop
+  portal of your session; without it, opening a file fails with a message. If a
+  save dialog cannot open, the app saves to a fixed folder and tells you where.
 * **Run**: ``flutter run -d linux``
 * **Release build**: ``flutter build linux --release``. The program is
   ``build/linux/x64/release/bundle/dbs_annotator``; copy the whole ``bundle``

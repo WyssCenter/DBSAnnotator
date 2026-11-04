@@ -77,9 +77,11 @@ Troubleshooting
 ---------------
 
 **The file picker does not open on Linux.**
-   Desktop Linux needs ``zenity`` or ``kdialog`` for native dialogs. Without
-   one, exports fall back to saving in a well-known directory and the
-   confirmation message names the exact path used.
+   Desktop Linux opens files through the XDG desktop portal, which a normal
+   GNOME or KDE session provides. Saving uses GTK directly and needs nothing
+   extra. If a save dialog cannot open, exports fall back to saving in a
+   well-known directory and the confirmation message names the exact path
+   used.
 
 **Opening a file says it is the wrong kind.**
    The app checks a file's columns before loading it, so an annotations file
