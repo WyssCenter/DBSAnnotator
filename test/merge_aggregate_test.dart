@@ -50,9 +50,9 @@ const _notATable = 'not\ta\tsession\n1\t2\t3\n';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  final contract =
-      jsonDecode(File('schema/tsv_schema.json').readAsStringSync())
-          as Map<String, dynamic>;
+  final contract = jsonDecode(
+    File('schema/tsv_schema.json').readAsStringSync(),
+  ) as Map<String, dynamic>;
 
   List<DatasetFile> incomingVisit(BidsName name, {String? tsv}) =>
       buildBidsDataset(
@@ -136,9 +136,9 @@ void main() {
           startsWith('participants.tsv.bak-'),
         ]),
       );
-      final stale = Directory(
-        '${root.path}/$aggregateDerivativeDir',
-      ).listSync().firstWhere((e) => e.path.contains('.tsv.bak-'));
+      final stale = Directory('${root.path}/$aggregateDerivativeDir')
+          .listSync()
+          .firstWhere((e) => e.path.contains('.tsv.bak-'));
       expect((stale as File).readAsStringSync(), 'stale');
     });
 

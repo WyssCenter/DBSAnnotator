@@ -481,9 +481,8 @@ void main() {
       final second = Completer<void>();
       unawaited(saving.then((_) => saving = second.future));
       unawaited(
-        Future<void>.delayed(
-          const Duration(milliseconds: 60),
-        ).then((_) => second.complete()),
+        Future<void>.delayed(const Duration(milliseconds: 60))
+            .then((_) => second.complete()),
       );
       final stopwatch = Stopwatch()..start();
       expect(await waitForSaves(() => saving), isTrue);

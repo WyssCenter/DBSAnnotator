@@ -15,7 +15,7 @@ while configurations are tested. Write "in clinic" or "during the visit", never 
 
 ## Setup
 
-Flutter 3.38.4 or later (Dart 3.12+). Python tooling runs through `uv`, with nothing to
+Flutter 3.47 or later (Dart 3.13+). Python tooling runs through `uv`, with nothing to
 install.
 
 ```

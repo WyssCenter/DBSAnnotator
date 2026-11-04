@@ -1143,9 +1143,9 @@ class _SessionScreenState extends State<SessionScreen> {
     // A report is a derivative, not raw data: `_report` is not a BIDS suffix.
     // Built from the same entities as the TSV so the two files sort together,
     // and through the one builder so they cannot drift.
-    final filename = _bidsName(
-      l,
-    ).withSuffix('report', extension: docx ? 'docx' : 'pdf').filename;
+    final filename = _bidsName(l)
+        .withSuffix('report', extension: docx ? 'docx' : 'pdf')
+        .filename;
 
     await exportFile(
       context,

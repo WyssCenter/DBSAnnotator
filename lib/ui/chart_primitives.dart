@@ -12,6 +12,7 @@ library;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
 import 'painter_font.dart';
 
 /// matplotlib's `Dark2` colormap, the desktop's series palette, so a scale

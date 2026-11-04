@@ -14,9 +14,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'report_ranking_prefs.dart';
 
 List<SessionRow> _example() => parseSessionTsv(
-  File(
-    'test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv',
-  ).readAsStringSync(),
+  File('test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv')
+      .readAsStringSync(),
 );
 
 void main() {

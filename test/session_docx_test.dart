@@ -223,9 +223,9 @@ void main() {
       expect(doc, contains('<w:drawing>'));
       // wp:extent and a:ext must agree and be non-zero, or Word offers to
       // repair the file.
-      final extents = RegExp(
-        r'<wp:extent cx="(\d+)" cy="(\d+)"/>',
-      ).allMatches(doc).toList();
+      final extents = RegExp(r'<wp:extent cx="(\d+)" cy="(\d+)"/>')
+          .allMatches(doc)
+          .toList();
       expect(extents, hasLength(5));
       for (final m in extents) {
         expect(int.parse(m.group(1)!), greaterThan(0));
@@ -358,9 +358,8 @@ void main() {
         contains('wordprocessingml.footer+xml'),
       );
       final rels = _part(bytes, 'word/_rels/document.xml.rels');
-      final match = RegExp(
-        r'Id="(rId\d+)"[^>]*/relationships/footer"',
-      ).firstMatch(rels);
+      final match = RegExp(r'Id="(rId\d+)"[^>]*/relationships/footer"')
+          .firstMatch(rels);
       expect(match, isNotNull, reason: 'the footer needs a relationship');
       expect(
         _part(bytes, 'word/document.xml'),
@@ -492,10 +491,11 @@ void main() {
         RegExp(r'<w:tblGrid>(.*?)</w:tblGrid>')
             .allMatches(doc)
             .map(
-              (m) => RegExp(r'w:w="(\d+)"')
-                  .allMatches(m.group(1)!)
-                  .map((g) => int.parse(g.group(1)!))
-                  .toList(),
+              (m) =>
+                  RegExp(r'w:w="(\d+)"')
+                      .allMatches(m.group(1)!)
+                      .map((g) => int.parse(g.group(1)!))
+                      .toList(),
             )
             .toList();
 
@@ -524,9 +524,10 @@ void main() {
         // The invariant Word cares about: each table's grid sums to that
         // table's own declared `tblW`, or Word rescales the whole table. Not
         // to the page width, and not to a fixed table count.
-        final declared = RegExp(
-          r'<w:tblW w:w="(\d+)" w:type="dxa"/>',
-        ).allMatches(doc).map((m) => int.parse(m.group(1)!)).toList();
+        final declared = RegExp(r'<w:tblW w:w="(\d+)" w:type="dxa"/>')
+            .allMatches(doc)
+            .map((m) => int.parse(m.group(1)!))
+            .toList();
         final grids = gridsIn(doc);
         expect(grids, isNotEmpty);
         expect(declared, hasLength(grids.length));

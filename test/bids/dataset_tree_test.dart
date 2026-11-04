@@ -86,9 +86,9 @@ List<({BidsName name, String tsv, String kind})> _sources(String source) {
 
 void main() {
   final source = File(_fixture).readAsStringSync();
-  final contract =
-      jsonDecode(File('schema/tsv_schema.json').readAsStringSync())
-          as Map<String, dynamic>;
+  final contract = jsonDecode(
+    File('schema/tsv_schema.json').readAsStringSync(),
+  ) as Map<String, dynamic>;
 
   /// Every file the dataset consists of, raw tree plus derivative.
   List<DatasetFile> buildTree() {

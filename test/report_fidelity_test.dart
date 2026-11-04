@@ -13,9 +13,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// wrong.
 void main() {
   List<SessionRow> fixtureRows() => parseSessionTsv(
-    File(
-      'test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv',
-    ).readAsStringSync(),
+    File('test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv')
+        .readAsStringSync(),
   );
 
   group('line breaks survive the report font', () {

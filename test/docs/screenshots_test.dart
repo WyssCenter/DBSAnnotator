@@ -1225,9 +1225,8 @@ void main() {
         sessionChartPng: await renderScalesChartPng(longitudinal.sessionChart),
       );
     });
-    File(
-      '${out.path}/longitudinal_report.pdf',
-    ).writeAsBytesSync(longitudinalPdf!.bytes);
+    File('${out.path}/longitudinal_report.pdf')
+        .writeAsBytesSync(longitudinalPdf!.bytes);
 
     final notes = buildAnnotationsReportData(
       entries: const [
@@ -1248,8 +1247,7 @@ void main() {
       sourceFile: 'sub-01_ses-20260203_task-notes_run-01_beh.tsv',
     );
     final notesPdf = await tester.runAsync(() => buildAnnotationsPdf(notes));
-    File(
-      '${out.path}/annotations_report.pdf',
-    ).writeAsBytesSync(notesPdf!.bytes);
+    File('${out.path}/annotations_report.pdf')
+        .writeAsBytesSync(notesPdf!.bytes);
   });
 }

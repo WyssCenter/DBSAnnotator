@@ -19,7 +19,7 @@ code is on the `qt-legacy` branch. Several of those comments record a
 ## Quick start
 
 Requires the [Flutter SDK](https://docs.flutter.dev/get-started/install)
-**3.38.4 or later** (Dart 3.12+), the floor `pubspec.lock` resolves against, so
+**3.47 or later** (Dart 3.13+), the floor `pubspec.lock` resolves against, so
 an older SDK fails at `pub get`. From the repository root:
 
 ```bash

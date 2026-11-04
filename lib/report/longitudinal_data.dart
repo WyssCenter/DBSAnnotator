@@ -542,9 +542,8 @@ LongitudinalReportData buildLongitudinalReportData({
       '${visit.blocks.length}',
       scores.isEmpty
           ? '-'
-          : [
-              for (final e in scores.entries) '${e.key}: ${trimZeros(e.value)}',
-            ].join('\n'),
+          : [for (final e in scores.entries) '${e.key}: ${trimZeros(e.value)}']
+                .join('\n'),
     ]);
   }
 

@@ -115,9 +115,8 @@ void main() {
     // resolution overflows the page and makes dart_pdf throw. Use a realistic
     // raster, not a 1x1, or the regression this guards slips through.
     final rows = parseSessionTsv(
-      File(
-        'test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv',
-      ).readAsStringSync(),
+      File('test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv')
+          .readAsStringSync(),
     );
     final data = buildSessionReportData(rows: rows);
     final chart = await renderScalesChartPng(data.chart);

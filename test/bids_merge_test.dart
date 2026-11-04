@@ -90,8 +90,7 @@ List<DatasetFile> _newVisit() => [
     ),
   ),
   (
-    path:
-        'sub-42/ses-20260310/beh/sub-42_ses-20260310_task-programming_run-01_beh.tsv',
+    path: 'sub-42/ses-20260310/beh/sub-42_ses-20260310_task-programming_run-01_beh.tsv',
     content: 'acq_time\tblock_id\n2026-03-10T10:00:00+00:00\t1\n',
   ),
 ];

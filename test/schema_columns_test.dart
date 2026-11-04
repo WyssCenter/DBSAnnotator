@@ -31,9 +31,9 @@ void main() {
     // is declared `string` because a steered current is several values joined
     // by an underscore, so claiming a unit on it asserts a shape the data does
     // not have. The unit belongs in the description instead.
-    final json =
-        jsonDecode(File('schema/tsv_schema.json').readAsStringSync())
-            as Map<String, dynamic>;
+    final json = jsonDecode(
+      File('schema/tsv_schema.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
     for (final block in json.values.whereType<Map<String, dynamic>>()) {
       for (final column in (block['columns'] as List? ?? [])) {
         final c = column as Map<String, dynamic>;

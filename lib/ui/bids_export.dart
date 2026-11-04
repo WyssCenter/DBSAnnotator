@@ -36,9 +36,8 @@ Future<ExportOutcome> exportBidsDataset(
   GlobalKey? anchor,
 }) async {
   if (entries.isEmpty) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Nothing to export yet.')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Nothing to export yet.')));
     return ExportOutcome.notDelivered;
   }
   // Naming only the first of several subjects would be worse than generic.
