@@ -27,8 +27,8 @@ preferences file, a working copy of the session in progress in its own storage,
 and short-lived copies made when you share or export a file. That removes most
 of the usual attack surface: there is no endpoint to attack and no credential
 to steal. Android backup is disabled for the app's own storage; on iOS and
-iPadOS the app does not exclude it from device or iCloud backup. The realistic
-threats are local:
+iPadOS the in-app working copies are excluded from device and iCloud backup.
+The realistic threats are local:
 
 - data written somewhere the user did not intend, or reported as saved when it
   was not

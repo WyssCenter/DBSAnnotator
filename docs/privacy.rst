@@ -93,9 +93,10 @@ nothing is removed by deleting the extracted tarball, and the cache folder is un
 
 Backups follow the platform, for the app's own storage. On Android the app disables
 backup and device-to-device transfer, so the working copy and preferences do not
-leave the device that way. On iOS and iPadOS the app does not exclude its storage
-from an iCloud or computer backup, so they can appear in those backups. On desktop,
-your own backup software sees whatever it is configured to see.
+leave the device that way. On iOS and iPadOS the app excludes its working copies
+from iCloud and computer backups. Its preferences are not excluded, so they can
+still appear in those backups; they hold no patient data. On desktop, your own
+backup software sees whatever it is configured to see.
 
 Patient data
 ------------
