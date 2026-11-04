@@ -569,7 +569,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
       incoming.addAll(filed.files);
       binary[filed.path] = report.bytes;
     }
-    final plan = planBidsMerge(target.existing, incoming);
+    final plan = withRebuiltAggregate(
+      target.existing,
+      planBidsMerge(target.existing, incoming),
+      contract,
+    );
     if (plan.write.isEmpty) {
       _snack(
         plan.refused.isEmpty
@@ -583,21 +587,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
       plan,
       target.label,
       renumbered: tsv ? placed.renumbered : const [],
+      keepsBackups: inPlace,
     );
     if (!ok || !mounted) return;
 
-    final ExportOutcome outcome;
+    final ({ExportOutcome outcome, String? warning}) applied;
     try {
-      outcome = await target.apply(plan, binary);
+      applied = await target.apply(plan, binary);
     } catch (e) {
       if (mounted) _snack('The merge stopped partway: $e');
       return;
     }
     if (!mounted) return;
     final summary = [
-      if (outcome != ExportOutcome.notDelivered) ...[
+      if (applied.outcome != ExportOutcome.notDelivered) ...[
         describeMergePlan(plan),
         if (plan.unread.isNotEmpty) unreadIndexNotice(plan.unread),
+        if (plan.leftOut.isNotEmpty) leftOutNotice(plan.leftOut),
+        ?applied.warning,
       ],
       ?report?.warning,
     ];
@@ -614,8 +621,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
         existing: folder.existing,
         label: folder.root,
         apply: (plan, binary) async {
-          await applyMergeToDirectory(folder.root, plan, binary: binary);
-          return ExportOutcome.saved;
+          final warning = await applyMergeToDirectory(
+            folder.root,
+            plan,
+            binary: binary,
+          );
+          return (outcome: ExportOutcome.saved, warning: warning);
         },
       );
     } catch (e) {
@@ -643,21 +654,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
       existing: existing,
       label: name,
       apply: (plan, binary) async {
-        if (!mounted) return ExportOutcome.notDelivered;
+        if (!mounted) {
+          return (outcome: ExportOutcome.notDelivered, warning: null);
+        }
         final Uint8List merged;
         try {
           merged = mergedZip(source, plan, binary: binary);
         } catch (e) {
           _snack('Merged dataset export failed: $e');
-          return ExportOutcome.notDelivered;
+          return (outcome: ExportOutcome.notDelivered, warning: null);
         }
-        return exportFile(
+        final outcome = await exportFile(
           context,
           filename: '${name.replaceAll(RegExp(r'\.zip$'), '')}-merged.zip',
           anchor: _exportKey,
           failureLabel: 'Merged dataset export failed',
           build: () async => (bytes: merged, warning: null),
         );
+        return (outcome: outcome, warning: null);
       },
     );
   }
@@ -976,6 +990,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
 typedef _MergeTarget = ({
   List<DatasetFile> existing,
   String label,
-  Future<ExportOutcome> Function(MergePlan plan, Map<String, Uint8List> binary)
+  Future<({ExportOutcome outcome, String? warning})> Function(
+    MergePlan plan,
+    Map<String, Uint8List> binary,
+  )
   apply,
 });

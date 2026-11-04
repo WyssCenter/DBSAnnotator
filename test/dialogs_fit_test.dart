@@ -90,14 +90,35 @@ final List<_Case> _cases = [
     open: (c) => confirmMerge(
       c,
       (
-        write: const [(path: 'a', content: 'b')],
+        write: const [
+          (path: 'a', content: 'b'),
+          (
+            path: 'derivatives/dbs-annotator-aggregate/desc-aggregate_beh.tsv',
+            content: 'b',
+          ),
+          (
+            path: 'derivatives/dbs-annotator-aggregate/desc-aggregate_beh.json',
+            content: 'b',
+          ),
+        ],
         added: _manyPaths,
         rowMerged: const ['participants.tsv'],
+        rebuilt: const [
+          'derivatives/dbs-annotator-aggregate/desc-aggregate_beh.tsv',
+          'derivatives/dbs-annotator-aggregate/desc-aggregate_beh.json',
+        ],
         keptAsIs: const ['README', 'dataset_description.json'],
         unread: const [],
         refused: [
           ..._manyPaths.take(2),
           'derivatives/dbs-annotator-aggregate/desc-aggregate_beh.tsv',
+        ],
+        leftOut: const [
+          (
+            path:
+                'sub-03/ses-20260203/beh/sub-03_ses-20260203_task-notes_beh.tsv',
+            reason: 'not readable as a session or notes TSV',
+          ),
         ],
       ),
       _root,

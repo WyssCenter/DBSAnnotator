@@ -152,18 +152,60 @@ const String aggregateDerivativeDir = 'derivatives/dbs-annotator-aggregate';
 const String aggregateStem = 'desc-aggregate_beh';
 
 final _recordedPath = RegExp(
-  r'(?:^|/)sub-([A-Za-z0-9]+)/(?:ses-[A-Za-z0-9]+/)?beh/[^/]+_(?:beh|events)\.tsv$',
+  r'^((?:[^/]+/)*)sub-([A-Za-z0-9]+)/(?:ses-[A-Za-z0-9]+/)?beh/[^/]+_(?:beh|events)\.tsv$',
 );
 
+/// Folders that hold copies, derived data or archive debris, not recordings.
+const _notRawFolders = {'sourcedata', 'code', 'derivatives', '__MACOSX'};
+
 /// The session and notes TSVs in a dataset listing, by participant label and
-/// in path order. A zip may wrap the dataset in one top-level folder, so the
-/// match is not anchored; derivatives and other datatypes are left out.
-Map<String, List<DatasetFile>> recordedFiles(List<DatasetFile> files) {
+/// in path order. A dataset folder is read from its root only. With [inZip],
+/// any folders may wrap the dataset, as a zip made by archiving the folder
+/// does: the root is then the shallowest folder holding a
+/// `dataset_description.json`, or any folder when the zip has none. Files under
+/// `sourcedata/`, `code/`, `derivatives/`, `__MACOSX/` and dot-folders, dot
+/// files and other datatypes are left out.
+Map<String, List<DatasetFile>> recordedFiles(
+  List<DatasetFile> files, {
+  bool inZip = false,
+}) {
+  bool excluded(String s) => _notRawFolders.contains(s) || s.startsWith('.');
+  List<String> folders(String path) =>
+      (path.split('/')..removeLast()).where((s) => s.isNotEmpty).toList();
+
+  String unwrapped(String path) => path.replaceFirst(RegExp(r'^(\./)+'), '');
+
+  final zipRoots = <String>{};
+  if (inZip) {
+    var shallowest = -1;
+    for (final f in files) {
+      final path = unwrapped(f.path);
+      if (path.split('/').last != 'dataset_description.json') continue;
+      final dir = folders(path);
+      if (dir.any(excluded)) continue;
+      if (shallowest < 0 || dir.length < shallowest) {
+        shallowest = dir.length;
+        zipRoots.clear();
+      }
+      if (dir.length == shallowest) zipRoots.add(dir.join('/'));
+    }
+  }
+
   final out = SplayTreeMap<String, List<DatasetFile>>();
   for (final f in [...files]..sort((a, b) => a.path.compareTo(b.path))) {
-    if (f.path.contains('derivatives/')) continue;
-    final m = _recordedPath.firstMatch(f.path);
-    if (m != null) out.putIfAbsent(m.group(1)!, () => []).add(f);
+    final path = unwrapped(f.path);
+    if (path.split('/').last.startsWith('.')) continue;
+    final m = _recordedPath.firstMatch(path);
+    if (m == null) continue;
+    final wrappers = folders(m.group(1)!);
+    if (zipRoots.isNotEmpty) {
+      if (!zipRoots.contains(wrappers.join('/'))) continue;
+    } else if (wrappers.isNotEmpty && !inZip) {
+      continue;
+    } else if (wrappers.any(excluded)) {
+      continue;
+    }
+    out.putIfAbsent(m.group(2)!, () => []).add(f);
   }
   return out;
 }

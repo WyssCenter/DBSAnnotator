@@ -246,6 +246,23 @@ void main() {
     expect(describeMergePlan(plan), contains('1 left as is - 1 refused'));
   });
 
+  test('a derivative folder written into lists its unwritten files', () {
+    const dir = 'derivatives/dbs-annotator-reports';
+    const report = '$dir/sub-01/ses-a/beh/sub-01_ses-a_report.pdf';
+    final plan = planBidsMerge(
+      const [(path: report, content: 'old')],
+      const [
+        (path: '$dir/dataset_description.json', content: '{}'),
+        (path: report, content: 'new'),
+      ],
+    );
+    expect(plan.added, ['$dir/dataset_description.json']);
+    final shown = shownUnwritten(plan);
+    expect(shown.unchanged, [report]);
+    expect(shown.unchanged, isNot(contains('$dir/')));
+    expect(shown.refused, isEmpty);
+  });
+
   group('a name already taken', () {
     const preop = BidsName(
       subject: '01',

@@ -22,6 +22,9 @@ import '../core/bids_dataset.dart';
 import '../core/bids_merge.dart';
 import '../core/bids_sidecar.dart';
 import '../core/safe_file.dart';
+import '../core/session/aggregate.dart';
+import '../core/session/tsv_kind.dart';
+import '../report/upload_actions.dart';
 import 'bids_export.dart';
 
 /// Whether a picked directory can be written to. False on the tablets, where
@@ -92,6 +95,189 @@ List<DatasetFile> readDatasetZip(Uint8List bytes) {
   return out;
 }
 
+/// The `.bidsignore` line that keeps the validator from failing on the
+/// `<file>.bak-<timestamp>` copies a folder merge leaves beside what it replaces.
+const String kBackupIgnoreLine = '*.bak-*';
+
+/// Said when [ensureBackupsIgnored] could not do its job.
+const String kBidsignoreWarning =
+    '.bidsignore could not be updated, so the BIDS validator may flag the '
+    '.bak- copies.';
+
+/// Make sure `.bidsignore` at [root] lists [kBackupIgnoreLine], keeping its
+/// lines. Best effort, since the copies are made: false when it cannot be done.
+Future<bool> ensureBackupsIgnored(String root) async {
+  final file = File('$root/.bidsignore');
+  try {
+    var text = '';
+    if (file.existsSync()) {
+      text = await file.readAsString();
+      final lines = text.split(RegExp(r'\r?\n'));
+      if (lines.any((line) => line.trim() == kBackupIgnoreLine)) return true;
+      if (text.isNotEmpty && !text.endsWith('\n')) text += '\n';
+    }
+    await writeStringAtomic(file.path, '$text$kBackupIgnoreLine\n');
+    return true;
+  } on FormatException {
+    return false;
+  } on FileSystemException {
+    try {
+      File('${file.path}.tmp').deleteSync();
+    } on FileSystemException {
+      // The failure is already reported; a stray temp file is not worth more.
+    }
+    return false;
+  }
+}
+
+/// The task entities this app records under.
+const _appTasks = {'programming', 'notes'};
+
+/// The combined table of the recorded session and notes TSVs in [files], each
+/// row named after the file it came from, and the recorded files it leaves out
+/// with a reason each.
+///
+/// A file is this app's when its header is one of this app's, its task is one
+/// of [_appTasks], or its sidecar names this app as the generator. Any other
+/// file under `beh/` belongs to another lab and is not reported.
+({AggregateResult table, List<LeftOutFile> leftOut}) _combinedTable(
+  List<DatasetFile> files,
+) {
+  final contents = {for (final f in files) f.path: f.content};
+  bool writtenByThisApp(String tsvPath) {
+    final sidecar = contents[tsvPath.replaceFirst(RegExp(r'\.tsv$'), '.json')];
+    if (sidecar == null || sidecar == kUnreadContent) return false;
+    try {
+      final generated = (jsonDecode(sidecar) as Map)['GeneratedBy'];
+      return generated is List &&
+          generated.any((g) => g is Map && g['Name'] == appName);
+    } on FormatException {
+      return false;
+    } on TypeError {
+      return false;
+    }
+  }
+
+  final sources = <AggregateSource>[];
+  final pathsByName = <String, List<String>>{};
+  final leftOut = <LeftOutFile>[];
+  for (final f in recordedFiles(files).values.expand((list) => list)) {
+    final name = f.path.split('/').last;
+    final kind = f.content == kUnreadContent ? null : sniffTsvKind(f.content);
+    final isKind = kind == TsvKind.programming || kind == TsvKind.notes;
+    Uploaded? upload;
+    if (isKind) {
+      try {
+        upload = classifyUpload(name, f.content).file;
+      } catch (_) {}
+    }
+    if (upload == null) {
+      if (isKind ||
+          _appTasks.contains(BidsName.parse(name)?.task) ||
+          writtenByThisApp(f.path)) {
+        leftOut.add((
+          path: f.path,
+          reason: kind == null
+              ? 'could not be read as text'
+              : 'not readable as a session or notes TSV',
+        ));
+      }
+      continue;
+    }
+    sources.addAll(aggregateSources([upload]));
+    (pathsByName[name] ??= []).add(f.path);
+  }
+
+  final table = buildAggregate(sources);
+  final reasons = <String, List<String>>{};
+  for (final skip in table.skipped) {
+    (reasons[skip.filename] ??= []).add(skip.reason);
+  }
+  for (final MapEntry(key: name, value: why) in reasons.entries) {
+    final paths = pathsByName[name]!;
+    final skipped = paths.sublist(paths.length - why.length);
+    for (final (i, path) in skipped.indexed) {
+      leftOut.add((path: path, reason: why[i]));
+    }
+  }
+  leftOut.sort((a, b) => a.path.compareTo(b.path));
+  return (table: table, leftOut: leftOut);
+}
+
+/// [planned] with the combined table rebuilt from every session and notes TSV
+/// the dataset [existing] will hold after the merge. An existing table is left
+/// as it is when no row can be built, and its files are then `keptAsIs`.
+MergePlan withRebuiltAggregate(
+  List<DatasetFile> existing,
+  MergePlan planned,
+  Map<String, dynamic> contract,
+) {
+  const prefix = '$aggregateDerivativeDir/';
+  List<T> outside<T>(List<T> items, String Function(T) path) => [
+    for (final item in items)
+      if (!path(item).startsWith(prefix)) item,
+  ];
+  String same(String path) => path;
+  final write = outside(planned.write, (f) => f.path);
+  final added = outside(planned.added, same);
+  final rowMerged = outside(planned.rowMerged, same);
+  final rebuilt = outside(planned.rebuilt, same);
+
+  final have = {for (final f in existing) f.path: f.content};
+  final combined = _combinedTable([
+    for (final f in existing)
+      if (!write.any((w) => w.path == f.path)) f,
+    for (final f in write)
+      if (f.content != kBinaryContent) f,
+  ]);
+  final aggregate = combined.table;
+  if (aggregate.rowCount > 0) {
+    final description = derivativeDescription(
+      dir: aggregateDerivativeDir,
+      name: '$appName combined sessions',
+      appName: appName,
+      appVersion: appVersion,
+      repoUrl: repoUrl,
+    );
+    final derived = <DatasetFile>[
+      (path: '$prefix$aggregateStem.tsv', content: aggregate.tsv),
+      (
+        path: '$prefix$aggregateStem.json',
+        content: aggregateSidecarJson(contract, appVersion: appVersion),
+      ),
+    ];
+    for (final f in derived) {
+      if (have[f.path] == f.content) continue;
+      write.add(f);
+      (have.containsKey(f.path) ? rebuilt : added).add(f.path);
+    }
+    if (!have.containsKey(description.path)) {
+      write.add(description);
+      added.add(description.path);
+    }
+  }
+  final keptAsIs = outside(planned.keptAsIs, same);
+  if (!write.any((f) => f.path.startsWith(prefix))) {
+    keptAsIs.addAll(
+      [
+        '$prefix$aggregateStem.tsv',
+        '$prefix$aggregateStem.json',
+        '${prefix}dataset_description.json',
+      ].where(have.containsKey),
+    );
+  }
+  return (
+    write: write,
+    added: added,
+    rowMerged: rowMerged,
+    rebuilt: rebuilt,
+    keptAsIs: keptAsIs,
+    unread: planned.unread,
+    refused: outside(planned.refused, same),
+    leftOut: [...planned.leftOut, ...combined.leftOut],
+  );
+}
+
 /// Write [plan] into the dataset at [root].
 ///
 /// Ordered so an interruption can never leave the dataset claiming files that
@@ -100,7 +286,10 @@ List<DatasetFile> readDatasetZip(Uint8List bytes) {
 /// validator will see and nothing is destroyed), then the indexes themselves.
 ///
 /// [binary] holds the bytes of planned files whose content is [kBinaryContent].
-Future<void> applyMergeToDirectory(
+///
+/// Returns [kBidsignoreWarning] when backups were made and `.bidsignore` could
+/// not be updated to hide them, else null.
+Future<String?> applyMergeToDirectory(
   String root,
   MergePlan plan, {
   Map<String, Uint8List> binary = const {},
@@ -108,12 +297,19 @@ Future<void> applyMergeToDirectory(
   String full(String rel) => '$root/$rel';
 
   final stamp = DateTime.now().millisecondsSinceEpoch;
-  for (final path in plan.rowMerged) {
+  var backedUp = false;
+  for (final path in [...plan.rowMerged, ...plan.rebuilt]) {
     final file = File(full(path));
-    if (file.existsSync()) await file.copy('${full(path)}.bak-$stamp');
+    if (file.existsSync()) {
+      await file.copy('${full(path)}.bak-$stamp');
+      backedUp = true;
+    }
   }
+  final warning = backedUp && !await ensureBackupsIgnored(root)
+      ? kBidsignoreWarning
+      : null;
 
-  final indexes = {...plan.rowMerged};
+  final indexes = {...plan.rowMerged, ...plan.rebuilt};
   for (final pass in [false, true]) {
     for (final file in plan.write) {
       if (indexes.contains(file.path) != pass) continue;
@@ -126,6 +322,7 @@ Future<void> applyMergeToDirectory(
       }
     }
   }
+  return warning;
 }
 
 /// A report filed under [reportsDerivativeDir] at the path of the visit in
@@ -191,8 +388,32 @@ const kBidsFolderRule =
     'and one sub-<participant> folder per participant, listed in '
     'participants.tsv.';
 
-/// Where an added visit goes, said on every add.
-const kBidsAddRule = '$_kBidsPlacement $_kBidsIndexRows $_kBidsNothingChanged';
+/// Where an added visit goes and what happens to the combined table in [plan].
+String _addRule(MergePlan plan) {
+  const dir = '$aggregateDerivativeDir/';
+  bool writes(String path) => plan.write.any((f) => f.path == path);
+  // Rows exist whenever anything under [dir] is written, so an unwritten table
+  // beside a written description is current.
+  final String fate;
+  if (plan.added.contains('$dir$aggregateStem.tsv')) {
+    fate = _kBidsTableCreated;
+  } else if (writes('$dir$aggregateStem.tsv') ||
+      writes('$dir$aggregateStem.json')) {
+    fate = _kBidsTableRebuilt;
+  } else if (plan.keptAsIs.contains('$dir$aggregateStem.tsv') ||
+      writes('${dir}dataset_description.json')) {
+    fate = _kBidsTableKept;
+  } else {
+    fate = _kBidsTableNotCreated;
+  }
+  return [
+    _kBidsPlacement,
+    if (plan.unread.isEmpty) _kBidsIndexRows,
+    _kBidsNothingChanged,
+    'The combined table under $dir',
+    fate,
+  ].join(' ');
+}
 
 const _kBidsPlacement =
     'Each visit is added as sub-<participant>/ses-<session>/beh/, as a '
@@ -200,7 +421,17 @@ const _kBidsPlacement =
 const _kBidsIndexRows =
     'The participant gets a row in participants.tsv and the visit a row in '
     "that session's scans.tsv.";
-const _kBidsNothingChanged = 'Nothing already in the dataset is changed.';
+const _kBidsNothingChanged =
+    'Recorded files already in the dataset are never changed.';
+const _kBidsTableCreated =
+    'is created from every session and notes TSV in the dataset.';
+const _kBidsTableRebuilt =
+    'is rebuilt from every session and notes TSV in the dataset.';
+const _kBidsTableKept =
+    'is left as it is, because it already matches the dataset or no '
+    'recording in the dataset could be included.';
+const _kBidsTableNotCreated =
+    'is not created, because no recording in the dataset could be included.';
 
 /// Said where recording into a dataset is offered but cannot be done.
 const kDatasetDesktopOnly =
@@ -495,9 +726,12 @@ Future<bool> confirmRecordInto(
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'when the first entry is recorded, and updated at every entry '
-              'after that. $kBidsAddRule',
+              'after that. $_kBidsPlacement $_kBidsIndexRows '
+              '$_kBidsNothingChanged Recording does not update the combined '
+              'table under $aggregateDerivativeDir/, so it leaves out $what '
+              'until the next merge from the Reports screen rebuilds it.',
             ),
           ],
         ),
@@ -519,13 +753,13 @@ Future<bool> confirmRecordInto(
 
 /// File one recorded TSV of [kind] into the dataset at [root] as [name]: the
 /// TSV and its sidecar at the BIDS path, and the dataset index files brought
-/// up to date. Returns the file's path, or null when the dataset already
-/// holds it.
+/// up to date. Returns the file's path and any `.bidsignore` warning from the
+/// write, or null when the dataset already holds the file.
 ///
 /// Goes through [planBidsMerge] like every other write into a dataset, so a
 /// `participants.tsv` carrying the study's own columns keeps them, and a file
 /// already filed there is refused rather than overwritten.
-Future<({String path, List<String> unread})?> fileIntoDataset({
+Future<({String path, List<String> unread, String? warning})?> fileIntoDataset({
   required String root,
   required BidsName name,
   required String tsv,
@@ -549,10 +783,11 @@ Future<({String path, List<String> unread})?> fileIntoDataset({
   );
   final plan = planBidsMerge(await readDatasetDirectory(root), incoming);
   if (plan.refused.isNotEmpty) return null;
-  await applyMergeToDirectory(root, plan);
+  final warning = await applyMergeToDirectory(root, plan);
   return (
     path: '$root/${name.relativeDir}/${name.filename}',
     unread: plan.unread,
+    warning: warning,
   );
 }
 
@@ -562,12 +797,14 @@ Future<({String path, List<String> unread})?> fileIntoDataset({
 /// create is the one operation here with no undo.
 ///
 /// [renumbered] lists the files moved to a free run because their name was
-/// taken by a different recording.
+/// taken by a different recording. [keepsBackups] is false when the merge
+/// writes a new zip, which keeps no `.bak-` copies.
 Future<bool> confirmMerge(
   BuildContext context,
   MergePlan plan,
   String target, {
   List<String> renumbered = const [],
+  bool keepsBackups = true,
 }) async {
   final theme = Theme.of(context);
   final ok = await showDialog<bool>(
@@ -583,12 +820,14 @@ Future<bool> confirmMerge(
             children: [
               Text(target, style: theme.textTheme.bodySmall),
               const SizedBox(height: 8),
-              Text(
-                plan.unread.isEmpty
-                    ? kBidsAddRule
-                    : '$_kBidsPlacement $_kBidsNothingChanged',
-                style: theme.textTheme.bodySmall,
-              ),
+              Text(_addRule(plan), style: theme.textTheme.bodySmall),
+              if (plan.leftOut.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  leftOutNotice(plan.leftOut),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
               if (plan.unread.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -601,6 +840,12 @@ Future<bool> confirmMerge(
                 ('Added', plan.added),
                 ('Filed under the next free run', renumbered),
                 ('Gaining rows', plan.rowMerged),
+                (
+                  keepsBackups
+                      ? 'Rebuilt (previous copy kept as .bak-...)'
+                      : 'Rebuilt',
+                  plan.rebuilt,
+                ),
                 ('Left unchanged', shownUnwritten(plan).unchanged),
                 ('Refused: already recorded', shownUnwritten(plan).refused),
               ])
@@ -786,10 +1031,17 @@ loadDatasetTsvs(BuildContext context, void Function(String) say) async {
     if (zip == null) return null;
     source = (root: null, files: zip.files);
   }
-  final byParticipant = recordedFiles([
-    for (final f in source.files)
-      if (f.content != kUnreadContent) f,
-  ]);
+  final byParticipant = {
+    for (final MapEntry(:key, :value) in recordedFiles(
+      source.files,
+      inZip: source.root == null,
+    ).entries)
+      if (value.any((f) => f.content != kUnreadContent))
+        key: [
+          for (final f in value)
+            if (f.content != kUnreadContent) f,
+        ],
+  };
   if (byParticipant.isEmpty) {
     say('No session or notes TSVs found there. $kBidsFolderRule');
     return null;
@@ -877,7 +1129,10 @@ class _ParticipantsDialogState extends State<_ParticipantsDialog> {
 ///
 /// The table is derived from the raw files, so a newer one replaces it; the
 /// previous copy is kept beside it, and the raw tree is never written.
-Future<String> writeAggregateInto(
+///
+/// When a backup is made and `.bidsignore` cannot be updated to hide it, the
+/// warning is [kBidsignoreWarning] and the write goes on.
+Future<({String path, String? warning})> writeAggregateInto(
   String root, {
   required String tsv,
   required String sidecar,
@@ -885,6 +1140,7 @@ Future<String> writeAggregateInto(
   final dir = '$root/$aggregateDerivativeDir';
   await Directory(dir).create(recursive: true);
   final stamp = DateTime.now().millisecondsSinceEpoch;
+  var backedUp = false;
   for (final (name, content) in [
     ('$aggregateStem.tsv', tsv),
     ('$aggregateStem.json', sidecar),
@@ -893,9 +1149,13 @@ Future<String> writeAggregateInto(
     if (file.existsSync()) {
       if (await file.readAsString() == content) continue;
       await file.copy('${file.path}.bak-$stamp');
+      backedUp = true;
     }
     await writeStringAtomic(file.path, content);
   }
+  final warning = backedUp && !await ensureBackupsIgnored(root)
+      ? kBidsignoreWarning
+      : null;
   final description = derivativeDescription(
     dir: aggregateDerivativeDir,
     name: '$appName combined sessions',
@@ -907,7 +1167,7 @@ Future<String> writeAggregateInto(
   if (!described.existsSync()) {
     await writeStringAtomic(described.path, description.content);
   }
-  return '$dir/$aggregateStem.tsv';
+  return (path: '$dir/$aggregateStem.tsv', warning: warning);
 }
 
 /// Save the combined table into the dataset at [root] (see
@@ -920,7 +1180,11 @@ Future<bool> saveAggregateInto(
   required String sidecar,
   required String summary,
 }) async {
-  final path = await writeAggregateInto(root, tsv: tsv, sidecar: sidecar);
+  final (:path, :warning) = await writeAggregateInto(
+    root,
+    tsv: tsv,
+    sidecar: sidecar,
+  );
   if (!context.mounted) return false;
   final copy = await showDialog<bool>(
     context: context,
@@ -931,6 +1195,7 @@ Future<bool> saveAggregateInto(
         width: 480,
         child: Text(
           '$summary, saved with its sidecar as\n$path\n\n'
+          '${warning == null ? '' : '$warning\n\n'}'
           'Save a copy somewhere else too?',
         ),
       ),

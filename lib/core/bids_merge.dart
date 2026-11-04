@@ -13,6 +13,10 @@ import 'bids.dart';
 import 'bids_dataset.dart';
 import 'tsv.dart';
 
+/// A recorded session or notes file the combined table does not include, and
+/// why.
+typedef LeftOutFile = ({String path, String reason});
+
 /// What a merge will do, computed before anything is written.
 typedef MergePlan = ({
   /// The files to write, path and final content.
@@ -24,6 +28,10 @@ typedef MergePlan = ({
   /// Index files gaining rows, with the rows they gain.
   List<String> rowMerged,
 
+  /// Derived files that already exist and are replaced by a rebuilt copy, which
+  /// a folder merge backs up first.
+  List<String> rebuilt,
+
   /// Paths the target already has that the merge leaves exactly as they are.
   List<String> keptAsIs,
 
@@ -34,6 +42,9 @@ typedef MergePlan = ({
   /// Incoming files refused because the target already holds that path, which
   /// would mean overwriting recorded clinical data.
   List<String> refused,
+
+  /// Recorded session or notes files left out of the combined table.
+  List<LeftOutFile> leftOut,
 });
 
 /// Dataset-level files the app generates but must never overwrite: they carry
@@ -141,9 +152,11 @@ MergePlan planBidsMerge(
     write: write,
     added: added,
     rowMerged: rowMerged,
+    rebuilt: const [],
     keptAsIs: keptAsIs,
     unread: unread,
     refused: refused,
+    leftOut: const [],
   );
 }
 
@@ -256,9 +269,9 @@ String? _runOfSameRecording(
   return (entries: out, renumbered: renumbered);
 }
 
-/// [plan]'s unwritten paths as the user is shown them. A derivative already in
-/// the dataset is never written into, so its folder is listed once as left
-/// unchanged: "refused" reads as an error for a file nobody recorded.
+/// [plan]'s unwritten paths as the user is shown them. An unwritten derivative
+/// is listed as left unchanged, never refused, since "refused" reads as an
+/// error for a file nobody recorded; by folder, unless [plan] writes into it.
 ({List<String> unchanged, List<String> refused}) shownUnwritten(
   MergePlan plan,
 ) {
@@ -269,6 +282,7 @@ String? _runOfSameRecording(
         : null;
   }
 
+  final writtenInto = {for (final f in plan.write) folder(f.path)};
   final unchanged = <String>[];
   final refused = <String>[];
   for (final (path, wasRefused) in [
@@ -277,7 +291,8 @@ String? _runOfSameRecording(
   ]) {
     final dir = folder(path);
     if (dir != null) {
-      if (!unchanged.contains(dir)) unchanged.add(dir);
+      final shown = writtenInto.contains(dir) ? path : dir;
+      if (!unchanged.contains(shown)) unchanged.add(shown);
     } else {
       (wasRefused ? refused : unchanged).add(path);
     }
@@ -293,6 +308,11 @@ String unreadIndexNotice(List<String> unread) {
       'not added to ${one ? 'it' : 'them'}.';
 }
 
+/// Says which recorded files are not in the combined table, and why.
+String leftOutNotice(List<LeftOutFile> leftOut) =>
+    'Left out of the combined table: '
+    '${leftOut.map((f) => '${f.path} (${f.reason})').join(', ')}.';
+
 /// One line describing [plan], for the confirmation shown before it runs.
 String describeMergePlan(MergePlan plan) {
   final shown = shownUnwritten(plan);
@@ -301,6 +321,7 @@ String describeMergePlan(MergePlan plan) {
     if (plan.rowMerged.isNotEmpty)
       '${plan.rowMerged.length} index file'
           '${plan.rowMerged.length == 1 ? '' : 's'} gaining rows',
+    if (plan.rebuilt.isNotEmpty) '${plan.rebuilt.length} rebuilt',
     if (shown.unchanged.isNotEmpty) '${shown.unchanged.length} left as is',
     if (shown.refused.isNotEmpty) '${shown.refused.length} refused',
   ];

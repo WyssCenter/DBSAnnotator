@@ -751,7 +751,8 @@ class _SessionScreenState extends State<SessionScreen> {
       setState(() => _savePath = filed.path);
       _snack(
         'Filed as ${name.relativeDir}/${name.filename}.'
-        '${filed.unread.isEmpty ? '' : ' ${unreadIndexNotice(filed.unread)}'}',
+        '${filed.unread.isEmpty ? '' : ' ${unreadIndexNotice(filed.unread)}'}'
+        '${filed.warning == null ? '' : ' ${filed.warning}'}',
       );
     } catch (e) {
       if (mounted) {

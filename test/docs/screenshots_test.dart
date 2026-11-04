@@ -1025,15 +1025,32 @@ void main() {
       (
         'dialog_add_to_dataset',
         (c) => confirmMerge(c, (
-          write: const [(path: '$visit.tsv', content: '')],
+          write: const [
+            (path: '$visit.tsv', content: ''),
+            (
+              path:
+                  'derivatives/dbs-annotator-aggregate/desc-aggregate_beh.tsv',
+              content: '',
+            ),
+            (
+              path:
+                  'derivatives/dbs-annotator-aggregate/desc-aggregate_beh.json',
+              content: '',
+            ),
+          ],
           added: const ['$visit.tsv', '$visit.json'],
           rowMerged: const [
             'participants.tsv',
             'sub-01/ses-20260203/sub-01_ses-20260203_scans.tsv',
           ],
+          rebuilt: const [
+            'derivatives/dbs-annotator-aggregate/desc-aggregate_beh.tsv',
+            'derivatives/dbs-annotator-aggregate/desc-aggregate_beh.json',
+          ],
           keptAsIs: const ['dataset_description.json', 'README'],
           unread: const [],
           refused: const [],
+          leftOut: const [],
         ), root),
         'Cancel',
       ),

@@ -66,18 +66,18 @@ AggregateResult buildAggregate(List<AggregateSource> sources) {
   var fileCount = 0;
 
   for (final source in sources) {
-    if (!seen.add(source.filename)) {
-      skipped.add((
-        filename: source.filename,
-        reason: 'a file with this name is already included',
-      ));
-      continue;
-    }
     final name = BidsName.parse(source.filename);
     if (name == null || BidsName.label(name.session).isEmpty) {
       skipped.add((
         filename: source.filename,
         reason: 'no sub- or ses- entity in the filename',
+      ));
+      continue;
+    }
+    if (!seen.add(source.filename)) {
+      skipped.add((
+        filename: source.filename,
+        reason: 'a file with this name is already included',
       ));
       continue;
     }

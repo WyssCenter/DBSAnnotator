@@ -86,7 +86,10 @@ Before recording starts, a dialog shows the dataset folder and the exact path
 the visit will be filed under, such as
 ``sub-01/ses-20260203/beh/sub-01_ses-20260203_task-programming_run-01_beh.tsv``,
 with the rule for what is added: the file and its sidecar, a row in
-``participants.tsv`` and one in that session's ``scans.tsv``.
+``participants.tsv`` and one in that session's ``scans.tsv``. Recording does not
+update the dataset's combined table under
+``derivatives/dbs-annotator-aggregate/``, so the table leaves out this visit
+until the next merge from :doc:`Reports <reports>` rebuilds it.
 
 .. figure:: ../_static/screenshots/dialog_record_into.png
    :alt: The confirmation showing the path the visit will be filed under in the dataset
