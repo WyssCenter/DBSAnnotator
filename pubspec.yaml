@@ -6,7 +6,9 @@ publish_to: "none"
 
 # THE source of truth for the version. Android versionCode/versionName, the
 # iOS/macOS FLUTTER_BUILD_NAME, the Windows FILEVERSION and the docs footer are
-# all derived from this line; do not edit those by hand.
+# all derived from this line; do not edit those by hand. A pre-release such as
+# 0.7.0-beta.1 is allowed; the iOS build in CI strips the stage.
+# tool/release.dart sets this and the three literals below.
 #
 # Three literals cannot read it and so restate it: `appVersion` in
 # lib/app_info.dart, `version:` in CITATION.cff, and `msix_version` below (which
