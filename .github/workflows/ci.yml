@@ -308,10 +308,9 @@ jobs:
         run: |
           set -euo pipefail
           n=0
-          [ -n "$ANDROID_KEYSTORE_BASE64" ] && n=$((n+1)) || true
-          [ -n "$ANDROID_KEY_ALIAS" ]       && n=$((n+1)) || true
-          [ -n "$ANDROID_KEY_PASSWORD" ]    && n=$((n+1)) || true
-          [ -n "$ANDROID_STORE_PASSWORD" ]  && n=$((n+1)) || true
+          for secret in "$ANDROID_KEYSTORE_BASE64" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" "$ANDROID_STORE_PASSWORD"; do
+            if [ -n "$secret" ]; then n=$((n+1)); fi
+          done
           echo "ANDROID_SIGNING_SECRETS=$n" >> "$GITHUB_ENV"
           if [ "$n" -ne 0 ] && [ "$n" -ne 4 ]; then
             echo "::error::$n of 4 ANDROID_* secrets are set. A partial set silently debug-signs the release build. See .github/RELEASING.md section 2."
