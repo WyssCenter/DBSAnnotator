@@ -11,6 +11,7 @@
 import 'dart:io';
 
 const stages = ['alpha', 'beta', 'rc'];
+const towncrierSpec = 'towncrier@26.9.0';
 const repoUrl = 'https://github.com/neuromodulation/DBSAnnotator';
 const releasesUrl = '$repoUrl/releases';
 const actionsUrl = '$repoUrl/actions';
@@ -236,7 +237,7 @@ Future<void> _prepare(String? requested) async {
     '(the GitHub draft lists the merged PRs as well):\n',
   );
   await _check('uvx', [
-    'towncrier',
+    towncrierSpec,
     'build',
     '--draft',
     '--version',
@@ -274,7 +275,7 @@ Future<void> _prepare(String? requested) async {
         return;
       }
       await _check('uvx', [
-        'towncrier',
+        towncrierSpec,
         'build',
         '--version',
         '$version',

@@ -1,0 +1,48 @@
+name: Dependency audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - pubspec.lock
+      - .github/workflows/audit.yml
+  pull_request:
+    paths:
+      - pubspec.lock
+      - .github/workflows/audit.yml
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  OSV_SCANNER_VERSION: "2.7.0"
+  OSV_SCANNER_SHA256: 160c6253e2922e9e0a6a9771c5c4c40a4b3c6090b34a3cdd5e80c96cc2e4218b
+
+jobs:
+  osv-scanner:
+    name: osv-scanner
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install osv-scanner
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o osv-scanner \
+            "https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SCANNER_SHA256}  osv-scanner" | sha256sum --check --strict
+          chmod +x osv-scanner
+
+      - name: Scan the lockfile
+        run: ./osv-scanner scan source --lockfile pubspec.lock

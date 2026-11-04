@@ -30,6 +30,6 @@ take the `skip-changelog` label instead. Dependabot updates are exempt.
 ## At release
 
 For a final release, `dart run tool/release.dart` runs
-`uvx towncrier build --version X.Y.Z --yes`, which moves every fragment into
+`uvx towncrier@26.9.0 build --version X.Y.Z --yes`, which moves every fragment into
 `CHANGELOG.md` under the new version and deletes the files. Pre-releases (`-alpha.N`,
 `-beta.N`, `-rc.N`) leave the fragments in place. `.github/RELEASING.md` has the full step.

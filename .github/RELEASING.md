@@ -111,7 +111,7 @@ iPadOS cannot be sideloaded from GitHub, so TestFlight is the channel.
    ```
 
    Then replace the placeholder step in the iOS CI job with
-   `run: cd ios && fastlane beta` (guarded by `env.APP_STORE_CONNECT_KEY_ID != ''`,
+   `run: cd ios && fastlane beta` (guarded by `env.HAS_APP_STORE_KEY == 'true'`,
    already in place). Signing certs/profiles: use `fastlane match` or Xcode
    automatic signing with the API key.
 
@@ -290,7 +290,7 @@ tags the merge commit `vX.Y.Z` and pushes the tag, which starts the build below.
 If `main` has moved on since the merge, it refuses and prints the `git tag`
 command to tag the release commit by hand.
 
-A final release also runs `uvx towncrier build`, which moves every fragment into
+A final release also runs `uvx towncrier@26.9.0 build`, which moves every fragment into
 `CHANGELOG.md` under the new version and deletes the files. That section is
 also the text for the GitHub Release notes and for the Microsoft Store's
 *What's new*. Check it reads well for a clinician before merging: it is what
@@ -313,6 +313,9 @@ release:
 - The MSIX is `X.Y.Z.0`, the same as the final release, because MSIX has no
   room for a stage. Do not submit a pre-release MSIX to the Store, or the final
   release cannot reuse its version.
+- A sideloaded pre-release MSIX must be uninstalled before the final MSIX of
+  the same version is installed. Uninstalling deletes the app's data, including
+  an unfinished session's working copy, so export unfinished sessions first.
 
 Stages sort `alpha` < `beta` < `rc` < final. The script accepts only versions
 newer than the latest tag and not older than the version already in
