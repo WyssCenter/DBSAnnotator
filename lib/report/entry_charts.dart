@@ -146,17 +146,14 @@ List<String> _coincidentSeries(Map<String, Map<int, double>> series) {
 /// tested configuration.
 ///
 /// [scalePrefs] carries the scale bounds and the optimisation mode per scale,
-/// driving both the scales panel's y axis (the range declared in Step 2 rather
-/// than an auto-fit) and the aggregate index behind the best/second bands.
+/// driving both the scales panel's y axis (the declared bounds, widened to any
+/// value outside them) and the aggregate index behind the best/second bands.
 /// When it is empty the axis auto-fits and no block is banded.
 EntryChartData buildEntryChartData(
   List<SessionRow> rows, {
   List<ScalePref> scalePrefs = const [],
 }) {
   final targets = parseScaleTargets(scalePrefs);
-  final scaleBounds = <String, (double, double)>{
-    for (final t in targets.entries) t.key: (t.value.lower, t.value.upper),
-  };
   // Blocks in first-seen order, with the earliest timestamp for each.
   final blockOrder = <int>[];
   final seenBlocks = <int>{};
@@ -244,19 +241,21 @@ EntryChartData buildEntryChartData(
     return _padRange(lo, hi, zeroBased: zeroBased);
   }
 
-  // Session scales: prefer the declared bounds, so the panel matches the
-  // sliders the user actually configured.
-  var scalesLo = double.infinity;
-  var scalesHi = double.negativeInfinity;
-  for (final name in scales.keys) {
-    final bounds = scaleBounds[name];
-    if (bounds == null) continue;
-    if (bounds.$1 < scalesLo) scalesLo = bounds.$1;
-    if (bounds.$2 > scalesHi) scalesHi = bounds.$2;
+  // Session scales: the declared bounds of every scale, widened to any value
+  // outside them (an older file), so no point is drawn off the panel.
+  var scalesRange = rangeOf(scales.values);
+  final declared = declaredScaleRange(targets);
+  if (declared != null) {
+    var lo = declared.$1;
+    var hi = declared.$2;
+    for (final m in scales.values) {
+      for (final v in m.values) {
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+    }
+    scalesRange = (lo, hi);
   }
-  final scalesRange = scalesHi > scalesLo
-      ? (scalesLo, scalesHi)
-      : rangeOf(scales.values);
 
   ParamPanel panel(
     String id,
