@@ -159,6 +159,7 @@ EntryChartData buildEntryChartData(
   };
   // Blocks in first-seen order, with the earliest timestamp for each.
   final blockOrder = <int>[];
+  final seenBlocks = <int>{};
   final blockTime = <int, DateTime>{};
   final blockClock = <int, String>{};
   final scales = <String, Map<int, double>>{};
@@ -172,7 +173,7 @@ EntryChartData buildEntryChartData(
   for (final row in rows) {
     if (coerceInt(row.isInitial) == 1) continue;
     final block = coerceInt(row.blockId);
-    if (!blockTime.containsKey(block)) blockOrder.add(block);
+    if (seenBlocks.add(block)) blockOrder.add(block);
     final ts = row.timestamp;
     if (ts != null) {
       final existing = blockTime[block];

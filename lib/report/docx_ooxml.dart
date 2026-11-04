@@ -116,7 +116,7 @@ String docxCell(
     DocxVMerge.start => '<w:vMerge w:val="restart"/>',
     DocxVMerge.rest => '<w:vMerge/>',
   };
-  return '<w:tc><w:tcPr>$w$merge$shd$borders</w:tcPr>'
+  return '<w:tc><w:tcPr>$w$merge$borders$shd</w:tcPr>'
       '<w:p>${right ? '<w:pPr><w:jc w:val="right"/></w:pPr>' : ''}'
       '${docxRun(text, bold: bold, size: 16)}</w:p></w:tc>';
 }
@@ -206,10 +206,12 @@ String docxTable(
     );
   }
   for (var i = 0; i < rows.length; i++) {
-    // Merge a column downwards while column 0 (the block id) is unchanged: a
-    // block's scales and notes are written on its first lateral row only, and
-    // without the merge Word shows an empty cell instead of one tall one.
-    final continues = i > 0 && rows[i].first == rows[i - 1].first;
+    // Merge a column downwards while column 0 (the block id, which must be
+    // non-empty) is unchanged: a block's scales and notes are written on its
+    // first lateral row only, and without the merge Word shows an empty cell
+    // instead of one tall one.
+    final continues =
+        i > 0 && rows[i].first.isNotEmpty && rows[i].first == rows[i - 1].first;
     b.write(
       docxRow(
         rows[i],

@@ -149,19 +149,24 @@ class ScalesChartPainter extends CustomPainter {
 
   bool get _hasIndex => spec.aggregateIndex.isNotEmpty;
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = background);
-    if (spec.isEmpty) return;
-
-    final band = ChartTopBand.measure(this, size);
+  Rect? _plotArea(Size size, ChartTopBand band) {
     final area = Rect.fromLTRB(
       _padLeft,
       band.padTop,
       size.width - 20,
       size.height - _bottomPad(size.width),
     );
-    if (area.width <= 10 || area.height <= 40) return;
+    return area.width <= 10 || area.height <= 40 ? null : area;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = background);
+    if (spec.isEmpty) return;
+
+    final band = ChartTopBand.measure(this, size);
+    final area = _plotArea(size, band);
+    if (area == null) return;
 
     // Half a step of margin at each end, as the desktop's `set_xlim` does: it
     // keeps the end markers and the bands clear of the axes, and makes a
@@ -806,7 +811,8 @@ class ChartTopBand {
 ///
 /// [size] is the logical chart size and [pixelRatio] multiplies it, so the
 /// default is well above the desktop chart's resolution. Returns null when
-/// there is nothing to plot, so callers can fall back to a text line.
+/// there is nothing to plot or [size] leaves no room for the plot area, so
+/// callers can fall back to a text line.
 Future<Uint8List?> renderScalesChartPng(
   ScalesChartSpec spec, {
   Size? size,
@@ -814,9 +820,17 @@ Future<Uint8List?> renderScalesChartPng(
 }) async {
   if (spec.isEmpty) return null;
   final canvasSize = size ?? reportChartSize(spec);
+  final painter = ScalesChartPainter(spec: spec);
+  if (painter._plotArea(
+        canvasSize,
+        ChartTopBand.measure(painter, canvasSize),
+      ) ==
+      null) {
+    return null;
+  }
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder)..scale(pixelRatio);
-  ScalesChartPainter(spec: spec).paint(canvas, canvasSize);
+  painter.paint(canvas, canvasSize);
   final image = await recorder.endRecording().toImage(
     (canvasSize.width * pixelRatio).round(),
     (canvasSize.height * pixelRatio).round(),
