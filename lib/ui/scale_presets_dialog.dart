@@ -131,6 +131,7 @@ class _ScalePresetsDialog extends StatefulWidget {
 class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
   late final List<_Group> _groups = widget.groups;
   int _selected = 0;
+  String? _error;
 
   @override
   void initState() {
@@ -170,7 +171,15 @@ class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
     final out = <String, List<List<String>>>{};
     for (final g in _groups) {
       final name = g.name.text.trim();
-      if (name.isEmpty) continue;
+      final problem = name.isEmpty
+          ? 'A preset group has no name.'
+          : out.containsKey(name)
+          ? 'Two preset groups are named "$name".'
+          : null;
+      if (problem != null) {
+        setState(() => _error = 'Not saved: $problem');
+        return;
+      }
       final rows = <List<String>>[];
       for (final r in g.rows) {
         final n = r.name.text.trim();
@@ -188,17 +197,33 @@ class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final error = _error;
     return AlertDialog(
       title: Text(widget.title),
       content: SizedBox(
         width: 560,
         height: 460,
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(width: 180, child: _groupList()),
-            const VerticalDivider(width: 16),
-            Expanded(child: _editor()),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(width: 180, child: _groupList()),
+                  const VerticalDivider(width: 16),
+                  Expanded(child: _editor()),
+                ],
+              ),
+            ),
+            if (error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  error,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
           ],
         ),
       ),
