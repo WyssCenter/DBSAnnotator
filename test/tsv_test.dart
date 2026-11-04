@@ -67,6 +67,18 @@ void main() {
   });
 
   group('parseTsvRecords', () {
+    test('a BOM or padding in the header does not hide the first column', () {
+      final recs = parseTsvRecords('\uFEFFid\t name \nx\ty\n');
+      expect(recs.single, {'id': 'x', 'name': 'y'});
+    });
+
+    test('blank and whitespace-only lines are not records', () {
+      final recs = parseTsvRecords('a\tb\nx\ty\n \t\n\n');
+      expect(recs, [
+        {'a': 'x', 'b': 'y'},
+      ]);
+    });
+
     test('maps each row onto the header', () {
       final recs = parseTsvRecords('one\ttwo\nx\ty\n');
       expect(recs, [
