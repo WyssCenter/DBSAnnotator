@@ -189,7 +189,7 @@ void main() {
     expect(File('${root.path}/$path').readAsBytesSync(), bytes);
 
     final zip = ZipDecoder().decodeBytes(
-      mergedZip(const [], plan, binary: {path: bytes}),
+      mergedZip(textZip(const {}), plan, binary: {path: bytes}),
     );
     expect(zip.findFile(path)!.readBytes(), bytes);
 
@@ -198,5 +198,56 @@ void main() {
       incoming,
     );
     expect(again.refused, [path]);
+  });
+
+  test('a merged zip keeps binary and non-UTF-8 entries byte for byte', () {
+    final pdf = Uint8List.fromList([0x25, 0x50, 0x44, 0x46, 0xff, 0x00, 0xfe]);
+    final latin1Json = Uint8List.fromList([0x7b, 0xe9, 0x7d]);
+    final archive = Archive()
+      ..addFile(ArchiveFile.bytes('docs/report.pdf', pdf))
+      ..addFile(ArchiveFile.bytes('participants.json', latin1Json))
+      ..addFile(ArchiveFile.bytes('LICENSE', Uint8List.fromList([65, 66])));
+    final source = Uint8List.fromList(ZipEncoder().encode(archive));
+
+    final existing = readDatasetZip(source);
+    final incoming = [(path: 'sub-01/new.tsv', content: 'a\tb\n')];
+    final plan = planBidsMerge(existing, incoming);
+
+    final merged = ZipDecoder().decodeBytes(mergedZip(source, plan));
+    expect(merged.findFile('docs/report.pdf')!.readBytes(), pdf);
+    expect(merged.findFile('participants.json')!.readBytes(), latin1Json);
+    expect(merged.findFile('LICENSE')!.readBytes(), [65, 66]);
+    expect(
+      String.fromCharCodes(merged.findFile('sub-01/new.tsv')!.readBytes()!),
+      'a\tb\n',
+    );
+  });
+
+  test('a non-UTF-8 participants.tsv survives a merge and is reported', () {
+    final original = Uint8List.fromList([
+      ...'participant_id\tname\nsub-01\tM'.codeUnits,
+      0xfc,
+      ...'ller\n'.codeUnits,
+    ]);
+    final archive = Archive()
+      ..addFile(ArchiveFile.bytes('participants.tsv', original))
+      ..addFile(
+        ArchiveFile.bytes(
+          'dataset_description.json',
+          Uint8List.fromList([123, 125]),
+        ),
+      );
+    final source = Uint8List.fromList(ZipEncoder().encode(archive));
+
+    final plan = planBidsMerge(readDatasetZip(source), [
+      (path: 'participants.tsv', content: 'participant_id\nsub-02\n'),
+      (path: 'sub-02/new.tsv', content: 'a\n'),
+    ]);
+
+    expect(plan.unread, ['participants.tsv']);
+    expect(plan.rowMerged, isEmpty);
+    final merged = ZipDecoder().decodeBytes(mergedZip(source, plan));
+    expect(merged.findFile('participants.tsv')!.readBytes(), original);
+    expect(merged.findFile('sub-02/new.tsv'), isNotNull);
   });
 }

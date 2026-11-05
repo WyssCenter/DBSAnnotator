@@ -1,5 +1,5 @@
 # Builds CHANGELOG.md from one fragment per PR in newsfragments/, as the Qt app
-# did. At release: uvx towncrier build --version X.Y.Z --yes (see
+# did. At release: uvx towncrier@26.9.0 build --version X.Y.Z --yes (see
 # .github/RELEASING.md). The version is passed in, because there is no Python
 # package here to read it from.
 [tool.towncrier]

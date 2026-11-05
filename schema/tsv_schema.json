@@ -147,7 +147,7 @@
       {
         "name": "source_file",
         "type": "string",
-        "description": "The session or notes file this row came from. A notes file gives one row per note, with only ``acq_time`` and ``notes`` filled. Not redundant with the entities above: ``run`` defaults to ``01`` and does not auto-increment, so two visits on the same day can share all three, and this is then the only thing that tells their rows apart. A block is unique across the table on ``(participant_id, session_id, run_id, block_id)``."
+        "description": "The session or notes file this row came from. A notes file gives one row per note, with only ``acq_time`` and ``notes`` filled. Not redundant with the entities above: ``run`` defaults to ``01`` and does not auto-increment, so two visits on the same day can share all three, and this is then the only thing that tells their rows apart. A block is unique across the table on ``(source_file, block_id)``. A note row has no ``block_id``, so it belongs to no block."
       }
     ]
   },

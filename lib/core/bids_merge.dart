@@ -13,6 +13,10 @@ import 'bids.dart';
 import 'bids_dataset.dart';
 import 'tsv.dart';
 
+/// A recorded session or notes file the combined table does not include, and
+/// why.
+typedef LeftOutFile = ({String path, String reason});
+
 /// What a merge will do, computed before anything is written.
 typedef MergePlan = ({
   /// The files to write, path and final content.
@@ -24,12 +28,23 @@ typedef MergePlan = ({
   /// Index files gaining rows, with the rows they gain.
   List<String> rowMerged,
 
+  /// Derived files that already exist and are replaced by a rebuilt copy, which
+  /// a folder merge backs up first.
+  List<String> rebuilt,
+
   /// Paths the target already has that the merge leaves exactly as they are.
   List<String> keptAsIs,
+
+  /// Index files in [keptAsIs] whose existing content could not be read, so
+  /// the new rows were not added to them.
+  List<String> unread,
 
   /// Incoming files refused because the target already holds that path, which
   /// would mean overwriting recorded clinical data.
   List<String> refused,
+
+  /// Recorded session or notes files left out of the combined table.
+  List<LeftOutFile> leftOut,
 });
 
 /// Dataset-level files the app generates but must never overwrite: they carry
@@ -58,6 +73,11 @@ DatasetFolderKind datasetFolderKind(List<DatasetFile> files) {
       : DatasetFolderKind.other;
 }
 
+/// Content recorded for a file whose bytes were not read: it exists, so a path
+/// collision is still detected, but it can never compare equal to anything the
+/// app would write.
+const String kUnreadContent = '\u0000unread';
+
 /// Plan the merge of [incoming] into the dataset described by [existing].
 ///
 /// Both are whole-dataset file lists, so the caller can read the target from a
@@ -71,6 +91,7 @@ MergePlan planBidsMerge(
   final added = <String>[];
   final rowMerged = <String>[];
   final keptAsIs = <String>[];
+  final unread = <String>[];
   final refused = <String>[];
 
   for (final file in incoming) {
@@ -94,6 +115,11 @@ MergePlan planBidsMerge(
       if (current == null) {
         write.add(file);
         added.add(path);
+        continue;
+      }
+      if (current == kUnreadContent) {
+        keptAsIs.add(path);
+        unread.add(path);
         continue;
       }
       final key = path == 'participants.tsv' ? 'participant_id' : 'filename';
@@ -126,8 +152,11 @@ MergePlan planBidsMerge(
     write: write,
     added: added,
     rowMerged: rowMerged,
+    rebuilt: const [],
     keptAsIs: keptAsIs,
+    unread: unread,
     refused: refused,
+    leftOut: const [],
   );
 }
 
@@ -184,6 +213,25 @@ BidsName nextFreeRun(BidsName name, Set<String> taken) {
   return n;
 }
 
+final _runEntity = RegExp(r'_run-(\d+)_');
+
+/// The run of a file in [existing] that is [name] at another run with content
+/// [tsv], or null.
+String? _runOfSameRecording(
+  List<DatasetFile> existing,
+  BidsName name,
+  String tsv,
+) {
+  String blanked(String path) => path.replaceFirst(_runEntity, '_run-_');
+  final target = blanked(_pathOf(name));
+  for (final f in existing) {
+    if (f.content == tsv && blanked(f.path) == target) {
+      return _runEntity.firstMatch(f.path)?.group(1);
+    }
+  }
+  return null;
+}
+
 /// [entries], with any whose path a different recording in [existing] (or an
 /// earlier entry) already uses moved to the next free run, so a second
 /// recording is filed beside the first instead of being refused or written
@@ -200,8 +248,18 @@ BidsName nextFreeRun(BidsName name, Set<String> taken) {
   for (final e in entries) {
     var name = e.name;
     if (content[_pathOf(name)] != e.tsv) {
-      name = nextFreeRun(name, taken);
-      if (name.run != BidsName.index(e.name.run)) {
+      final run = _runOfSameRecording(existing, name, e.tsv);
+      name = run == null
+          ? nextFreeRun(name, taken)
+          : BidsName(
+              subject: name.subject,
+              session: name.session,
+              task: name.task,
+              run: run,
+              suffix: name.suffix,
+              extension: name.extension,
+            );
+      if (run == null && name.run != BidsName.index(e.name.run)) {
         renumbered.add('${e.name.filename} as run-${name.run}');
       }
     }
@@ -211,9 +269,9 @@ BidsName nextFreeRun(BidsName name, Set<String> taken) {
   return (entries: out, renumbered: renumbered);
 }
 
-/// [plan]'s unwritten paths as the user is shown them. A derivative already in
-/// the dataset is never written into, so its folder is listed once as left
-/// unchanged: "refused" reads as an error for a file nobody recorded.
+/// [plan]'s unwritten paths as the user is shown them. An unwritten derivative
+/// is listed as left unchanged, never refused, since "refused" reads as an
+/// error for a file nobody recorded; by folder, unless [plan] writes into it.
 ({List<String> unchanged, List<String> refused}) shownUnwritten(
   MergePlan plan,
 ) {
@@ -224,6 +282,7 @@ BidsName nextFreeRun(BidsName name, Set<String> taken) {
         : null;
   }
 
+  final writtenInto = {for (final f in plan.write) folder(f.path)};
   final unchanged = <String>[];
   final refused = <String>[];
   for (final (path, wasRefused) in [
@@ -232,13 +291,27 @@ BidsName nextFreeRun(BidsName name, Set<String> taken) {
   ]) {
     final dir = folder(path);
     if (dir != null) {
-      if (!unchanged.contains(dir)) unchanged.add(dir);
+      final shown = writtenInto.contains(dir) ? path : dir;
+      if (!unchanged.contains(shown)) unchanged.add(shown);
     } else {
       (wasRefused ? refused : unchanged).add(path);
     }
   }
   return (unchanged: unchanged, refused: refused);
 }
+
+/// Says that [unread] index files were left as they are, and why.
+String unreadIndexNotice(List<String> unread) {
+  final one = unread.length == 1;
+  return '${unread.join(', ')} could not be read as text, so '
+      '${one ? 'it was' : 'they were'} left unchanged and the new rows were '
+      'not added to ${one ? 'it' : 'them'}.';
+}
+
+/// Says which recorded files are not in the combined table, and why.
+String leftOutNotice(List<LeftOutFile> leftOut) =>
+    'Left out of the combined table: '
+    '${leftOut.map((f) => '${f.path} (${f.reason})').join(', ')}.';
 
 /// One line describing [plan], for the confirmation shown before it runs.
 String describeMergePlan(MergePlan plan) {
@@ -248,6 +321,7 @@ String describeMergePlan(MergePlan plan) {
     if (plan.rowMerged.isNotEmpty)
       '${plan.rowMerged.length} index file'
           '${plan.rowMerged.length == 1 ? '' : 's'} gaining rows',
+    if (plan.rebuilt.isNotEmpty) '${plan.rebuilt.length} rebuilt',
     if (shown.unchanged.isNotEmpty) '${shown.unchanged.length} left as is',
     if (shown.refused.isNotEmpty) '${shown.refused.length} refused',
   ];

@@ -52,7 +52,12 @@ choose the dataset folder; on iPadOS and Android you choose the dataset as a
 
 Every session and notes TSV under ``sub-<participant>/ses-<session>/beh/`` is
 found, including older ``_events.tsv`` files. Sidecars, imaging, other datatypes
-and everything under ``derivatives/`` are left alone. A checklist then shows each
+and everything under ``derivatives/`` are left alone. A folder is read from the
+chosen folder's own root, so choose the dataset folder itself, not a folder that
+contains it; copies kept under ``old/``, ``sourcedata/`` and similar folders are
+skipped. A ``.zip`` may wrap the dataset in one or more folders, and the
+dataset is the folder holding its ``dataset_description.json``; a ``.zip``
+without one is read for recordings in any folder. A checklist then shows each
 participant with the number of files found, all ticked: untick the ones you do
 not want, for example to keep a longitudinal report to one patient.
 
@@ -122,9 +127,9 @@ You then choose the dataset folder (on iPadOS and Android, the dataset as a
 ``.zip``, which comes back merged), and the same confirmation as every other
 add lists each file before anything is written. A report already filed at that
 path is never overwritten: the confirmation lists its derivatives folder under
-**Left unchanged**, as for any derivative already in the dataset. If the
-session was moved to the next free run because its name was taken, the report
-follows it to that run.
+**Left unchanged**. Every derivative in the dataset is treated this way except
+the combined table, which is rebuilt. If the session was moved to the next free
+run because its name was taken, the report follows it to that run.
 
 Several visits of one patient
 -----------------------------
@@ -223,17 +228,20 @@ folder that is not a dataset.
 **How a visit is added.** Each visit goes to
 ``sub-<participant>/ses-<session>/beh/`` as a ``_beh.tsv`` with its ``.json``
 sidecar. Its participant gets a row in ``participants.tsv`` and the visit a row in
-that session's ``sub-<participant>_ses-<session>_scans.tsv``. Nothing already in
-the dataset is changed.
+that session's ``sub-<participant>_ses-<session>_scans.tsv``. No recorded file
+already in the dataset is changed. The combined table is the one derivative
+that is rebuilt, as described in the last two rules below.
 
 **Nothing is written until you have seen what will happen.** Every Add opens a
 dialog that restates how the visit is added and lists every file that will be
 added, every index file that will gain rows, any file moved to the next free
-run, and everything left unchanged. This is the only operation in the app that writes to data it
-did not create, and it has no undo.
+run, the combined table when it will be rebuilt (with a note that a folder merge
+keeps the previous copy), any recorded file left out of that table, and
+everything left unchanged. This is the only operation in the app that writes to
+data it did not create, and it has no undo.
 
 .. figure:: ../_static/screenshots/dialog_add_to_dataset.png
-   :alt: The confirmation before adding: how visits are added, and the files added, gaining rows and left unchanged
+   :alt: The confirmation before adding: how visits are added, and the files added, gaining rows, rebuilt and left unchanged
    :width: 47%
    :align: center
 
@@ -260,9 +268,35 @@ The rules it follows, and why each one exists:
        (``run-02``, ``run-03``) and listed as such, so any number of recordings
        per session can be added. A file identical to one already there is
        left as it is.
+   * - ``derivatives/dbs-annotator-aggregate/``
+     - The combined table and its sidecar are rebuilt from every session and
+       notes TSV the dataset holds after the merge, the ones already there as
+       well as the ones just added, and replace the previous table. Each row
+       is named after the file as it sits in the dataset, including a run
+       number the merge assigned. The table is derived data, so replacing it
+       loses nothing; adding into a folder keeps the previous copy beside it
+       with a ``.bak-`` suffix. A recorded TSV left out of the table is named
+       in the confirmation and in the message shown afterwards, with the
+       reason: it is a session or notes file that cannot be read, its name has
+       no ``ses-`` entity, or another file with the same name is already in
+       the table. A ``beh/`` TSV that is not this app's, such as another
+       task recorded by another group, is not included and not mentioned; a
+       file counts as this app's when it is a session or notes TSV, has the
+       task ``programming`` or ``notes``, or has a sidecar written by this
+       app. If no recording in the dataset can be included, the table already
+       there is left as it is and listed under **Left unchanged**. Only
+       recordings in the dataset's own ``sub-*`` folders count: a copy kept
+       under another folder, such as ``old/`` or ``sourcedata/``, is not read.
+       The folder's own ``dataset_description.json`` is written only if missing.
+   * - ``.bidsignore``
+     - When adding into a folder writes a ``.bak-`` copy of any file, the
+       dataset's ``.bidsignore`` gets the line ``*.bak-*``, so the BIDS
+       validator does not fail on the copies. The file is created if missing;
+       otherwise the line is appended and the lines already there are left as
+       they are. A ``.bidsignore`` inside a zip is carried over unchanged.
    * - Everything else
-     - Untouched. Other datatypes, derivatives and anything you keep alongside
-       are never even read.
+     - Untouched. Other datatypes, other derivatives and anything you keep
+       alongside are never changed.
 
 Merging the same files twice does nothing the second time.
 
@@ -365,9 +399,21 @@ BIDS puts a table that spans sessions:
 The folder's ``dataset_description.json`` marks it as a derivative and names the
 app that produced it; it is written once and never replaced. The table itself is
 regenerated from the raw files, so exporting again replaces it, and the previous
-version is kept beside it with a ``.bak-`` suffix. Nothing in the raw
-``sub-*`` tree is written. The app then asks whether to save a copy somewhere
-else too, as a ``.zip`` holding the table and its sidecar.
+version is kept beside it with a ``.bak-`` suffix, and the dataset's
+``.bidsignore`` lists ``*.bak-*`` so the validator ignores the copy. Nothing in
+the raw ``sub-*`` tree is written. The app then asks whether to save a copy
+somewhere else too, as a ``.zip`` holding the table and its sidecar.
+
+Adding visits to a dataset from Reports, into a folder or as a merged ``.zip``,
+works differently: the table in the dataset is rebuilt from every session and
+notes file the dataset holds afterwards, not only from the files just added.
+Recording a visit straight into a dataset does not touch the table, so it
+leaves out that visit until the next merge from Reports rebuilds it. Saving
+this combined table into the dataset, as described above, is different again:
+it holds only the files you chose, and the next merge replaces it with the
+table of the whole dataset. The ``.bak-`` copies that adding into a folder
+leaves are hidden from the validator through ``.bidsignore``; see
+:ref:`the merge rules <dataset-merge-rules>`.
 
 If the list mixes files from the dataset with files uploaded from elsewhere, or
 the dataset was loaded as a ``.zip``, nothing is written into the dataset and the

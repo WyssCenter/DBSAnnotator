@@ -17,6 +17,11 @@ Rect? shareOriginFrom(BuildContext? context) {
   return box.localToGlobal(Offset.zero) & box.size;
 }
 
+/// How an export ended. [saved]: written to disk. [handedOff]: the share sheet
+/// reported success, which does not prove the target app kept the file (iOS
+/// counts "Copy" as success). [notDelivered]: cancelled, dismissed or failed.
+enum ExportOutcome { saved, handedOff, notDelivered }
+
 bool get _isMobile => Platform.isAndroid || Platform.isIOS;
 
 /// MIME type for the file kinds we export. Android's `MimeTypeMap` does not
@@ -52,7 +57,7 @@ Rect safeOrigin(Rect? origin, Size screen) {
 /// [messenger] must be resolved before the first await, so the snackbar is
 /// safe across the async gap. [origin] anchors the iPadOS share popover and
 /// [screen] supplies its fallback.
-Future<void> shareOrSaveFile(
+Future<ExportOutcome> shareOrSaveFile(
   ScaffoldMessengerState messenger,
   File file,
   String filename, {
@@ -76,14 +81,16 @@ Future<void> shareOrSaveFile(
             content: Text(
               result.status == ShareResultStatus.success
                   ? 'Shared $filename'
-                  : 'Export ready: $filename',
+                  : 'Not shared: $filename',
             ),
           ),
         );
-        return;
+        return result.status == ShareResultStatus.success
+            ? ExportOutcome.handedOff
+            : ExportOutcome.notDelivered;
       }
     } catch (e) {
-      debugPrint('Share sheet unavailable for $filename: $e');
+      debugPrint('Share sheet unavailable: $e');
       // Fall through to a disk save.
     }
   }
@@ -92,22 +99,28 @@ Future<void> shareOrSaveFile(
     SnackBar(
       duration: const Duration(seconds: 6),
       content: Text(
-        saved != null ? 'Saved to $saved' : 'Could not save $filename',
+        saved == null
+            ? 'Not saved: $filename'
+            : saved.isEmpty
+            ? 'Saved $filename'
+            : 'Saved to $saved',
       ),
     ),
   );
+  return saved != null ? ExportOutcome.saved : ExportOutcome.notDelivered;
 }
 
 /// An export's bytes, plus an optional warning to show once it is delivered.
 typedef ExportPayload = ({List<int> bytes, String? warning});
 
-/// Build a file and deliver it, reporting every failure.
+/// Build a file and deliver it, reporting every failure; see
+/// [shareOrSaveFile]. The payload's warning is shown whatever the outcome.
 ///
 /// The messenger, screen size and share anchor are captured before the first
 /// await, because a menu item is unmounted by the time the iPad share sheet
 /// needs its anchor. So [anchor] should key the enclosing button, not a menu
 /// item that is about to disappear.
-Future<void> exportFile(
+Future<ExportOutcome> exportFile(
   BuildContext context, {
   required String filename,
   required Future<ExportPayload> Function() build,
@@ -117,12 +130,18 @@ Future<void> exportFile(
   final messenger = ScaffoldMessenger.of(context);
   final screen = MediaQuery.sizeOf(context);
   final origin = shareOriginFrom(anchor?.currentContext);
+  Directory? dir;
   try {
     final payload = await build();
-    final dir = await getTemporaryDirectory();
+    final root = Directory(
+      '${(await getApplicationCacheDirectory()).path}/dbs_annotator_exports',
+    );
+    await root.create(recursive: true);
+    await _sweepStaleExports(root);
+    dir = await root.createTemp('export-');
     final file = File('${dir.path}/$filename');
     await file.writeAsBytes(payload.bytes);
-    await shareOrSaveFile(
+    final outcome = await shareOrSaveFile(
       messenger,
       file,
       filename,
@@ -135,19 +154,55 @@ Future<void> exportFile(
         SnackBar(duration: const Duration(seconds: 6), content: Text(warning)),
       );
     }
+    return outcome;
   } catch (e) {
     messenger.showSnackBar(SnackBar(content: Text('$failureLabel: $e')));
+    return ExportOutcome.notDelivered;
+  } finally {
+    if (dir != null) {
+      try {
+        await dir.delete(recursive: true);
+      } catch (_) {
+        // Left for the next export's sweep, which removes it after an hour.
+      }
+    }
+  }
+}
+
+/// Remove export folders an earlier run left behind in [root], which only this
+/// app writes to. Best effort.
+Future<void> _sweepStaleExports(Directory root) async {
+  final cutoff = DateTime.now().subtract(const Duration(hours: 1));
+  try {
+    await for (final entry in root.list()) {
+      if (entry is! Directory) continue;
+      if (!pickedBasename(entry.path).startsWith('export-')) continue;
+      try {
+        if ((await entry.stat()).modified.isBefore(cutoff)) {
+          await entry.delete(recursive: true);
+        }
+      } catch (_) {
+        // In use or already gone; a later sweep retries.
+      }
+    }
+  } catch (_) {
+    // The exports directory could not be listed.
   }
 }
 
 /// Save [file] to a user-visible location: a native Save-As dialog first, then
-/// the first writable well-known directory. Never throws.
+/// the first writable well-known directory. Null when the user cancelled the
+/// dialog or nothing was writable, and empty when the dialog saved it
+/// somewhere with no file path, as Android's document picker does. Never
+/// throws.
 Future<String?> _saveToDisk(File file, String filename) async {
   if (debugSaveDir case final dir?) {
     return (await file.copy('${dir.path}/$filename')).path;
   }
-  // 1) Native Save-As dialog. It returns a Uri, and a non-`file` one has no
-  //    path to report, so fall through rather than name an unopenable place.
+  // 1) Native Save-As dialog. A null Uri is a cancel, so nothing is written
+  //    elsewhere. Any other result means the bytes were written, even when
+  //    the Uri is not a `file` one (Android's document picker), so a second
+  //    copy would only duplicate it.
   try {
     final uri = await FilePicker.saveFile(
       dialogTitle: 'Save $filename',
@@ -155,8 +210,8 @@ Future<String?> _saveToDisk(File file, String filename) async {
       bytes: await file.readAsBytes(),
       mimeType: mimeTypeFor(filename) ?? 'application/octet-stream',
     );
-    final saved = pickerUriToPath(uri);
-    if (saved != null) return saved;
+    if (uri == null) return null;
+    return pickerUriToPath(uri) ?? '';
   } catch (_) {
     // No dialog available; auto-save below.
   }
@@ -181,8 +236,7 @@ Future<String?> _saveToDisk(File file, String filename) async {
     }
   }
 
-  // 3) The temp file already exists; report its path as a last resort.
-  return file.path;
+  return null;
 }
 
 /// The extension of [filename] including the dot ('' when there is none).

@@ -173,6 +173,22 @@ void main() {
     expect(merged.last['filename'], endsWith('run-02_beh.tsv'));
   });
 
+  test('an index file that could not be read is left unchanged', () {
+    final target = [
+      for (final f in _curated())
+        if (f.path == 'participants.tsv')
+          (path: f.path, content: kUnreadContent)
+        else
+          f,
+    ];
+    final plan = planBidsMerge(target, [
+      (path: 'participants.tsv', content: 'participant_id\nsub-02\n'),
+    ]);
+    expect(plan.keptAsIs, ['participants.tsv']);
+    expect(plan.rowMerged, isEmpty);
+    expect(_written(plan).containsKey('participants.tsv'), isFalse);
+  });
+
   test('recorded data at an existing path is refused, never overwritten', () {
     final plan = planBidsMerge(_curated(), const [
       (path: _visitPath, content: 'acq_time\tblock_id\nDIFFERENT\t9\n'),
@@ -230,6 +246,23 @@ void main() {
     expect(describeMergePlan(plan), contains('1 left as is - 1 refused'));
   });
 
+  test('a derivative folder written into lists its unwritten files', () {
+    const dir = 'derivatives/dbs-annotator-reports';
+    const report = '$dir/sub-01/ses-a/beh/sub-01_ses-a_report.pdf';
+    final plan = planBidsMerge(
+      const [(path: report, content: 'old')],
+      const [
+        (path: '$dir/dataset_description.json', content: '{}'),
+        (path: report, content: 'new'),
+      ],
+    );
+    expect(plan.added, ['$dir/dataset_description.json']);
+    final shown = shownUnwritten(plan);
+    expect(shown.unchanged, [report]);
+    expect(shown.unchanged, isNot(contains('$dir/')));
+    expect(shown.refused, isEmpty);
+  });
+
   group('a name already taken', () {
     const preop = BidsName(
       subject: '01',
@@ -256,6 +289,24 @@ void main() {
         [entry('same')],
       );
       expect(r.entries.single.name.run, '01');
+      expect(r.renumbered, isEmpty);
+    });
+
+    test('a recording filed at a later run is not duplicated', () {
+      const run2 = BidsName(
+        subject: '01',
+        session: 'preop',
+        task: 'programming',
+        run: '02',
+      );
+      final r = renumberClashes(
+        [
+          (path: at(preop), content: 'first'),
+          (path: at(run2), content: 'second'),
+        ],
+        [entry('second')],
+      );
+      expect(r.entries.single.name.run, '02');
       expect(r.renumbered, isEmpty);
     });
 

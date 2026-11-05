@@ -54,7 +54,7 @@ now, along with a few things that are cheap to check and expensive to miss.
 To run everything the way CI does:
 
 ```bash
-uvx pre-commit run --all-files
+uvx pre-commit@4.7.0 run --all-files
 ```
 
 To have it run on each commit:
@@ -84,7 +84,7 @@ merge rather than before.
 
 CI is the authority, since `git commit --no-verify` skips the hooks and CI
 cannot be skipped, but it runs the checks by invoking **these same hooks**
-(`uvx pre-commit run --all-files`), so there is one definition of each rule and
+(`uvx pre-commit@4.7.0 run --all-files`), so there is one definition of each rule and
 nothing to keep in step. `pyproject.toml` holds the ruff, doc8 and codespell
 settings for the same reason. Change a rule in one place and both follow.
 

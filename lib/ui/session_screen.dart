@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart' show PdfPageFormat;
 
 import '../core/bids.dart';
+import '../core/bids_merge.dart';
 import '../core/bids_sidecar.dart';
 import '../core/electrode/amplitude.dart';
 import '../core/electrode/contact_state.dart';
@@ -95,6 +96,17 @@ String _fmtValue(double v) {
   return out;
 }
 
+/// The sentence for electrode models a file names that the catalogue lacks.
+String _unknownModelsNotice(List<String> models) {
+  if (models.length == 1) {
+    return 'This file names an electrode model, ${models.first}, that is not '
+        'in the catalogue.';
+  }
+  final head = models.sublist(0, models.length - 1).join(', ');
+  return 'This file names electrode models $head and ${models.last} that are '
+      'not in the catalogue.';
+}
+
 /// One Step-1 clinical scale row: name + typed numeric score.
 class _ClinicalScaleEdit {
   final name = TextEditingController();
@@ -132,10 +144,21 @@ class _SessionScaleEdit {
   ScaleMode mode;
   double? custom;
 
-  double minOr(double fallback) =>
-      double.tryParse(minCtrl.text.trim()) ?? fallback;
-  double maxOr(double fallback) =>
-      double.tryParse(maxCtrl.text.trim()) ?? fallback;
+  static double? _number(String text) {
+    final parsed = double.tryParse(text.trim().replaceAll(',', '.'));
+    return parsed != null && parsed.isFinite ? parsed : null;
+  }
+
+  double minOr(double fallback) => _number(minCtrl.text) ?? fallback;
+  double maxOr(double fallback) => _number(maxCtrl.text) ?? fallback;
+
+  /// The slider range, and [value] held inside it.
+  ({double min, double max, double value}) bounds(StimLimits limits) {
+    final min = minOr(limits.sessionScale.min);
+    var max = maxOr(limits.sessionScale.max);
+    if (max <= min) max = min + 1;
+    return (min: min, max: max, value: value.clamp(min, max).toDouble());
+  }
 
   void dispose() {
     name.dispose();
@@ -219,7 +242,7 @@ class _SessionScreenState extends State<SessionScreen> {
   // Chosen save path (from New/Open); when set, inserts autosave to it.
   String? _savePath;
   // Working copy in the app's own storage, written on every insert whatever
-  // the picker returned, and dropped once the session has been exported.
+  // the picker returned. It is only deleted when the user discards it.
   String? _workingPath;
   // Set when the session is being recorded into a BIDS dataset rather than a
   // loose file. The visit is filed on the FIRST insert, not at creation: a
@@ -227,9 +250,25 @@ class _SessionScreenState extends State<SessionScreen> {
   // validate, and between New and the first block there is nothing to file.
   String? _datasetRoot;
   BidsName? _datasetName;
-  // True when that path is an iOS sandbox copy rather than the user's own
+  // True when that path is a mobile sandbox copy rather than the user's own
   // file. See [pickedPathAutosavesToOriginal].
   bool _savePathIsSandboxCopy = false;
+  // An export of the session data was delivered and nothing changed since.
+  bool _exportedSinceChange = false;
+  // Bumped on every change, so an export started before one is not counted.
+  int _changes = 0;
+  // Whether the last autosave failed to write the recovery copy / the user's
+  // file, so that file is stale.
+  bool _workingFailed = false;
+  bool _fileFailed = false;
+  // Autosaves run one at a time: a second one starting before the first has
+  // filed the visit would file it again.
+  Future<void> _saving = Future.value();
+  int _pendingSaves = 0;
+  // New or Open is in progress; a second one must not start meanwhile.
+  bool _switching = false;
+  // A leave question is open; a second close or Back must not stack another.
+  bool _leaveAsked = false;
   // Currently-applied disease preset, for the selected pill styling.
   String? _selectedClinicalPreset;
   String? _selectedSessionPreset;
@@ -254,45 +293,66 @@ class _SessionScreenState extends State<SessionScreen> {
   /// restoring silently: the clinician may have moved on to another patient.
   Future<void> _offerRecovery() async {
     final left = await unfinishedWork();
-    if (left.isEmpty || !mounted) return;
-    final file = left.first;
-    final String content;
-    try {
-      content = await file.readAsString();
-    } catch (_) {
-      return;
+    if (!mounted) return;
+    File? file;
+    SessionAuthoring? recovered;
+    for (final candidate in left) {
+      try {
+        final content = await candidate.readAsString();
+        if (sniffTsvKind(content) != TsvKind.programming) continue;
+        final authoring = SessionAuthoring()..loadExisting(content);
+        if (authoring.rows.isEmpty) continue;
+        file = candidate;
+        recovered = authoring;
+        break;
+      } catch (_) {
+        continue;
+      }
     }
-    if (sniffTsvKind(content) != TsvKind.programming) return;
-    final recovered = SessionAuthoring()..loadExisting(content);
-    if (recovered.rows.isEmpty || !mounted) return;
+    final found = file;
+    final restored = recovered;
+    if (found == null || restored == null || !mounted) return;
 
-    final name = pickedBasename(file.path);
+    final name = pickedBasename(found.path);
     final keep = await askReopenUnfinished(
       context,
       title: 'Unfinished session found',
       message:
-          '$name was left open with ${blockCount(recovered.rows)} blocks '
+          '$name was left open with ${blockCount(restored.rows)} blocks '
           'recorded. They were saved as you went, and can be reopened here.',
     );
     if (!mounted || keep == null) return;
     if (!keep) {
-      await discardWork(file.path);
+      await discardWork(found.path);
       return;
     }
+    if (_refuseWhileSaving()) return;
     _invalidateEntryCharts();
     final bids = BidsName.parse(name);
     setState(() {
-      _authoring = recovered;
-      _workingPath = file.path;
+      _authoring = restored;
+      _workingPath = found.path;
       // No _savePath: guessing it would autosave over a file not chosen here.
       _savePath = null;
       _savePathIsSandboxCopy = false;
+      _workingFailed = false;
+      _fileFailed = false;
+      _exportedSinceChange = false;
+      _changes++;
       _datasetRoot = null;
       _datasetName = null;
       if (bids != null) _fillLabels(bids);
-      _currentStep = 3;
+      _goToStep(3);
     });
+    final unknownModels = await _syncModelsToRows();
+    if (!mounted) return;
     _snack('Reopened $name. Export it to save it outside the app.');
+    if (unknownModels.isNotEmpty) {
+      _snack(
+        '${_unknownModelsNotice(unknownModels)} The diagrams show '
+        '${_modelName ?? 'the selected model'} instead.',
+      );
+    }
   }
 
   // Chart data is derived from every inserted row, so it is cached and rebuilt
@@ -563,7 +623,7 @@ class _SessionScreenState extends State<SessionScreen> {
             name: s.name.text.trim(),
             value: s.omitted
                 ? limits.sessionScaleOmittedTsv
-                : _fmtValue(s.value),
+                : _fmtValue(s.bounds(limits).value),
           ),
       ],
       programId: _selectedProgram ?? '',
@@ -589,73 +649,119 @@ class _SessionScreenState extends State<SessionScreen> {
   /// picker returned a path `dart:io` can open, which on Android it does not.
   /// Both go through [SafeFileWriter], so a crash mid-write leaves either the
   /// previous complete file or the new one.
-  Future<void> _autosave() async {
-    // Resolved here rather than only in New/Open, because the wizard lets the
-    // File step be skipped entirely: without this a whole visit recorded that
-    // way would be held in memory.
-    final work = _workingPath ?? await workingPath(_bidsName(_labels).filename);
-    _workingPath = work;
+  Future<void> _autosave() {
+    _exportedSinceChange = false;
+    _changes++;
+    return _queueSave();
+  }
+
+  Future<void> _queueSave() {
+    _pendingSaves++;
+    return _saving = _saving.then((_) => _autosaveOnce());
+  }
+
+  bool get _saveRunning => _pendingSaves > 0;
+
+  Future<void> _autosaveOnce() async {
     try {
-      await _writer.write(work, _authoring.serialize());
+      await _autosaveBody();
     } catch (e) {
+      _workingFailed = true;
       if (mounted) _snack('Could not save this entry: $e');
-      return;
+    } finally {
+      _pendingSaves--;
+    }
+  }
+
+  Future<void> _autosaveBody() async {
+    final tsv = _authoring.serialize();
+    final hasRows = _authoring.rows.isNotEmpty;
+    final datasetRoot = _datasetRoot;
+    final bidsFilename = _bidsName(_labels).filename;
+    try {
+      var work = _workingPath;
+      if (work == null) {
+        work = await workingPath(bidsFilename);
+        _workingPath = work;
+      }
+      await _writer.write(work, tsv);
+      _workingFailed = false;
+    } catch (e) {
+      _workingFailed = true;
+      if (mounted) {
+        _snack(
+          _savePath == null && datasetRoot == null
+              ? 'Could not save this entry: $e'
+              : "Could not update the app's recovery copy: $e",
+        );
+      }
     }
     // File into the dataset the moment there is something to file. Done here
     // rather than at New so the dataset is never left holding a header-only
     // TSV that no scans.tsv lists, which is a dataset that does not validate.
-    if (_datasetRoot != null &&
-        _savePath == null &&
-        _authoring.rows.isNotEmpty) {
-      await _fileIntoDataset();
+    if (datasetRoot != null && _savePath == null && hasRows) {
+      await _fileIntoDataset(tsv);
     }
 
     final path = _savePath;
-    if (path == null) return;
+    if (path == null) {
+      _fileFailed = false;
+      return;
+    }
     try {
-      await _writer.write(path, _authoring.serialize());
+      await _writer.write(path, tsv);
+      _fileFailed = false;
     } catch (e) {
+      _fileFailed = true;
       if (mounted) {
         _snack(
-          'Autosave to your file failed: $e. The entry is saved in the app.',
+          'Autosave to your file failed: $e.'
+          '${_workingFailed ? ' This entry is not saved anywhere yet.' : ' The entry is saved in the app.'}',
         );
       }
     }
   }
 
   /// Place this visit in the chosen dataset; see [fileIntoDataset].
-  Future<void> _fileIntoDataset() async {
+  Future<void> _fileIntoDataset(String tsv) async {
     final root = _datasetRoot;
     final name = _datasetName;
     if (root == null || name == null) return;
+    final acqTime = _authoring.rows.first.acqTime;
     try {
-      final path = await fileIntoDataset(
+      final filed = await fileIntoDataset(
         root: root,
         name: name,
-        tsv: _authoring.serialize(),
+        tsv: tsv,
         kind: 'session_tsv',
-        acqTime: _authoring.rows.first.acqTime,
+        acqTime: acqTime,
       );
-      if (path == null) {
+      if (filed == null) {
         if (mounted) {
           _snack(
-            'That dataset already holds ${name.filename}. This visit stays in '
-            'the app; export it under a different run.',
+            'That dataset already holds ${name.filename}.'
+            '${_workingFailed ? ' This entry is not saved anywhere yet.' : ' This visit stays in the app.'} Export it '
+            'under a different run.',
           );
         }
-        setState(() => _datasetRoot = null);
+        if (mounted) setState(() => _datasetRoot = null);
         return;
       }
       if (!mounted) return;
-      setState(() => _savePath = path);
-      _snack('Filed as ${name.relativeDir}/${name.filename}.');
+      setState(() => _savePath = filed.path);
+      _snack(
+        'Filed as ${name.relativeDir}/${name.filename}.'
+        '${filed.unread.isEmpty ? '' : ' ${unreadIndexNotice(filed.unread)}'}'
+        '${filed.warning == null ? '' : ' ${filed.warning}'}',
+      );
     } catch (e) {
       if (mounted) {
         _snack(
-          'Could not file into the dataset: $e. The visit is saved in the app.',
+          'Could not file into the dataset: $e.'
+          '${_workingFailed ? ' This entry is not saved anywhere yet.' : ' The visit is saved in the app.'}',
         );
       }
-      setState(() => _datasetRoot = null);
+      if (mounted) setState(() => _datasetRoot = null);
     }
   }
 
@@ -685,6 +791,22 @@ class _SessionScreenState extends State<SessionScreen> {
   // ---- Open / Export (offline pattern from annotations_screen.dart) ----
 
   Future<void> _newSession() async {
+    if (_switching) return;
+    _switching = true;
+    try {
+      await _newSessionFlow();
+    } finally {
+      _switching = false;
+    }
+  }
+
+  bool _refuseWhileSaving() {
+    if (!_saveRunning) return false;
+    _snack('A save is still running. Try again in a moment.');
+    return true;
+  }
+
+  Future<void> _newSessionFlow() async {
     final subject = _subjectCtrl.text.trim().isEmpty
         ? '01'
         : _subjectCtrl.text.trim();
@@ -701,9 +823,13 @@ class _SessionScreenState extends State<SessionScreen> {
     // decides where every autosave of this visit lands.
     final into = await askNewTarget(context, bids, what: 'this visit');
     if (into == null || !mounted) return;
+    final leave = await _askLeave();
+    if (leave == null || !mounted || _refuseWhileSaving()) return;
+    final oldWork = _workingPath;
     if (into.root != null) {
       final work = await workingPath(into.name.filename);
-      if (!mounted) return;
+      if (!mounted || _refuseWhileSaving()) return;
+      _invalidateEntryCharts();
       setState(() {
         _authoring = authoring;
         _savePath = null;
@@ -711,10 +837,15 @@ class _SessionScreenState extends State<SessionScreen> {
         _datasetRoot = into.root;
         _datasetName = into.name;
         _savePathIsSandboxCopy = false;
+        _workingFailed = false;
+        _fileFailed = false;
+        _exportedSinceChange = false;
+        _changes++;
         _subjectCtrl.text = subject;
         _runCtrl.text = into.name.run;
         _currentStep = 1;
       });
+      if (leave == LeaveChoice.discard) await discardWork(oldWork);
       _snack(
         'Recording into ${into.root}. '
         'The visit is filed there as soon as the first block is inserted.',
@@ -729,19 +860,22 @@ class _SessionScreenState extends State<SessionScreen> {
         dialogTitle: 'Create new session TSV',
         fileName: name,
         header: authoring.serialize(), // header only
+        avoidPath: _savePath,
       );
     } catch (e) {
-      if (mounted) _snack('Could not create $name: $e');
+      if (mounted) _snack('Could not start a new file: $e');
+      if (_savePath != null) _queueSave();
       return;
     }
-    if (target == null) return; // dialog shown but cancelled
+    if (target == null || !mounted) return; // dialog shown but cancelled
     if (target.fellBack && mounted) {
       _snack('No file dialog available; saved to ${target.location}');
     }
     final p = target.path;
     if (p != null) await _writeSidecar(p);
     final work = await workingPath(name);
-    if (!mounted) return;
+    if (!mounted || _refuseWhileSaving()) return;
+    _invalidateEntryCharts();
     setState(() {
       _authoring = authoring;
       _savePath = p;
@@ -749,14 +883,51 @@ class _SessionScreenState extends State<SessionScreen> {
       _datasetRoot = null;
       _datasetName = null;
       _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(p);
+      _workingFailed = false;
+      _fileFailed = false;
+      _exportedSinceChange = false;
+      _changes++;
       _subjectCtrl.text = subject;
       _runCtrl.text = run;
       _currentStep = 1;
     });
+    if (leave == LeaveChoice.discard) await discardWork(oldWork);
     _snack('New session: ${target.location}');
   }
 
+  /// The file names its own electrode model, so the dropdown follows it. A
+  /// mismatch is not cosmetic: it labels one lead's contacts with another
+  /// lead's geometry, in the diagrams here and in the report.
+  Future<List<String>> _syncModelsToRows() async {
+    final catalog = (await _contracts).$1;
+    final named = electrodeModelIn(_authoring.rows);
+    final namedRight = electrodeModelIn(_authoring.rows, right: true);
+    final unknown = {
+      for (final n in [named, namedRight])
+        if (n.isNotEmpty && !catalog.models.containsKey(n)) '"$n"',
+    }.toList();
+    if (mounted && named.isNotEmpty && unknown.isEmpty) {
+      setState(() {
+        _modelName = named;
+        _rightModelName = namedRight.isEmpty || namedRight == named
+            ? null
+            : namedRight;
+      });
+    }
+    return unknown;
+  }
+
   Future<void> _open() async {
+    if (_switching) return;
+    _switching = true;
+    try {
+      await _openFlow();
+    } finally {
+      _switching = false;
+    }
+  }
+
+  Future<void> _openFlow() async {
     // `pickFile`, not `pickFiles`: `allowMultiple` defaults to TRUE, so
     // `pickFiles` here would silently accept a multi-selection.
     final PlatformFile? chosen;
@@ -787,48 +958,45 @@ class _SessionScreenState extends State<SessionScreen> {
       return;
     }
 
-    _invalidateEntryCharts();
-    _authoring.loadExisting(content);
+    final SessionAuthoring loaded;
+    try {
+      loaded = SessionAuthoring()..loadExisting(content);
+    } catch (e) {
+      if (mounted) _snack('Could not read ${picked.name}: $e');
+      return;
+    }
+    final leave = await _askLeave();
+    if (leave == null || !mounted || _refuseWhileSaving()) return;
+    final oldWork = _workingPath;
     final bids = BidsName.parse(picked.name);
-
-    // The file names its own electrode model, so the dropdown follows it. A
-    // mismatch is not cosmetic: it labels one lead's contacts with another
-    // lead's geometry, in the diagrams here and in the report.
-    final catalog = (await _contracts).$1;
-    final named = electrodeModelIn(_authoring.rows);
-    final namedRight = electrodeModelIn(_authoring.rows, right: true);
-    final unknownModel = [
-      named,
-      namedRight,
-    ].any((n) => n.isNotEmpty && !catalog.models.containsKey(n));
     final work = await workingPath(picked.name);
-
-    if (!mounted) return;
+    if (!mounted || _refuseWhileSaving()) return;
+    _invalidateEntryCharts();
     setState(() {
+      _authoring = loaded;
       // Autosave future inserts back to the opened file (when a real path).
       _savePath = picked.path;
       _workingPath = work;
       _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(picked.path);
+      _workingFailed = false;
+      _fileFailed = false;
+      _exportedSinceChange = false;
+      _changes++;
       _datasetRoot = null;
       _datasetName = null;
       if (bids != null) _fillLabels(bids);
-      if (named.isNotEmpty && !unknownModel) {
-        _modelName = named;
-        _rightModelName = namedRight.isEmpty || namedRight == named
-            ? null
-            : namedRight;
-      }
     });
+    if (leave == LeaveChoice.discard) await discardWork(oldWork);
+    final unknownModels = await _syncModelsToRows();
+    if (!mounted) return;
     final opened =
         'Opened ${picked.name} (${_authoring.rows.length} rows, '
         'next block ${_authoring.blockId}, append ${_authoring.appendId}).';
     _snack(_savePathIsSandboxCopy ? '$opened $sandboxCopyNotice' : opened);
-    if (unknownModel) {
+    if (unknownModels.isNotEmpty) {
       _snack(
-        'This file names an electrode model ("$named", "$namedRight") '
-        'that is not in the '
-        'catalogue. The diagrams show ${_modelName ?? 'the selected model'} '
-        'instead.',
+        '${_unknownModelsNotice(unknownModels)} The diagrams show '
+        '${_modelName ?? 'the selected model'} instead.',
       );
     }
   }
@@ -903,13 +1071,17 @@ class _SessionScreenState extends State<SessionScreen> {
       return;
     }
     if (!await _confirmLeftOn() || !mounted) return;
-    await exportFile(
+    final changes = _changes;
+    final outcome = await exportFile(
       context,
       filename: _bidsName(_labels).filename,
       anchor: _exportKey,
       build: () async =>
           (bytes: utf8.encode(_authoring.serialize()), warning: null),
     );
+    if (outcome == ExportOutcome.saved && changes == _changes) {
+      _exportedSinceChange = true;
+    }
   }
 
   /// Export this session as a one-subject BIDS dataset (zipped).
@@ -934,7 +1106,8 @@ class _SessionScreenState extends State<SessionScreen> {
     }
     if (!mounted) return;
     final rows = _authoring.rows;
-    await exportBidsDataset(
+    final changes = _changes;
+    final outcome = await exportBidsDataset(
       context,
       anchor: _exportKey,
       entries: [
@@ -947,6 +1120,9 @@ class _SessionScreenState extends State<SessionScreen> {
         ),
       ],
     );
+    if (outcome == ExportOutcome.saved && changes == _changes) {
+      _exportedSinceChange = true;
+    }
   }
 
   /// Build the session report in [format] and share it (mobile) or save it
@@ -1228,7 +1404,11 @@ class _SessionScreenState extends State<SessionScreen> {
             controlAffinity: ListTileControlAffinity.leading,
             title: const Text('Same model on both sides'),
             onChanged: (v) => setState(() {
+              final rightWas = _rightModelName ?? _modelName;
               _rightModelName = v ?? true ? null : _modelName;
+              if ((_rightModelName ?? _modelName) != rightWas) {
+                reset([_rightInit, _rightRec]);
+              }
             }),
           ),
           if (!same)
@@ -2081,9 +2261,7 @@ class _SessionScreenState extends State<SessionScreen> {
   /// current value, and the omit ("not assessed") switch. Omitted rows are
   /// written as the contract literal ("NaN").
   Widget _ratingRow(_SessionScaleEdit scale, StimLimits limits) {
-    final min = scale.minOr(limits.sessionScale.min);
-    var max = scale.maxOr(limits.sessionScale.max);
-    if (max <= min) max = min + 1;
+    final bounds = scale.bounds(limits);
     final name = scale.name.text.trim();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -2098,9 +2276,9 @@ class _SessionScreenState extends State<SessionScreen> {
             // Desktop ScaleProgressWidget: bar, value, chevrons, X-omit. Any
             // move re-includes an omitted scale.
             child: ScaleSlider(
-              value: scale.value.clamp(min, max).toDouble(),
-              min: min,
-              max: max,
+              value: bounds.value,
+              min: bounds.min,
+              max: bounds.max,
               omitted: scale.omitted,
               onChanged: (v) => setState(() {
                 scale.value = v;
@@ -2268,8 +2446,42 @@ class _SessionScreenState extends State<SessionScreen> {
 
   // ---- Wizard scaffold ----
 
-  /// Leaving asks whether to keep the recovery copy; see `close_guard.dart`.
-  Future<bool> _mayLeave() => confirmLeaveSession(context, _workingPath);
+  /// Ask whether to keep the recovery copy; see `close_guard.dart`. Null to
+  /// stay, including when another question is already open.
+  Future<LeaveChoice?> _askLeave() async {
+    if (_leaveAsked) return null;
+    _leaveAsked = true;
+    try {
+      final stillSaving = !await waitForSaves(() => _saving);
+      if (!mounted) return LeaveChoice.keep;
+      final guard = leaveGuardState(
+        workingFailed: _workingFailed,
+        fileFailed: _fileFailed,
+        hasSavePath: _savePath != null,
+        savePathIsSandboxCopy: _savePathIsSandboxCopy,
+        exportedSinceChange: _exportedSinceChange,
+        hasEntries: _authoring.rows.isNotEmpty,
+        stillSaving: stillSaving,
+      );
+      return await askLeaveSession(
+        context,
+        _workingPath,
+        onlyCopy: guard.onlyCopy,
+        copyMayBeStale: guard.copyMayBeStale,
+        entriesUnsaved: guard.entriesUnsaved,
+        stillSaving: stillSaving && _authoring.rows.isNotEmpty,
+      );
+    } finally {
+      _leaveAsked = false;
+    }
+  }
+
+  Future<bool> _mayLeave() async {
+    final choice = await _askLeave();
+    if (choice == null) return false;
+    if (choice == LeaveChoice.discard) await discardWork(_workingPath);
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) => PopScope(
