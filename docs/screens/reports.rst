@@ -407,8 +407,12 @@ somewhere else too, as a ``.zip`` holding the table and its sidecar.
 Adding visits to a dataset from Reports, into a folder or as a merged ``.zip``,
 works differently: the table in the dataset is rebuilt from every session and
 notes file the dataset holds afterwards, not only from the files just added.
-Recording a visit straight into a dataset does not touch the table, so it
-leaves out that visit until the next merge from Reports rebuilds it. Saving
+A visit recorded straight into a dataset is added to the table when the
+recording ends: on leaving the screen, closing the window, or choosing New or
+Open. The app shows a short progress message while it does so, and names any
+file it had to leave out. If the recording is interrupted instead, for example
+because the app crashes, the table leaves out that visit until the next merge
+from Reports or the next visit recorded into the dataset refreshes it. Saving
 this combined table into the dataset, as described above, is different again:
 it holds only the files you chose, and the next merge replaces it with the
 table of the whole dataset. The ``.bak-`` copies that adding into a folder

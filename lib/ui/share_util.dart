@@ -52,7 +52,10 @@ Rect safeOrigin(Rect? origin, Size screen) {
 
 /// Deliver [file] to the user: the OS share sheet on mobile, or a saved copy
 /// on desktop, where `share_plus` has none. Never throws, and always reports
-/// the outcome via [messenger], so an export cannot fail silently.
+/// the outcome via [messenger], so an export cannot fail silently. A desktop
+/// save that ends on [avoid] is refused with its reason, writing nothing new.
+/// [confirmReplace] is asked before an existing file is replaced, where the
+/// save dialog does not ask itself.
 ///
 /// [messenger] must be resolved before the first await, so the snackbar is
 /// safe across the async gap. [origin] anchors the iPadOS share popover and
@@ -63,6 +66,8 @@ Future<ExportOutcome> shareOrSaveFile(
   String filename, {
   Rect? origin,
   Size screen = const Size(768, 1024),
+  required ConfirmReplace confirmReplace,
+  AvoidFile? avoid,
 }) async {
   if (_isMobile) {
     try {
@@ -94,7 +99,26 @@ Future<ExportOutcome> shareOrSaveFile(
       // Fall through to a disk save.
     }
   }
-  final saved = await _saveToDisk(file, filename);
+  final String? saved;
+  try {
+    saved = await _saveToDisk(file, filename, avoid, confirmReplace);
+  } on SameFileException catch (refused) {
+    messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 6),
+        content: Text(refused.reason),
+      ),
+    );
+    return ExportOutcome.notDelivered;
+  } on FileSystemException catch (e) {
+    messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 6),
+        content: Text('Not saved: $filename (${e.message})'),
+      ),
+    );
+    return ExportOutcome.notDelivered;
+  }
   messenger.showSnackBar(
     SnackBar(
       duration: const Duration(seconds: 6),
@@ -126,6 +150,7 @@ Future<ExportOutcome> exportFile(
   required Future<ExportPayload> Function() build,
   GlobalKey? anchor,
   String failureLabel = 'Export failed',
+  AvoidFile? avoid,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
   final screen = MediaQuery.sizeOf(context);
@@ -147,6 +172,8 @@ Future<ExportOutcome> exportFile(
       filename,
       origin: origin,
       screen: screen,
+      avoid: avoid,
+      confirmReplace: (name) => askReplace(context, name),
     );
     final warning = payload.warning;
     if (warning != null) {
@@ -193,16 +220,42 @@ Future<void> _sweepStaleExports(Directory root) async {
 /// Save [file] to a user-visible location: a native Save-As dialog first, then
 /// the first writable well-known directory. Null when the user cancelled the
 /// dialog or nothing was writable, and empty when the dialog saved it
-/// somewhere with no file path, as Android's document picker does. Never
-/// throws.
-Future<String?> _saveToDisk(File file, String filename) async {
+/// somewhere with no file path, as Android's document picker does. Throws
+/// [SameFileException] only when the dialog's choice is [avoid], and a
+/// [FileSystemException] when the chosen path cannot be written.
+Future<String?> _saveToDisk(
+  File file,
+  String filename,
+  AvoidFile? avoid,
+  ConfirmReplace confirmReplace,
+) async {
   if (debugSaveDir case final dir?) {
-    return (await file.copy('${dir.path}/$filename')).path;
+    final dest = '${dir.path}/$filename';
+    refuseIfAvoided(dest, avoid);
+    return (await file.copy(dest)).path;
   }
-  // 1) Native Save-As dialog. A null Uri is a cancel, so nothing is written
-  //    elsewhere. Any other result means the bytes were written, even when
-  //    the Uri is not a `file` one (Android's document picker), so a second
-  //    copy would only duplicate it.
+  // 1) Native Save-As dialog. On desktop `file_selector` only returns the
+  //    path, so it is checked against [avoid] before anything is written.
+  if (hasDesktopSaveDialog) {
+    final String? path;
+    try {
+      path = await chooseSavePath(
+        suggestedName: filename,
+        extension: _ext(filename).replaceFirst('.', '').toLowerCase(),
+        confirmReplace: confirmReplace,
+        avoid: avoid,
+      );
+    } on SaveDialogUnavailable {
+      return _saveToKnownFolder(file, filename, avoid);
+    }
+    if (path == null) return null;
+    await file.copy(path);
+    return path;
+  }
+  // On mobile a null Uri is a cancel, so nothing is written elsewhere. Any
+  // other result means the bytes were written, even when the Uri is not a
+  // `file` one (Android's document picker), so a second copy would only
+  // duplicate it.
   try {
     final uri = await FilePicker.saveFile(
       dialogTitle: 'Save $filename',
@@ -215,9 +268,18 @@ Future<String?> _saveToDisk(File file, String filename) async {
   } catch (_) {
     // No dialog available; auto-save below.
   }
+  return _saveToKnownFolder(file, filename, avoid);
+}
 
-  // 2) First writable well-known directory. Application-support resolves even
-  //    on a minimal Linux box where XDG Downloads/Documents are unset.
+/// The first writable well-known directory, under an unused name and skipping
+/// [avoid]. Application
+/// support resolves even on a minimal Linux box where XDG Downloads/Documents
+/// are unset. Null when none was writable.
+Future<String?> _saveToKnownFolder(
+  File file,
+  String filename,
+  AvoidFile? avoid,
+) async {
   final getters = <Future<Directory?> Function()>[
     getDownloadsDirectory,
     getApplicationDocumentsDirectory,
@@ -228,7 +290,8 @@ Future<String?> _saveToDisk(File file, String filename) async {
       final dir = await getDir();
       if (dir == null) continue;
       await Directory(dir.path).create(recursive: true);
-      final dest = '${dir.path}/$filename';
+      final dest = unusedPath(dir.path, filename);
+      if (isAvoided(dest, avoid)) continue;
       await file.copy(dest);
       return dest;
     } catch (_) {

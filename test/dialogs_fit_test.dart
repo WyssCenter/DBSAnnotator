@@ -115,8 +115,7 @@ final List<_Case> _cases = [
         ],
         leftOut: const [
           (
-            path:
-                'sub-03/ses-20260203/beh/sub-03_ses-20260203_task-notes_beh.tsv',
+            path: 'sub-03/ses-20260203/beh/sub-03_ses-20260203_task-notes_beh.tsv',
             reason: 'not readable as a session or notes TSV',
           ),
         ],
@@ -230,9 +229,8 @@ Future<BuildContext> _pumpHost(WidgetTester tester, Size size, double scale) {
         MaterialApp(
           theme: _theme(),
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.linear(scale)),
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(scale)),
             child: child!,
           ),
           home: Scaffold(
@@ -348,9 +346,8 @@ void main() {
         MaterialApp(
           theme: _theme(),
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.linear(scale)),
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(scale)),
             child: child!,
           ),
           home: const ReportsScreen(),

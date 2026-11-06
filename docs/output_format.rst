@@ -347,9 +347,12 @@ why.
 
 A combined table saved into a dataset for chosen files is replaced by the next
 merge from the Reports screen, which rebuilds it from every session and notes
-file the dataset holds. Recording a visit straight into a dataset does not touch
-the table, so it stays as it was until that merge. The previous copy is kept
-beside it with a ``.bak-`` suffix when the dataset is a folder.
+file the dataset holds. A visit recorded straight into a dataset is added to the
+table once, when the recording ends: on leaving the screen, closing the window,
+or starting or opening another file. After an interrupted recording the table
+stays as it was until the next merge from Reports or the next visit recorded
+into the dataset. The previous copy is kept beside it with a ``.bak-`` suffix
+when the dataset is a folder.
 
 Notes files join this table one row per note, with only ``acq_time`` and
 ``notes`` filled. Grouping by ``block_id`` therefore leaves them out, since their

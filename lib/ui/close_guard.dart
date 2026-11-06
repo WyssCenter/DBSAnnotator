@@ -12,8 +12,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 /// Asked before the desktop window closes, set by the open session screen.
-/// Returns whether the window may close.
-Future<bool> Function()? activeSessionGuard;
+/// Returns whether the window may close. With `closingWindow`, messages that
+/// would be a snack bar are dialogs, since the window is about to go.
+Future<bool> Function({bool closingWindow})? activeSessionGuard;
 
 /// What the leave dialogs are told, from the last autosave's two outcomes.
 /// A save still running counts as a failed file write: the file may lack the

@@ -122,9 +122,8 @@ AggregateResult buildAggregate(List<AggregateSource> sources) {
     }
     final byFile = a.record['source_file']!.compareTo(b.record['source_file']!);
     if (byFile != 0) return byFile;
-    final byBlock = _asInt(
-      a.record['block_id'] ?? '',
-    ).compareTo(_asInt(b.record['block_id'] ?? ''));
+    final byBlock = _asInt(a.record['block_id'] ?? '')
+        .compareTo(_asInt(b.record['block_id'] ?? ''));
     if (byBlock != 0) return byBlock;
     return a.seq.compareTo(b.seq);
   });

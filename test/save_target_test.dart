@@ -7,6 +7,8 @@ import 'dart:io';
 import 'package:dbs_annotator/ui/save_target.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'screen_test_helpers.dart';
+
 void main() {
   group('pickedBasename', () {
     // Both call sites carried `path.replaceAll(r'', '/').split('/').last`,
@@ -80,11 +82,15 @@ void main() {
           dialogTitle: 't',
           fileName: 'a_beh.tsv',
           header: 'h',
-          avoidPath: '${dir.path}/./${existing.uri.pathSegments.last}',
+          confirmReplace: mustNotAsk,
+          avoid: (
+            path: '${dir.path}/./${existing.uri.pathSegments.last}',
+            reason: 'same',
+          ),
         ),
         throwsA(isA<SameFileException>()),
       );
-      expect(existing.readAsStringSync(), 'h');
+      expect(existing.readAsStringSync(), 'x');
     });
   });
 

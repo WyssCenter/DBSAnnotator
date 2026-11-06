@@ -1,13 +1,8 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart' show PdfPageFormat;
 
 import '../core/bids.dart';
-import '../core/bids_merge.dart';
 import '../core/bids_sidecar.dart';
 import '../core/electrode/amplitude.dart';
 import '../core/electrode/contact_state.dart';
@@ -15,7 +10,6 @@ import '../core/electrode/electrode_model.dart';
 import '../core/electrode/stimulation_rule.dart';
 import '../core/electrode/tokens.dart';
 import '../core/prefs/user_prefs.dart';
-import '../core/safe_file.dart';
 import '../core/schema_columns.dart' show isInitialValue;
 import '../core/session/authoring.dart';
 import '../core/session/scale_presets.dart';
@@ -32,10 +26,9 @@ import '../report/session_pdf.dart';
 import '../app_info.dart';
 import 'amplitude_split.dart';
 import 'bids_export.dart';
-import 'bids_merge_ui.dart';
-import 'close_guard.dart';
 import 'electrode_view.dart';
 import 'list_editor_dialog.dart';
+import 'recording_file.dart';
 import 'report_images.dart';
 import 'report_sections_dialog.dart';
 import 'session/entries_table.dart';
@@ -195,7 +188,23 @@ class _SideInputs {
 /// The `task-` label of a programming session unless the user names another.
 const _defaultTask = 'programming';
 
-class _SessionScreenState extends State<SessionScreen> {
+const RecordingWords _words = (
+  entry: 'entry',
+  what: 'this visit',
+  thing: 'the session',
+  staysInApp: 'This visit stays in the app.',
+  exportUnderOtherRun: 'Export it under a different run.',
+  savedInApp: 'The visit is saved in the app.',
+  filedOnFirstEntry:
+      'The visit is filed there as soon as the first block is inserted.',
+  newDialogTitle: 'Create new session TSV',
+  newFileSaid: 'New session',
+  recoveryTitle: 'Unfinished session found',
+  pickerFailed: 'Could not open the file picker.',
+);
+
+class _SessionScreenState extends State<SessionScreen>
+    with RecordingFile<SessionScreen, SessionAuthoring> {
   late SessionAuthoring _authoring = widget.authoring ?? SessionAuthoring();
   final _subjectCtrl = TextEditingController();
   final _taskCtrl = TextEditingController(text: _defaultTask);
@@ -220,16 +229,6 @@ class _SessionScreenState extends State<SessionScreen> {
   final _removedClinical = <_ClinicalScaleEdit>[];
   final _removedSession = <_SessionScaleEdit>[];
 
-  // Serialised, atomic autosave to the chosen file. See [SafeFileWriter].
-  final _writer = SafeFileWriter();
-
-  // Anchor the iPadOS share popover to whichever export button was tapped.
-  // See [shareOriginFrom].
-  /// Share-popover anchor. ONE key, on the Export button: a menu item is
-  /// already unmounted by the time the iPad share sheet asks for its rect, so
-  /// three per-item keys could only ever resolve to null.
-  final _exportKey = GlobalKey();
-
   int _currentStep = 0;
   String? _modelName;
 
@@ -239,36 +238,6 @@ class _SessionScreenState extends State<SessionScreen> {
 
   /// Whether the block about to be inserted is the one the patient leaves on.
   bool _leavesOn = false;
-  // Chosen save path (from New/Open); when set, inserts autosave to it.
-  String? _savePath;
-  // Working copy in the app's own storage, written on every insert whatever
-  // the picker returned. It is only deleted when the user discards it.
-  String? _workingPath;
-  // Set when the session is being recorded into a BIDS dataset rather than a
-  // loose file. The visit is filed on the FIRST insert, not at creation: a
-  // header-only TSV that no scans.tsv lists is a dataset that does not
-  // validate, and between New and the first block there is nothing to file.
-  String? _datasetRoot;
-  BidsName? _datasetName;
-  // True when that path is a mobile sandbox copy rather than the user's own
-  // file. See [pickedPathAutosavesToOriginal].
-  bool _savePathIsSandboxCopy = false;
-  // An export of the session data was delivered and nothing changed since.
-  bool _exportedSinceChange = false;
-  // Bumped on every change, so an export started before one is not counted.
-  int _changes = 0;
-  // Whether the last autosave failed to write the recovery copy / the user's
-  // file, so that file is stale.
-  bool _workingFailed = false;
-  bool _fileFailed = false;
-  // Autosaves run one at a time: a second one starting before the first has
-  // filed the visit would file it again.
-  Future<void> _saving = Future.value();
-  int _pendingSaves = 0;
-  // New or Open is in progress; a second one must not start meanwhile.
-  bool _switching = false;
-  // A leave question is open; a second close or Back must not stack another.
-  bool _leaveAsked = false;
   // Currently-applied disease preset, for the selected pill styling.
   String? _selectedClinicalPreset;
   String? _selectedSessionPreset;
@@ -285,74 +254,6 @@ class _SessionScreenState extends State<SessionScreen> {
     loadUserPrefs().then((p) {
       if (mounted) setState(() => _prefs = p);
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _offerRecovery());
-    activeSessionGuard = _mayLeave;
-  }
-
-  /// Offer back a session the app stopped in the middle of. Asking rather than
-  /// restoring silently: the clinician may have moved on to another patient.
-  Future<void> _offerRecovery() async {
-    final left = await unfinishedWork();
-    if (!mounted) return;
-    File? file;
-    SessionAuthoring? recovered;
-    for (final candidate in left) {
-      try {
-        final content = await candidate.readAsString();
-        if (sniffTsvKind(content) != TsvKind.programming) continue;
-        final authoring = SessionAuthoring()..loadExisting(content);
-        if (authoring.rows.isEmpty) continue;
-        file = candidate;
-        recovered = authoring;
-        break;
-      } catch (_) {
-        continue;
-      }
-    }
-    final found = file;
-    final restored = recovered;
-    if (found == null || restored == null || !mounted) return;
-
-    final name = pickedBasename(found.path);
-    final keep = await askReopenUnfinished(
-      context,
-      title: 'Unfinished session found',
-      message:
-          '$name was left open with ${blockCount(restored.rows)} blocks '
-          'recorded. They were saved as you went, and can be reopened here.',
-    );
-    if (!mounted || keep == null) return;
-    if (!keep) {
-      await discardWork(found.path);
-      return;
-    }
-    if (_refuseWhileSaving()) return;
-    _invalidateEntryCharts();
-    final bids = BidsName.parse(name);
-    setState(() {
-      _authoring = restored;
-      _workingPath = found.path;
-      // No _savePath: guessing it would autosave over a file not chosen here.
-      _savePath = null;
-      _savePathIsSandboxCopy = false;
-      _workingFailed = false;
-      _fileFailed = false;
-      _exportedSinceChange = false;
-      _changes++;
-      _datasetRoot = null;
-      _datasetName = null;
-      if (bids != null) _fillLabels(bids);
-      _goToStep(3);
-    });
-    final unknownModels = await _syncModelsToRows();
-    if (!mounted) return;
-    _snack('Reopened $name. Export it to save it outside the app.');
-    if (unknownModels.isNotEmpty) {
-      _snack(
-        '${_unknownModelsNotice(unknownModels)} The diagrams show '
-        '${_modelName ?? 'the selected model'} instead.',
-      );
-    }
   }
 
   // Chart data is derived from every inserted row, so it is cached and rebuilt
@@ -426,7 +327,7 @@ class _SessionScreenState extends State<SessionScreen> {
     scalePrefs: _scalePrefs(),
     // Provenance: the report prints which file it came from, so it can be
     // tied back to one run among several of the same session.
-    sourceFile: _savePath == null ? '' : pickedBasename(_savePath!),
+    sourceFile: savePath == null ? '' : pickedBasename(savePath!),
   );
 
   /// Report paper size from the user preference, applied to BOTH formats so the
@@ -453,7 +354,6 @@ class _SessionScreenState extends State<SessionScreen> {
 
   @override
   void dispose() {
-    if (activeSessionGuard == _mayLeave) activeSessionGuard = null;
     _subjectCtrl.dispose();
     _taskCtrl.dispose();
     _runCtrl.dispose();
@@ -601,7 +501,7 @@ class _SessionScreenState extends State<SessionScreen> {
     );
     // Initial notes are intentionally NOT cleared, so the user can keep
     // refining the initial-config notes without losing earlier text.
-    _autosave();
+    autosave();
     _snack(
       'Inserted baseline block ${inserted.first.blockId} '
       '(${inserted.length} row${inserted.length == 1 ? '' : 's'}).',
@@ -636,263 +536,88 @@ class _SessionScreenState extends State<SessionScreen> {
       _notesRecCtrl.clear();
       _leavesOn = false;
     });
-    _autosave();
+    autosave();
     _snack(
       'Inserted recording block ${inserted.first.blockId} '
       '(${inserted.length} row${inserted.length == 1 ? '' : 's'}).',
     );
   }
 
-  /// Write every entry to disk as it is inserted.
-  ///
-  /// The working copy is unconditional; [_savePath] is written too when the
-  /// picker returned a path `dart:io` can open, which on Android it does not.
-  /// Both go through [SafeFileWriter], so a crash mid-write leaves either the
-  /// previous complete file or the new one.
-  Future<void> _autosave() {
-    _exportedSinceChange = false;
-    _changes++;
-    return _queueSave();
+  @override
+  RecordingWords get words => _words;
+
+  @override
+  TsvKind get tsvKind => TsvKind.programming;
+
+  @override
+  BidsName get bidsName => _bidsName(_labels);
+
+  @override
+  String serialise() => _authoring.serialize();
+
+  @override
+  bool get hasEntries => _authoring.rows.isNotEmpty;
+
+  @override
+  String get firstAcqTime => _authoring.rows.first.acqTime;
+
+  @override
+  SessionAuthoring readTsv(String content) =>
+      SessionAuthoring()..loadExisting(content);
+
+  @override
+  bool isBlank(SessionAuthoring content) => content.rows.isEmpty;
+
+  @override
+  String recoveredCount(SessionAuthoring content) =>
+      '${blockCount(content.rows)} blocks';
+
+  @override
+  String openedSummary(SessionAuthoring content) =>
+      '${content.rows.length} rows, next block ${content.blockId}, '
+      'append ${content.appendId}';
+
+  @override
+  void show(SessionAuthoring content, {required bool reopened}) {
+    _invalidateEntryCharts();
+    _authoring = content;
+    if (reopened) _goToStep(3);
   }
 
-  Future<void> _queueSave() {
-    _pendingSaves++;
-    return _saving = _saving.then((_) => _autosaveOnce());
-  }
-
-  bool get _saveRunning => _pendingSaves > 0;
-
-  Future<void> _autosaveOnce() async {
-    try {
-      await _autosaveBody();
-    } catch (e) {
-      _workingFailed = true;
-      if (mounted) _snack('Could not save this entry: $e');
-    } finally {
-      _pendingSaves--;
-    }
-  }
-
-  Future<void> _autosaveBody() async {
-    final tsv = _authoring.serialize();
-    final hasRows = _authoring.rows.isNotEmpty;
-    final datasetRoot = _datasetRoot;
-    final bidsFilename = _bidsName(_labels).filename;
-    try {
-      var work = _workingPath;
-      if (work == null) {
-        work = await workingPath(bidsFilename);
-        _workingPath = work;
-      }
-      await _writer.write(work, tsv);
-      _workingFailed = false;
-    } catch (e) {
-      _workingFailed = true;
-      if (mounted) {
-        _snack(
-          _savePath == null && datasetRoot == null
-              ? 'Could not save this entry: $e'
-              : "Could not update the app's recovery copy: $e",
-        );
-      }
-    }
-    // File into the dataset the moment there is something to file. Done here
-    // rather than at New so the dataset is never left holding a header-only
-    // TSV that no scans.tsv lists, which is a dataset that does not validate.
-    if (datasetRoot != null && _savePath == null && hasRows) {
-      await _fileIntoDataset(tsv);
-    }
-
-    final path = _savePath;
-    if (path == null) {
-      _fileFailed = false;
-      return;
-    }
-    try {
-      await _writer.write(path, tsv);
-      _fileFailed = false;
-    } catch (e) {
-      _fileFailed = true;
-      if (mounted) {
-        _snack(
-          'Autosave to your file failed: $e.'
-          '${_workingFailed ? ' This entry is not saved anywhere yet.' : ' The entry is saved in the app.'}',
-        );
-      }
-    }
-  }
-
-  /// Place this visit in the chosen dataset; see [fileIntoDataset].
-  Future<void> _fileIntoDataset(String tsv) async {
-    final root = _datasetRoot;
-    final name = _datasetName;
-    if (root == null || name == null) return;
-    final acqTime = _authoring.rows.first.acqTime;
-    try {
-      final filed = await fileIntoDataset(
-        root: root,
-        name: name,
-        tsv: tsv,
-        kind: 'session_tsv',
-        acqTime: acqTime,
-      );
-      if (filed == null) {
-        if (mounted) {
-          _snack(
-            'That dataset already holds ${name.filename}.'
-            '${_workingFailed ? ' This entry is not saved anywhere yet.' : ' This visit stays in the app.'} Export it '
-            'under a different run.',
-          );
-        }
-        if (mounted) setState(() => _datasetRoot = null);
-        return;
-      }
-      if (!mounted) return;
-      setState(() => _savePath = filed.path);
+  @override
+  Future<void> announceLoaded(String message) async {
+    final unknownModels = await _syncModelsToRows();
+    if (!mounted) return;
+    _snack(message);
+    if (unknownModels.isNotEmpty) {
       _snack(
-        'Filed as ${name.relativeDir}/${name.filename}.'
-        '${filed.unread.isEmpty ? '' : ' ${unreadIndexNotice(filed.unread)}'}'
-        '${filed.warning == null ? '' : ' ${filed.warning}'}',
+        '${_unknownModelsNotice(unknownModels)} The diagrams show '
+        '${_modelName ?? 'the selected model'} instead.',
       );
-    } catch (e) {
-      if (mounted) {
-        _snack(
-          'Could not file into the dataset: $e.'
-          '${_workingFailed ? ' This entry is not saved anywhere yet.' : ' The visit is saved in the app.'}',
-        );
-      }
-      if (mounted) setState(() => _datasetRoot = null);
     }
   }
 
-  /// Write the `_beh.json` sidecar beside [tsvPath].
-  ///
-  /// Best-effort and silent: the sidecar documents the columns for whoever
-  /// analyses the file later, so failing to write it must never stop a session
-  /// from being recorded. Skipped when one is already there, since its content
-  /// depends only on the schema version, not on the session.
-  Future<void> _writeSidecar(String tsvPath) async {
-    try {
-      final json = tsvPath.replaceFirst(RegExp(r'\.tsv$'), '.json');
-      if (json == tsvPath || File(json).existsSync()) return;
-      final contract = await loadTsvContract();
-      await File(json).writeAsString(
-        sessionSidecarJson(
-          contract,
-          appVersion: appVersion,
-          task: _labels.task,
-        ),
-      );
-    } catch (_) {
-      // No sidecar is a documentation loss, not a data loss.
-    }
-  }
-
-  // ---- Open / Export (offline pattern from annotations_screen.dart) ----
-
-  Future<void> _newSession() async {
-    if (_switching) return;
-    _switching = true;
-    try {
-      await _newSessionFlow();
-    } finally {
-      _switching = false;
-    }
-  }
-
-  bool _refuseWhileSaving() {
-    if (!_saveRunning) return false;
-    _snack('A save is still running. Try again in a moment.');
-    return true;
-  }
-
-  Future<void> _newSessionFlow() async {
+  Future<void> _newSession() {
     final subject = _subjectCtrl.text.trim().isEmpty
         ? '01'
         : _subjectCtrl.text.trim();
     final run = _runCtrl.text.trim().isEmpty ? '01' : _runCtrl.text.trim();
-    final bids = _bidsName((
-      subject: subject,
-      task: _labels.task,
-      run: run,
-    ), session: BidsName.sessionStamp(DateTime.now()));
-    final name = bids.filename;
     final authoring = SessionAuthoring();
-
-    // Loose file, or straight into a dataset. Asked here because the answer
-    // decides where every autosave of this visit lands.
-    final into = await askNewTarget(context, bids, what: 'this visit');
-    if (into == null || !mounted) return;
-    final leave = await _askLeave();
-    if (leave == null || !mounted || _refuseWhileSaving()) return;
-    final oldWork = _workingPath;
-    if (into.root != null) {
-      final work = await workingPath(into.name.filename);
-      if (!mounted || _refuseWhileSaving()) return;
-      _invalidateEntryCharts();
-      setState(() {
+    return newFile(
+      proposed: _bidsName((
+        subject: subject,
+        task: _labels.task,
+        run: run,
+      ), session: BidsName.sessionStamp(DateTime.now())),
+      header: authoring.serialize(),
+      start: (filedAs) {
+        _invalidateEntryCharts();
         _authoring = authoring;
-        _savePath = null;
-        _workingPath = work;
-        _datasetRoot = into.root;
-        _datasetName = into.name;
-        _savePathIsSandboxCopy = false;
-        _workingFailed = false;
-        _fileFailed = false;
-        _exportedSinceChange = false;
-        _changes++;
         _subjectCtrl.text = subject;
-        _runCtrl.text = into.name.run;
+        _runCtrl.text = filedAs?.run ?? run;
         _currentStep = 1;
-      });
-      if (leave == LeaveChoice.discard) await discardWork(oldWork);
-      _snack(
-        'Recording into ${into.root}. '
-        'The visit is filed there as soon as the first block is inserted.',
-      );
-      return;
-    }
-
-    // Desktop parity: choose where to create the BIDS TSV before continuing.
-    final NewTsvTarget? target;
-    try {
-      target = await createNewTsv(
-        dialogTitle: 'Create new session TSV',
-        fileName: name,
-        header: authoring.serialize(), // header only
-        avoidPath: _savePath,
-      );
-    } catch (e) {
-      if (mounted) _snack('Could not start a new file: $e');
-      if (_savePath != null) _queueSave();
-      return;
-    }
-    if (target == null || !mounted) return; // dialog shown but cancelled
-    if (target.fellBack && mounted) {
-      _snack('No file dialog available; saved to ${target.location}');
-    }
-    final p = target.path;
-    if (p != null) await _writeSidecar(p);
-    final work = await workingPath(name);
-    if (!mounted || _refuseWhileSaving()) return;
-    _invalidateEntryCharts();
-    setState(() {
-      _authoring = authoring;
-      _savePath = p;
-      _workingPath = work;
-      _datasetRoot = null;
-      _datasetName = null;
-      _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(p);
-      _workingFailed = false;
-      _fileFailed = false;
-      _exportedSinceChange = false;
-      _changes++;
-      _subjectCtrl.text = subject;
-      _runCtrl.text = run;
-      _currentStep = 1;
-    });
-    if (leave == LeaveChoice.discard) await discardWork(oldWork);
-    _snack('New session: ${target.location}');
+      },
+    );
   }
 
   /// The file names its own electrode model, so the dropdown follows it. A
@@ -917,90 +642,6 @@ class _SessionScreenState extends State<SessionScreen> {
     return unknown;
   }
 
-  Future<void> _open() async {
-    if (_switching) return;
-    _switching = true;
-    try {
-      await _openFlow();
-    } finally {
-      _switching = false;
-    }
-  }
-
-  Future<void> _openFlow() async {
-    // `pickFile`, not `pickFiles`: `allowMultiple` defaults to TRUE, so
-    // `pickFiles` here would silently accept a multi-selection.
-    final PlatformFile? chosen;
-    try {
-      chosen = await FilePicker.pickFile(type: FileType.any);
-    } catch (e) {
-      if (mounted) {
-        // On Linux desktop this usually means zenity/kdialog is missing.
-        _snack('Could not open the file picker. ($e)');
-      }
-      return;
-    }
-    if (chosen == null) return;
-    final picked = chosen; // non-nullable, so the setState closure can use it
-    final content = await readPickedText(picked);
-    if (content == null) {
-      if (mounted) _snack('Could not read ${picked.name}.');
-      return;
-    }
-    // Refuse the wrong workflow's file rather than loading it into nothing.
-    // `SessionRow.fromMap` is total, so a notes TSV parses into all-empty rows
-    // and would open "successfully" with no blocks and no explanation.
-    final kind = sniffTsvKind(content);
-    if (kind != TsvKind.programming) {
-      if (mounted) {
-        _snack(tsvKindMismatch(picked.name, kind, TsvKind.programming));
-      }
-      return;
-    }
-
-    final SessionAuthoring loaded;
-    try {
-      loaded = SessionAuthoring()..loadExisting(content);
-    } catch (e) {
-      if (mounted) _snack('Could not read ${picked.name}: $e');
-      return;
-    }
-    final leave = await _askLeave();
-    if (leave == null || !mounted || _refuseWhileSaving()) return;
-    final oldWork = _workingPath;
-    final bids = BidsName.parse(picked.name);
-    final work = await workingPath(picked.name);
-    if (!mounted || _refuseWhileSaving()) return;
-    _invalidateEntryCharts();
-    setState(() {
-      _authoring = loaded;
-      // Autosave future inserts back to the opened file (when a real path).
-      _savePath = picked.path;
-      _workingPath = work;
-      _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(picked.path);
-      _workingFailed = false;
-      _fileFailed = false;
-      _exportedSinceChange = false;
-      _changes++;
-      _datasetRoot = null;
-      _datasetName = null;
-      if (bids != null) _fillLabels(bids);
-    });
-    if (leave == LeaveChoice.discard) await discardWork(oldWork);
-    final unknownModels = await _syncModelsToRows();
-    if (!mounted) return;
-    final opened =
-        'Opened ${picked.name} (${_authoring.rows.length} rows, '
-        'next block ${_authoring.blockId}, append ${_authoring.appendId}).';
-    _snack(_savePathIsSandboxCopy ? '$opened $sandboxCopyNotice' : opened);
-    if (unknownModels.isNotEmpty) {
-      _snack(
-        '${_unknownModelsNotice(unknownModels)} The diagrams show '
-        '${_modelName ?? 'the selected model'} instead.',
-      );
-    }
-  }
-
   /// BIDS labels for a filename: sanitised, because these fields are free text
   /// and become a path component.
   ({String subject, String task, String run}) get _labels {
@@ -1014,10 +655,11 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  void _fillLabels(BidsName bids) {
-    _subjectCtrl.text = bids.subject;
-    _taskCtrl.text = bids.task.isEmpty ? _defaultTask : bids.task;
-    _runCtrl.text = bids.run;
+  @override
+  void fillLabels(BidsName name) {
+    _subjectCtrl.text = name.subject;
+    _taskCtrl.text = name.task.isEmpty ? _defaultTask : name.task;
+    _runCtrl.text = name.run;
   }
 
   /// The BIDS entities for everything this screen writes: the session TSV, its
@@ -1032,7 +674,7 @@ class _SessionScreenState extends State<SessionScreen> {
     subject: labels.subject,
     session:
         session ??
-        _datasetName?.session ??
+        datasetName?.session ??
         BidsName.sessionStamp(DateTime.now()),
     task: labels.task,
     run: labels.run,
@@ -1071,17 +713,7 @@ class _SessionScreenState extends State<SessionScreen> {
       return;
     }
     if (!await _confirmLeftOn() || !mounted) return;
-    final changes = _changes;
-    final outcome = await exportFile(
-      context,
-      filename: _bidsName(_labels).filename,
-      anchor: _exportKey,
-      build: () async =>
-          (bytes: utf8.encode(_authoring.serialize()), warning: null),
-    );
-    if (outcome == ExportOutcome.saved && changes == _changes) {
-      _exportedSinceChange = true;
-    }
+    await exportTsv();
   }
 
   /// Export this session as a one-subject BIDS dataset (zipped).
@@ -1106,23 +738,22 @@ class _SessionScreenState extends State<SessionScreen> {
     }
     if (!mounted) return;
     final rows = _authoring.rows;
-    final changes = _changes;
-    final outcome = await exportBidsDataset(
-      context,
-      anchor: _exportKey,
-      entries: [
-        datasetEntry(
-          name: _bidsName(_labels),
-          tsv: _authoring.serialize(),
-          contract: contract,
-          kind: 'session_tsv',
-          acqTime: rows.isEmpty ? '' : rows.first.acqTime,
-        ),
-      ],
+    await countExport(
+      () => exportBidsDataset(
+        context,
+        anchor: exportKey,
+        avoid: exportAvoid,
+        entries: [
+          datasetEntry(
+            name: _bidsName(_labels),
+            tsv: _authoring.serialize(),
+            contract: contract,
+            kind: 'session_tsv',
+            acqTime: rows.isEmpty ? '' : rows.first.acqTime,
+          ),
+        ],
+      ),
     );
-    if (outcome == ExportOutcome.saved && changes == _changes) {
-      _exportedSinceChange = true;
-    }
   }
 
   /// Build the session report in [format] and share it (mobile) or save it
@@ -1143,15 +774,16 @@ class _SessionScreenState extends State<SessionScreen> {
     // A report is a derivative, not raw data: `_report` is not a BIDS suffix.
     // Built from the same entities as the TSV so the two files sort together,
     // and through the one builder so they cannot drift.
-    final filename = _bidsName(
-      l,
-    ).withSuffix('report', extension: docx ? 'docx' : 'pdf').filename;
+    final filename = _bidsName(l)
+        .withSuffix('report', extension: docx ? 'docx' : 'pdf')
+        .filename;
 
     await exportFile(
       context,
       filename: filename,
-      anchor: _exportKey,
+      anchor: exportKey,
       failureLabel: 'Report export failed',
+      avoid: exportAvoid,
       build: () async {
         final data = _reportData();
         // Only rasterise what the chosen sections will actually embed.
@@ -1204,7 +836,7 @@ class _SessionScreenState extends State<SessionScreen> {
   /// of buttons that grows every time a format is added.
   Widget _exportMenu(_Leads leads) => MenuAnchor(
     builder: (context, controller, child) => FilledButton.icon(
-      key: _exportKey,
+      key: exportKey,
       onPressed: () =>
           controller.isOpen ? controller.close() : controller.open(),
       icon: const Icon(Icons.ios_share),
@@ -1495,7 +1127,7 @@ class _SessionScreenState extends State<SessionScreen> {
     final picked = choice.isEmpty ? null : choice;
     if (picked != marked) {
       setState(() => _authoring.markFinalBlock(picked));
-      await _autosave();
+      await autosave();
     }
     return true;
   }
@@ -1873,7 +1505,7 @@ class _SessionScreenState extends State<SessionScreen> {
             ),
             const SizedBox(width: 12),
             OutlinedButton.icon(
-              onPressed: _open,
+              onPressed: openFile,
               icon: const Icon(Icons.folder_open),
               label: const Text('Open existing TSV'),
             ),
@@ -2367,13 +1999,18 @@ class _SessionScreenState extends State<SessionScreen> {
           label: const Text('Insert recording block'),
         ),
         const SizedBox(height: 8),
-        if (_savePathIsSandboxCopy)
+        if (savePathIsSandboxCopy)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               sandboxCopyNotice,
               style: Theme.of(context).textTheme.bodySmall,
             ),
+          ),
+        if (unkeptNotice case final notice?)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(notice, style: Theme.of(context).textTheme.bodySmall),
           ),
         _exportMenu(leads),
         const Divider(height: 32),
@@ -2446,49 +2083,11 @@ class _SessionScreenState extends State<SessionScreen> {
 
   // ---- Wizard scaffold ----
 
-  /// Ask whether to keep the recovery copy; see `close_guard.dart`. Null to
-  /// stay, including when another question is already open.
-  Future<LeaveChoice?> _askLeave() async {
-    if (_leaveAsked) return null;
-    _leaveAsked = true;
-    try {
-      final stillSaving = !await waitForSaves(() => _saving);
-      if (!mounted) return LeaveChoice.keep;
-      final guard = leaveGuardState(
-        workingFailed: _workingFailed,
-        fileFailed: _fileFailed,
-        hasSavePath: _savePath != null,
-        savePathIsSandboxCopy: _savePathIsSandboxCopy,
-        exportedSinceChange: _exportedSinceChange,
-        hasEntries: _authoring.rows.isNotEmpty,
-        stillSaving: stillSaving,
-      );
-      return await askLeaveSession(
-        context,
-        _workingPath,
-        onlyCopy: guard.onlyCopy,
-        copyMayBeStale: guard.copyMayBeStale,
-        entriesUnsaved: guard.entriesUnsaved,
-        stillSaving: stillSaving && _authoring.rows.isNotEmpty,
-      );
-    } finally {
-      _leaveAsked = false;
-    }
-  }
-
-  Future<bool> _mayLeave() async {
-    final choice = await _askLeave();
-    if (choice == null) return false;
-    if (choice == LeaveChoice.discard) await discardWork(_workingPath);
-    return true;
-  }
-
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: false,
     onPopInvokedWithResult: (didPop, _) async {
-      if (didPop) return;
-      if (await _mayLeave() && context.mounted) Navigator.pop(context);
+      if (!didPop) await leaveOnBack();
     },
     child: _page(context),
   );

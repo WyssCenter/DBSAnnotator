@@ -76,9 +76,9 @@ void main() {
   late Directory root;
   // Read from the repo rather than the asset bundle, which a plain
   // `flutter test` has no binding for.
-  final contract =
-      jsonDecode(File('schema/tsv_schema.json').readAsStringSync())
-          as Map<String, dynamic>;
+  final contract = jsonDecode(
+    File('schema/tsv_schema.json').readAsStringSync(),
+  ) as Map<String, dynamic>;
 
   setUp(() async => root = await _seed());
   tearDown(() {
@@ -122,9 +122,8 @@ void main() {
   });
 
   test('the curated files are left exactly as they were', () async {
-    final before = File(
-      '${root.path}/dataset_description.json',
-    ).readAsStringSync();
+    final before = File('${root.path}/dataset_description.json')
+        .readAsStringSync();
     final readme = File('${root.path}/README').readAsStringSync();
     await file();
     expect(
@@ -161,9 +160,8 @@ void main() {
 
     await applyMergeToDirectory(root.path, plan);
     expect(
-      File(
-        '${root.path}/${_name.relativeDir}/${_name.filename}',
-      ).readAsStringSync(),
+      File('${root.path}/${_name.relativeDir}/${_name.filename}')
+          .readAsStringSync(),
       'first recording',
       reason: 'the archived visit survives',
     );

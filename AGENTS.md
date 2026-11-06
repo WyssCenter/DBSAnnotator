@@ -15,7 +15,7 @@ Programming sessions are outpatient visits: the clinicians and the patient sit a
 
 ## Setup
 
-Flutter 3.38.4 or later (Dart 3.12+). Python tooling runs through `uv`, with nothing to
+Flutter 3.47 or later (Dart 3.13+). Python tooling runs through `uv`, with nothing to
 install.
 
 ```

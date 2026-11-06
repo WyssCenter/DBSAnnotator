@@ -594,6 +594,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final ({ExportOutcome outcome, String? warning}) applied;
     try {
       applied = await target.apply(plan, binary);
+    } on DatasetChangedException catch (e) {
+      if (mounted) _snack('$e');
+      return;
     } catch (e) {
       if (mounted) _snack('The merge stopped partway: $e');
       return;
@@ -625,6 +628,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             folder.root,
             plan,
             binary: binary,
+            plannedAgainst: folder.existing,
           );
           return (outcome: ExportOutcome.saved, warning: warning);
         },

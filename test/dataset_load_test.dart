@@ -31,8 +31,7 @@ void main() {
         (path: _beh('02', 'a', 'programming'), content: ''),
         (path: _beh('01', 'a', 'notes'), content: ''),
         (
-          path:
-              'sub-01/ses-b/beh/sub-01_ses-b_task-programming_run-01_events.tsv',
+          path: 'sub-01/ses-b/beh/sub-01_ses-b_task-programming_run-01_events.tsv',
           content: '',
         ),
         (
@@ -208,11 +207,9 @@ void main() {
         expect(written.warning, isNull);
         expect(File(path).readAsStringSync(), 't1');
         expect(File('${dir()}/$aggregateStem.json').existsSync(), isTrue);
-        final description =
-            jsonDecode(
-                  File('${dir()}/dataset_description.json').readAsStringSync(),
-                )
-                as Map<String, dynamic>;
+        final description = jsonDecode(
+          File('${dir()}/dataset_description.json').readAsStringSync(),
+        ) as Map<String, dynamic>;
         expect(description['DatasetType'], 'derivative');
       },
     );

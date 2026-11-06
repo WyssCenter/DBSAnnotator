@@ -9,8 +9,10 @@ import 'theme.dart';
 
 /// Fired after every applied change with the full new configuration. OFF
 /// contacts are absent from the map, as in the desktop representation.
-typedef ElectrodeChanged =
-    void Function(Map<ContactKey, ContactState> states, ContactState caseState);
+typedef ElectrodeChanged = void Function(
+  Map<ContactKey, ContactState> states,
+  ContactState caseState,
+);
 
 /// Fired after every applied change with the `validateConfiguration` result.
 /// Changes are applied even when invalid, as on the desktop, so the parent
