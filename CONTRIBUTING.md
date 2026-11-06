@@ -11,11 +11,6 @@ Everything here is the Flutter app: `lib/` for source, `test/` for tests.
 The TSV format lives in `schema/*.json`, which the app bundles and the docs render
 from. Change it there, and `lib/core/schema_columns.dart` with it.
 
-Some doc comments in `lib/` cite a Python module as `dbs_annotator/<module>.py`.
-Those name the reference implementation each algorithm was checked against; the
-code is on the `qt-legacy` branch. Several of those comments record a
-*deliberate* divergence, so keep them when editing nearby.
-
 ## Quick start
 
 Requires the [Flutter SDK](https://docs.flutter.dev/get-started/install)
@@ -32,13 +27,23 @@ Then:
 
 1. Fork the repository and branch: `git switch -c feature/your-feature-name`
 2. Make your change, with tests
-3. `flutter analyze && flutter test` must both be clean
+3. These must all pass:
+
+   ```bash
+   dart format lib test integration_test tool
+   flutter analyze --fatal-infos
+   flutter test
+   uvx pre-commit run --all-files
+   sphinx-build -W docs docs/_build/html
+   ```
+
 4. Open a pull request, then add `newsfragments/<PR number>.<type>.md`, one or
    two sentences on what changed for the person using the app. CI asks for it
    whenever the app changes; [newsfragments/README.md](newsfragments/README.md)
    has the types and the exemptions.
 
 [AGENTS.md](AGENTS.md) holds the same conventions in compact form for coding agents.
+When the two disagree, AGENTS.md is correct; fix this file in the same change.
 
 ## Checks
 
@@ -94,10 +99,9 @@ fight the line-ending filter and produce churn. Worth revisiting alongside a
   function runs is worth little; one pinning the value it produces is worth a
   lot. Several tests in this repo exist because a reviewer computed the expected
   numbers independently and they disagreed with the code.
-- **Comments that explain *why*.** The codebase deliberately diverges from the
-  Qt original in a number of places, and each divergence carries a comment
-  saying what was wrong with the original. Preserve that reasoning.
-- **`flutter analyze` clean.** No new warnings, no `// ignore:` without a reason.
+- **No code comments.** Names and structure carry the meaning. Doc comments on
+  public API are the one exception, at one or two lines.
+- **`flutter analyze` clean.** No new warnings, no `// ignore:`.
 
 ## Clinical care
 

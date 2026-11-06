@@ -61,7 +61,7 @@ if (!releaseSigningReady) {
 }
 
 android {
-    namespace = "ch.wysscenter.dbs_annotator"
+    namespace = "ch.wysscenter.dbsannotator"
     // Pinned, NOT `flutter.compileSdkVersion`, which still resolves to 34 here.
     //
     // Originally forced by a dependency conflict that file_picker 12 has since
@@ -80,7 +80,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "ch.wysscenter.dbs_annotator"
+        applicationId = "ch.wysscenter.dbsannotator"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

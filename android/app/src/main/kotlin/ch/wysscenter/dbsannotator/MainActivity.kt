@@ -1,4 +1,4 @@
-package ch.wysscenter.dbs_annotator
+package ch.wysscenter.dbsannotator
 
 import io.flutter.embedding.android.FlutterActivity
 

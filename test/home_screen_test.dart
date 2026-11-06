@@ -11,7 +11,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('shows the app mark and every workflow option', (tester) async {
+  testWidgets('shows the app icon and every workflow option', (tester) async {
     await pumpHome(tester);
 
     expect(find.byType(AppLogo), findsWidgets);
@@ -30,7 +30,6 @@ void main() {
 
     expect(find.text(appName), findsWidgets);
     expect(find.text('v$appVersion'), findsOneWidget);
-    // applicationIcon: the mark, not a Material glyph.
     expect(find.byType(AppLogo), findsWidgets);
   });
 
@@ -50,9 +49,8 @@ void main() {
   ) async {
     // AppLogo has an errorBuilder, which is right for robustness but would hide
     // a packaging mistake. Load the assets directly so a missing or undeclared
-    // icon fails loudly here instead of shipping as a Material glyph. All three
-    // are checked: the two the app draws, per theme, and the launcher master.
-    for (final asset in [markBlackAsset, markWhiteAsset, appIconAsset]) {
+    // icon fails loudly here instead of shipping as a Material glyph.
+    for (final asset in [appLogoAsset, appIconAsset]) {
       final data = await rootBundle.load(asset);
       final bytes = data.buffer.asUint8List();
       expect(bytes.sublist(0, 8), [
@@ -76,17 +74,8 @@ void main() {
     }
   });
 
-  testWidgets('the mark takes the theme ink, so it cannot vanish', (
-    tester,
-  ) async {
-    // A black mark on the dark scaffold would be invisible, and the launcher
-    // master is flattened onto white, which in the AppBar is a white tile.
-    for (final (brightness, wanted) in [
-      (Brightness.light, markBlackAsset),
-      (Brightness.dark, markWhiteAsset),
-    ]) {
-      // Torn down between the two, so the const AppLogo cannot be reused from
-      // the previous tree and report the previous theme's asset.
+  testWidgets('the logo is the same icon in both themes', (tester) async {
+    for (final brightness in Brightness.values) {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpWidget(
         MaterialApp(
@@ -97,7 +86,7 @@ void main() {
       final image = tester.widget<Image>(find.byType(Image));
       expect(
         (image.image as AssetImage).assetName,
-        wanted,
+        appLogoAsset,
         reason: '$brightness',
       );
     }

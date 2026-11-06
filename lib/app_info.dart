@@ -28,28 +28,19 @@ const String publisher = 'Wyss Center for Bio and Neuroengineering';
 const String copyrightHolders =
     '$publisher, Massachusetts General Hospital, and Harvard Medical School';
 
-/// The launcher master, flattened onto white because iOS forbids alpha. Not
-/// what the app draws: see [markBlackAsset].
+/// The launcher master: the full-bleed square, without the rounded corners.
 const String appIconAsset = 'assets/icon/app_icon.png';
 
-/// The Wyss Center mark on transparency, in the two inks. Rendered from
-/// `assets/brand/` by `tool/build_brand_assets.py`, and declared in pubspec
-/// assets.
-const String markBlackAsset = 'assets/icon/mark_black.png';
-const String markWhiteAsset = 'assets/icon/mark_white.png';
+/// The rounded app icon, the same in both themes, drawn in the AppBar and the
+/// About dialog and used for the desktop window.
+const String appLogoAsset = 'assets/icon/desktop_icon.png';
 
-/// The full lockup, mark plus wordmark, in the two official variants. Its 6.4:1
-/// shape only fits where there is width, so the square mark is what the app
-/// icon and the AppBar use.
+/// The Wyss Center lockup, mark plus wordmark, in the two official variants.
 const String lockupBlackAsset = 'assets/icon/wyss_lockup_black.png';
 const String lockupWhiteAsset = 'assets/icon/wyss_lockup_white.png';
 
-/// The app mark as a widget, for AppBars and dialogs. [size] is the logical
-/// height; the mark is square. A missing asset degrades to a Material glyph
-/// rather than a red error box.
-///
-/// The ink follows the theme, because the mark is monochrome: black on a light
-/// scaffold, white on a dark one.
+/// The app icon as a widget, [size] logical pixels square. A missing asset
+/// degrades to a Material glyph rather than a red error box.
 class AppLogo extends StatelessWidget {
   const AppLogo({super.key, this.size = 32});
 
@@ -57,9 +48,7 @@ class AppLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Image.asset(
-    Theme.of(context).brightness == Brightness.dark
-        ? markWhiteAsset
-        : markBlackAsset,
+    appLogoAsset,
     width: size,
     height: size,
     filterQuality: FilterQuality.medium,
