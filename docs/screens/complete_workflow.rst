@@ -161,7 +161,7 @@ Y-BOCS or UPDRS-III. Disease presets fill the list in with a tap.
 **Notes.** Free text. Unlike the recording step, these persist after inserting,
 so you can keep refining the baseline description.
 
-Inserting records this as the **baseline block** (``is_initial = 1``).
+It is saved as the visit's row in ``sessions.tsv`` when you move on.
 
 Several cards have a gear that edits the choices they offer. These are
 **presets**: they apply to every future session and live in the app's own

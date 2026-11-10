@@ -20,7 +20,8 @@ import '../core/annotation.dart';
 import '../core/bids_merge.dart';
 import '../core/bids_sidecar.dart';
 import '../core/session/aggregate.dart';
-import '../core/session/session_file.dart';
+import '../core/session/bids_session.dart';
+import '../core/session/session_row.dart';
 import '../core/session/tsv_kind.dart';
 import '../report/upload_actions.dart';
 import 'share_util.dart';
@@ -54,6 +55,7 @@ Future<void> exportBidsDataset(
     build: () async {
       final files = buildBidsDataset(
         entries,
+        contract: await loadTsvContract(),
         appName: appName,
         appVersion: appVersion,
         repoUrl: repoUrl,
@@ -74,24 +76,65 @@ Future<void> exportBidsDataset(
   );
 }
 
-/// A [DatasetEntry] for one recorded file.
-///
-/// [kind] is `session_tsv` or `annotation_tsv`. The sidecar comes from the
+/// A [DatasetEntry] for one older notes file. The sidecar comes from the
 /// same contract that documents the columns, so the two cannot disagree.
-DatasetEntry datasetEntry({
+DatasetEntry notesEntry({
   required BidsName name,
   required String tsv,
   required Map<String, dynamic> contract,
-  required String kind,
   required String acqTime,
 }) => (
   name: name,
   tsv: tsv,
   sidecar: _encode(
-    buildSidecar(contract, kind, appVersion: appVersion, task: name.task),
+    buildSidecar(
+      contract,
+      'annotation_tsv',
+      appVersion: appVersion,
+      task: name.task,
+    ),
   ),
   acqTime: acqTime.isEmpty ? 'n/a' : acqTime,
+  visit: const {},
+  participant: const {},
+  visitScales: const {},
 );
+
+/// A [DatasetEntry] for one programming session, split into its `beh/` file,
+/// its visit row and its participant row.
+DatasetEntry sessionEntry({
+  required BidsName name,
+  required List<SessionRow> rows,
+  required Map<String, dynamic> contract,
+}) {
+  final tables = splitSession(
+    rows,
+    sessionId: 'ses-${BidsName.label(name.session)}',
+    participantId: 'sub-${BidsName.label(name.subject)}',
+  );
+  Map<String, String> named(Iterable<String> columns) => {
+    for (final c in columns)
+      if (tables.scaleNames[c] != null) c: tables.scaleNames[c]!,
+  };
+  final acqTime = rows.isEmpty ? '' : rows.first.acqTime;
+  return (
+    name: name,
+    tsv: behTsv(tables),
+    sidecar: _encode(
+      buildSidecar(
+        contract,
+        'session_tsv',
+        appVersion: appVersion,
+        task: name.task,
+        scaleColumns: named(tables.behColumns),
+      ),
+    ),
+    acqTime: acqTime.isEmpty ? 'n/a' : acqTime,
+    visit: tables.visit,
+    participant: tables.participant,
+    visitScales: named(tables.visitColumns),
+  );
+}
 
 String _encode(Map<String, dynamic> sidecar) =>
     '${const JsonEncoder.withIndent('  ').convert(sidecar)}\n';
@@ -124,28 +167,24 @@ datasetFromUploads(
       continue;
     }
     final isSession = file.kind == TsvKind.programming;
+    final bids = BidsName(
+      subject: name.subject,
+      session: name.session,
+      task: name.task.isEmpty
+          ? (isSession ? 'programming' : 'notes')
+          : name.task,
+      run: name.run,
+      acquisition: name.acquisition,
+    );
     entries.add(
-      datasetEntry(
-        // Re-emitted with the current suffix and column names, so a 0.4.x
-        // `_events.tsv` lands in the dataset as a valid `_beh.tsv`.
-        name: BidsName(
-          subject: name.subject,
-          session: name.session,
-          task: name.task.isEmpty
-              ? (isSession ? 'programming' : 'notes')
-              : name.task,
-          run: name.run,
-          acquisition: name.acquisition,
-        ),
-        tsv: isSession
-            ? serializeSessionTsv(file.rows)
-            : writeAnnotations(file.notes),
-        contract: contract,
-        kind: isSession ? 'session_tsv' : 'annotation_tsv',
-        acqTime: isSession
-            ? (file.rows.isEmpty ? '' : file.rows.first.acqTime)
-            : (file.notes.isEmpty ? '' : file.notes.first.acqTime),
-      ),
+      isSession
+          ? sessionEntry(name: bids, rows: file.rows, contract: contract)
+          : notesEntry(
+              name: bids,
+              tsv: writeAnnotations(file.notes),
+              contract: contract,
+              acqTime: file.notes.isEmpty ? '' : file.notes.first.acqTime,
+            ),
     );
   }
   final placed = renumberClashes(existing, entries);
@@ -164,6 +203,7 @@ datasetFromUploads(
   final files = <DatasetFile>[
     ...buildBidsDataset(
       placed.entries,
+      contract: contract,
       appName: appName,
       appVersion: appVersion,
       repoUrl: repoUrl,
@@ -182,7 +222,11 @@ datasetFromUploads(
       ),
       (
         path: '$aggregateDerivativeDir/$aggregateStem.json',
-        content: aggregateSidecarJson(contract, appVersion: appVersion),
+        content: aggregateSidecarJson(
+          contract,
+          appVersion: appVersion,
+          scaleColumns: aggregate.scaleNames,
+        ),
       ),
     ],
   ];

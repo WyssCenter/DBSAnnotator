@@ -212,8 +212,7 @@ void main() {
     expect(find.text('Report (Word)'), findsOneWidget);
     expect(find.text('A4'), findsOneWidget);
     expect(find.text('For research'), findsOneWidget);
-    expect(find.text('Raw data file'), findsOneWidget);
-    expect(find.text('Research dataset (BIDS, zip)'), findsOneWidget);
+    expect(find.text('BIDS folder (zip)'), findsOneWidget);
     expect(find.text('Next'), findsOneWidget);
     expect(
       tester

@@ -8,6 +8,9 @@
 /// survive.
 library;
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:dbs_annotator/core/bids.dart';
 import 'package:dbs_annotator/core/bids_dataset.dart';
 import 'package:dbs_annotator/core/bids_merge.dart';
@@ -237,8 +240,15 @@ void main() {
       task: 'programming',
       run: '01',
     );
-    DatasetEntry entry(String tsv, [BidsName name = preop]) =>
-        (name: name, tsv: tsv, sidecar: '{}', acqTime: 'n/a');
+    DatasetEntry entry(String tsv, [BidsName name = preop]) => (
+      name: name,
+      tsv: tsv,
+      sidecar: '{}',
+      acqTime: 'n/a',
+      visit: const {},
+      participant: const {},
+      visitScales: const {},
+    );
     String at(BidsName n) => '${n.relativeDir}/${n.filename}';
 
     test('a different recording moves to the next free run', () {
@@ -286,6 +296,9 @@ void main() {
         existing,
         buildBidsDataset(
           r.entries,
+          contract:
+              jsonDecode(File('schema/tsv_schema.json').readAsStringSync())
+                  as Map<String, dynamic>,
           appName: 'a',
           appVersion: '0',
           repoUrl: 'u',

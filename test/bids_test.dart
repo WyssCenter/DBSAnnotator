@@ -141,6 +141,9 @@ void main() {
       tsv: 'date\tnotes\n2026-06-26\ta note\n',
       sidecar: '{}\n',
       acqTime: '2026-02-03T09:00:00+00:00',
+      visit: const {},
+      participant: const {},
+      visitScales: const {},
     );
 
     List<String> pathsOf(List<DatasetFile> files) =>
@@ -149,6 +152,7 @@ void main() {
     test('lays files out under sub-/ses-/beh with their sidecars', () {
       final files = buildBidsDataset(
         [entry('01', '20260626', '01')],
+        contract: contract,
         appName: 'Wyss DBS Annotator',
         appVersion: '0.5.0',
         repoUrl: 'https://example.invalid',
@@ -176,6 +180,7 @@ void main() {
       () {
         final files = buildBidsDataset(
           [entry('01', '20260626', '01')],
+          contract: contract,
           appName: 'Wyss DBS Annotator',
           appVersion: '0.5.0',
           repoUrl: 'https://example.invalid',
@@ -204,6 +209,7 @@ void main() {
           entry('01', '20260626', '01'),
           entry('01', '20260701', '01'),
         ],
+        contract: contract,
         appName: 'Wyss DBS Annotator',
         appVersion: '0.5.0',
         repoUrl: 'https://example.invalid',
@@ -214,7 +220,7 @@ void main() {
 
       expect(
         participants,
-        'participant_id\nsub-01\nsub-02\n'.replaceAll('\n', '\n'),
+        'participant_id\tdbs_indication\nsub-01\tn/a\nsub-02\tn/a\n',
       );
     });
 
@@ -224,6 +230,7 @@ void main() {
       // the sub-/ses- prefix.
       final files = buildBidsDataset(
         [entry('01', '20260626', '01'), entry('01', '20260626', '02')],
+        contract: contract,
         appName: 'Wyss DBS Annotator',
         appVersion: '0.5.0',
         repoUrl: 'https://example.invalid',
@@ -246,6 +253,7 @@ void main() {
     test('two sessions of one subject each get their own scans.tsv', () {
       final files = buildBidsDataset(
         [entry('01', '20260626', '01'), entry('01', '20260701', '01')],
+        contract: contract,
         appName: 'Wyss DBS Annotator',
         appVersion: '0.5.0',
         repoUrl: 'https://example.invalid',
@@ -298,6 +306,7 @@ void main() {
     test('the README says why the suffix is _beh', () {
       final readme = buildBidsDataset(
         [entry('01', '20260626', '01')],
+        contract: contract,
         appName: 'Wyss DBS Annotator',
         appVersion: '0.5.0',
         repoUrl: 'https://example.invalid',

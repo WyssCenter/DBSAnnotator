@@ -63,15 +63,18 @@ List<List<String>> _table(String tsv) => parseTsv(tsv);
 
 void main() {
   group('the header', () {
-    test('is the four identity columns then the session columns', () {
-      expect(aggregateColumns(), [
+    test('is the identity columns, the visit, then the session columns', () {
+      final header = aggregateColumns(['scale_mood']);
+      expect(header.take(5), [
         'participant_id',
         'session_id',
         'run_id',
         'source_file',
-        ...sessionColumns,
+        'is_initial',
       ]);
-      expect(aggregateColumns().length, 4 + sessionColumns.length);
+      expect(header, containsAll(sessionColumns));
+      expect(header, containsAll(['dbs_indication', 'target']));
+      expect(header.sublist(header.length - 2), ['scale_mood', 'notes']);
     });
 
     test('carries append_id, and never a bare session counter', () {
@@ -89,7 +92,11 @@ void main() {
 
     test('is what the document actually starts with', () {
       final out = buildAggregate(_twoVisits());
-      expect(_table(out.tsv).first, aggregateColumns());
+      expect(_table(out.tsv).first, aggregateColumns(out.scaleNames.keys));
+      expect(out.scaleNames, {
+        'scale_obsessions': 'Obsessions',
+        'scale_mood': 'Mood',
+      });
     });
   });
 
@@ -122,14 +129,17 @@ void main() {
         (filename: _otherSubject, rows: _rows('07-01')),
       ]);
       expect(out.fileCount, 3);
-      expect(out.rowCount, 9);
+      expect(out.rowCount, 6);
       expect(out.skipped, isEmpty);
     });
   });
 
   test('nothing is silently dropped: rowCount is the sum of the inputs', () {
     final sources = _twoVisits();
-    final expected = sources.fold(0, (n, s) => n + s.rows.length);
+    final expected = sources.fold(
+      0,
+      (n, s) => n + s.rows.map((r) => r.blockId).toSet().length,
+    );
     final out = buildAggregate(sources);
     expect(out.rowCount, expected);
     expect(_table(out.tsv).length, expected + 1, reason: '+1 for the header');
@@ -146,7 +156,7 @@ void main() {
       expect(reversed.tsv, forward.tsv);
     });
 
-    test('rows are ordered by subject, session, run, then block', () {
+    test('rows are ordered by subject, session, run, then configuration', () {
       final out = buildAggregate([
         (filename: _otherSubject, rows: _rows('07-01')),
         (filename: _visitB, rows: _rows('06-15')),
@@ -156,18 +166,17 @@ void main() {
       final header = rows.first;
       final p = header.indexOf('participant_id');
       final s = header.indexOf('session_id');
-      final b = header.indexOf('block_id');
+      final o = header.indexOf('scale_obsessions');
 
       expect(rows.skip(1).map((r) => r[p]).toList(), [
-        ...List.filled(6, 'sub-01'),
-        ...List.filled(3, 'sub-07'),
+        ...List.filled(4, 'sub-01'),
+        ...List.filled(2, 'sub-07'),
       ]);
       expect(
-        rows.skip(1).take(3).map((r) => r[s]),
+        rows.skip(1).take(2).map((r) => r[s]),
         everyElement('ses-20260203'),
       );
-      // Within one visit, blocks ascend and a block's rows stay together.
-      expect(rows.skip(1).take(3).map((r) => r[b]).toList(), ['1', '1', '2']);
+      expect(rows.skip(1).take(2).map((r) => r[o]).toList(), ['6', '5']);
     });
   });
 
@@ -180,7 +189,7 @@ void main() {
       expect(out.fileCount, 2);
       expect(out.skipped.map((s) => s.filename), ['my-notes-copy.tsv']);
       expect(out.skipped.single.reason, contains('sub-'));
-      expect(out.rowCount, 6, reason: 'its rows are not in the table');
+      expect(out.rowCount, 4, reason: 'its rows are not in the table');
     });
 
     test('a file with no ses- entity is skipped', () {
@@ -204,7 +213,7 @@ void main() {
         (filename: _visitA, rows: _rows('02-03')),
       ]);
       expect(out.fileCount, 1);
-      expect(out.rowCount, 3, reason: 'not 6');
+      expect(out.rowCount, 2, reason: 'not 4');
       expect(out.skipped.single.filename, _visitA);
       expect(out.skipped.single.reason, contains('already included'));
     });
@@ -260,7 +269,7 @@ void main() {
         'MissingValueCode',
       };
       final documented = json.keys.where((k) => !documentLevel.contains(k));
-      expect(documented, aggregateColumns());
+      expect(documented, unorderedEquals(aggregateColumns()));
     });
 
     test('says acq_time may be computed for a pre-0.5.0 row', () {

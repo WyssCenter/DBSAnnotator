@@ -9,6 +9,8 @@
 /// and the classification is the whole feature.
 library;
 
+import 'dart:convert';
+
 import 'bids.dart';
 import 'bids_dataset.dart';
 import 'tsv.dart';
@@ -34,13 +36,18 @@ typedef MergePlan = ({
 
 /// Dataset-level files the app generates but must never overwrite: they carry
 /// what the lab wrote, not what this app knows.
-const Set<String> kCuratedPaths = {
-  'dataset_description.json',
-  'README',
-  'participants.json',
-};
+const Set<String> kCuratedPaths = {'dataset_description.json', 'README'};
 
-bool _isScans(String path) => path.endsWith('_scans.tsv');
+/// The key column of an index table at [path], or null for any other file.
+String? _indexKey(String path) {
+  if (path == 'participants.tsv') return 'participant_id';
+  if (path.endsWith('_scans.tsv')) return 'filename';
+  if (path.endsWith('_sessions.tsv')) return 'session_id';
+  return null;
+}
+
+bool _isIndexSidecar(String path) =>
+    path == 'participants.json' || path.endsWith('_sessions.json');
 
 /// What a chosen folder or zip holds, before anything is added to it.
 enum DatasetFolderKind { dataset, empty, other }
@@ -62,10 +69,16 @@ DatasetFolderKind datasetFolderKind(List<DatasetFile> files) {
 ///
 /// Both are whole-dataset file lists, so the caller can read the target from a
 /// directory or from a zip and this stays the same function.
+///
+/// While a visit is recorded, [upsert] lets its index rows replace the rows
+/// with the same key, and the paths in [overwrite] (its own files) be
+/// rewritten.
 MergePlan planBidsMerge(
   List<DatasetFile> existing,
-  List<DatasetFile> incoming,
-) {
+  List<DatasetFile> incoming, {
+  bool upsert = false,
+  Set<String> overwrite = const {},
+}) {
   final have = {for (final f in existing) f.path: f.content};
   final write = <DatasetFile>[];
   final added = <String>[];
@@ -88,16 +101,25 @@ MergePlan planBidsMerge(
       continue;
     }
 
-    // Index files: unioned, never replaced, so columns this app knows nothing
-    // about survive.
-    if (path == 'participants.tsv' || _isScans(path)) {
+    if (_isIndexSidecar(path) && current != null) {
+      final merged = _mergeKeys(current, file.content);
+      if (merged == null) {
+        keptAsIs.add(path);
+      } else {
+        write.add((path: path, content: merged));
+        rowMerged.add(path);
+      }
+      continue;
+    }
+
+    final key = _indexKey(path);
+    if (key != null) {
       if (current == null) {
         write.add(file);
         added.add(path);
         continue;
       }
-      final key = path == 'participants.tsv' ? 'participant_id' : 'filename';
-      final merged = _mergeRows(current, file.content, key);
+      final merged = _mergeRows(current, file.content, key, upsert: upsert);
       if (merged == null) {
         keptAsIs.add(path);
       } else {
@@ -115,6 +137,9 @@ MergePlan planBidsMerge(
       added.add(path);
     } else if (current == file.content) {
       keptAsIs.add(path);
+    } else if (overwrite.contains(path)) {
+      write.add(file);
+      rowMerged.add(path);
     } else {
       refused.add(path);
     }
@@ -132,13 +157,20 @@ MergePlan planBidsMerge(
 }
 
 /// Union two TSV tables on [key], keeping every column either side declares and
-/// every row the target already had. Returns null when nothing would change.
+/// every row the target already had. An incoming row fills the empty cells of
+/// the row with its key; with [upsert], its non-empty cells replace the rest.
+/// Returns null when nothing would change.
 ///
 /// The target's column order leads, so a lab's `participant_id, age, sex` stays
 /// in that order and gains nothing but rows. A new row supplies only the
 /// columns it knows; the rest are written as the missing-value code by
 /// [writeTsvRecords].
-String? _mergeRows(String existing, String incoming, String key) {
+String? _mergeRows(
+  String existing,
+  String incoming,
+  String key, {
+  bool upsert = false,
+}) {
   final have = parseTsvRecords(existing);
   final want = parseTsvRecords(incoming);
   if (want.isEmpty) return null;
@@ -150,13 +182,42 @@ String? _mergeRows(String existing, String incoming, String key) {
   ];
   if (columns.isEmpty) return null;
 
+  final byKey = {for (final r in want) r[key] ?? '': r};
+  final rows = [
+    for (final r in have)
+      {
+        ...r,
+        for (final e in (byKey[r[key] ?? ''] ?? const {}).entries)
+          if (e.value.isNotEmpty && (upsert || (r[e.key] ?? '').isEmpty))
+            e.key: e.value,
+      },
+  ];
   final seen = {for (final r in have) r[key] ?? ''};
-  final extra = [
+  rows.addAll([
     for (final r in want)
       if (!seen.contains(r[key] ?? '')) r,
-  ];
+  ]);
+  final out = writeTsvRecords(columns, rows);
+  return out == writeTsvRecords(columns, have) ? null : out;
+}
+
+/// [existing] JSON with the top-level keys only [incoming] has, or null when
+/// it gains none: what the lab wrote about a column is never replaced.
+String? _mergeKeys(String existing, String incoming) {
+  final Map<String, dynamic> have;
+  final Map<String, dynamic> want;
+  try {
+    have = jsonDecode(existing) as Map<String, dynamic>;
+    want = jsonDecode(incoming) as Map<String, dynamic>;
+  } catch (_) {
+    return null;
+  }
+  final extra = {
+    for (final e in want.entries)
+      if (!have.containsKey(e.key)) e.key: e.value,
+  };
   if (extra.isEmpty) return null;
-  return writeTsvRecords(columns, [...have, ...extra]);
+  return '${const JsonEncoder.withIndent('  ').convert({...have, ...extra})}\n';
 }
 
 /// The column names of a TSV, or null when it has no header row.
@@ -207,7 +268,15 @@ BidsName nextFreeRun(BidsName name, Set<String> taken) {
       }
     }
     taken.add(_pathOf(name));
-    out.add((name: name, tsv: e.tsv, sidecar: e.sidecar, acqTime: e.acqTime));
+    out.add((
+      name: name,
+      tsv: e.tsv,
+      sidecar: e.sidecar,
+      acqTime: e.acqTime,
+      visit: e.visit,
+      participant: e.participant,
+      visitScales: e.visitScales,
+    ));
   }
   return (entries: out, renumbered: renumbered);
 }

@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.6.0",
+  "schema_version": "0.7.0",
   "session_tsv": {
     "columns": [
       {
@@ -8,69 +8,19 @@
         "description": "The entry's instant in ISO-8601 with its UTC offset (e.g. ``2026-02-03T09:00:00+00:00``). The only timestamp a row carries, and BIDS' own name for it: ``pd.to_datetime(df.acq_time)`` reads it offset-aware in one step. Older files that split the instant across ``date``, ``time`` and a free-text ``timezone`` are read and folded into this column; only ``acq_time`` is ever written."
       },
       {
-        "name": "block_id",
-        "type": "integer",
-        "description": "Index of the stimulation block within a session. Every row of one block repeats its stimulation values."
-      },
-      {
         "name": "append_id",
         "type": "integer",
         "description": "Data-entry episode within this file: increments each time the file is reopened to add rows. File-scoped, so equal values in different files are unrelated. Deliberately not called ``session_id``, which BIDS uses for the ``ses-`` label in ``sessions.tsv``; one name for both meanings would mislead every reader of a combined table."
       },
       {
-        "name": "is_initial",
-        "type": "integer",
-        "description": "``1`` for the baseline block recorded before any configuration is tried; ``0`` for a recording block."
-      },
-      {
         "name": "is_final",
         "type": "integer",
-        "description": "``1`` on the rows of the block the patient was left on at the end of the visit, as marked by the clinician; ``0`` elsewhere. Empty in older files; no block is ``1`` when the clinician did not mark one."
+        "description": "``1`` on the configuration the patient was left on at the end of the visit, as marked by the clinician; ``0`` elsewhere. No row is ``1`` when the clinician did not mark one."
       },
       {
         "name": "is_starred",
         "type": "integer",
-        "description": "``1`` on the rows of a block the clinician starred during the visit as a particularly good configuration; ``0`` elsewhere. Any number of blocks may be starred. A star records a clinical impression, not a ranking. Empty in older files."
-      },
-      {
-        "name": "scale_name",
-        "type": "string",
-        "description": "Clinical or session scale name (or newline-separated names)."
-      },
-      {
-        "name": "scale_value",
-        "type": "string",
-        "description": "Scale value, or ``n/a`` when the scale was not assessed at this block."
-      },
-      {
-        "name": "pathology",
-        "type": "string",
-        "description": "Condition being treated, chosen once for the session from the app's list (``PD``, ``ET``, ``Dystonia``, ``OCD``, ``MDD``, ``TS``) or typed. The same on every row. Empty in older files."
-      },
-      {
-        "name": "target",
-        "type": "string",
-        "description": "Anatomical target of the leads (e.g. ``STN``, ``GPi``, ``VIM``), chosen once for the session. The same on every row. Empty in older files."
-      },
-      {
-        "name": "left_electrode_model",
-        "type": "string",
-        "description": "Left lead model, as named in ``schema/electrode_models.json``. Older files have one ``electrode_model`` column for both leads, which is read as both."
-      },
-      {
-        "name": "right_electrode_model",
-        "type": "string",
-        "description": "Right lead model, as named in ``schema/electrode_models.json``. The same as the left when both leads are the same model."
-      },
-      {
-        "name": "left_ipg_model",
-        "type": "string",
-        "description": "Implanted pulse generator driving the left lead, as named in ``schema/electrode_models.json`` or typed. Recorded only: the app does not change any setting from it. Empty in older files."
-      },
-      {
-        "name": "right_ipg_model",
-        "type": "string",
-        "description": "Implanted pulse generator driving the right lead. The same as the left when one device drives both leads."
+        "description": "``1`` on a configuration the clinician starred during the visit as a particularly good one; ``0`` elsewhere. Any number of rows may be starred. A star records a clinical impression, not a ranking."
       },
       {
         "name": "program_id",
@@ -132,16 +82,16 @@
         "description": "Right pulse width."
       },
       {
-        "name": "medications",
-        "type": "string",
-        "description": "Medications as recorded in the initial assessment, free text. Written on the initial-assessment rows (``is_initial`` ``1``) and empty on the others."
-      },
-      {
         "name": "notes",
         "type": "string",
-        "description": "Free-text note recorded at this block."
+        "description": "Free-text note recorded with this configuration."
       }
-    ]
+    ],
+    "scale_columns": {
+      "pattern": "scale_<name>",
+      "type": "float",
+      "description": "One column per scale rated at this visit, placed before ``notes``: ``scale_`` plus the scale's name in lower case, every run of other characters turned into ``_`` (``Mood`` is ``scale_mood``, ``MDS-UPDRS 3.10 Gait`` is ``scale_mds_updrs_3_10_gait``); a second name giving the same column gains ``_2``. The cell is the rating alone, or ``n/a`` when the scale was not assessed. The sidecar gives each column's original scale name as its ``LongName``."
+    }
   },
   "annotation_tsv": {
     "columns": [
@@ -154,6 +104,133 @@
         "name": "notes",
         "type": "string",
         "description": "Free-text note for this entry."
+      }
+    ]
+  },
+  "sessions_tsv": {
+    "columns": [
+      {
+        "name": "session_id",
+        "type": "string",
+        "description": "Session label as ``ses-<label>``: one row per visit of this participant."
+      },
+      {
+        "name": "acq_time",
+        "type": "string",
+        "description": "When the initial assessment was recorded, in ISO-8601 with its UTC offset; the first configuration's time when there was none."
+      },
+      {
+        "name": "target",
+        "type": "string",
+        "description": "Anatomical target of the leads at this visit (e.g. ``STN``, ``GPi``, ``VIM``). Kept per visit, because a reimplantation can change it."
+      },
+      {
+        "name": "left_electrode_model",
+        "type": "string",
+        "description": "Left lead model at this visit, as named in ``schema/electrode_models.json``."
+      },
+      {
+        "name": "right_electrode_model",
+        "type": "string",
+        "description": "Right lead model, as named in ``schema/electrode_models.json``. The same as the left when both leads are the same model."
+      },
+      {
+        "name": "left_ipg_model",
+        "type": "string",
+        "description": "Implanted pulse generator driving the left lead at this visit, as named in ``schema/electrode_models.json`` or typed. Recorded only: the app does not change any setting from it."
+      },
+      {
+        "name": "right_ipg_model",
+        "type": "string",
+        "description": "Implanted pulse generator driving the right lead. The same as the left when one device drives both leads."
+      },
+      {
+        "name": "medications",
+        "type": "string",
+        "description": "Medications at this visit, as recorded in the initial assessment, free text."
+      },
+      {
+        "name": "program_id",
+        "type": "string",
+        "description": "Stimulation program the patient arrived on."
+      },
+      {
+        "name": "left_stim_freq",
+        "type": "float",
+        "units": "Hz",
+        "description": "Left stimulation frequency."
+      },
+      {
+        "name": "left_anode",
+        "type": "string",
+        "description": "Left anode contact(s) in the contact grammar: ``case`` for the can, ``E2`` for a ring, ``E2b`` for one segment, ``_`` joining several."
+      },
+      {
+        "name": "left_cathode",
+        "type": "string",
+        "description": "Left cathode contact(s), same grammar as ``left_anode``."
+      },
+      {
+        "name": "left_amplitude",
+        "type": "string",
+        "description": "Left amplitude in mA. A single value, or per-contact values joined by ``_`` in ``left_cathode`` order when current is steered (``3.3_2.2`` is 5.5 mA split 60/40). It carries no ``Units`` because a steered value is not a single number; sum the parts for the delivered current."
+      },
+      {
+        "name": "left_pulse_width",
+        "type": "float",
+        "units": "us",
+        "description": "Left pulse width."
+      },
+      {
+        "name": "right_stim_freq",
+        "type": "float",
+        "units": "Hz",
+        "description": "Right stimulation frequency."
+      },
+      {
+        "name": "right_anode",
+        "type": "string",
+        "description": "Right anode contact(s), same grammar as ``left_anode``."
+      },
+      {
+        "name": "right_cathode",
+        "type": "string",
+        "description": "Right cathode contact(s), same grammar as ``left_anode``."
+      },
+      {
+        "name": "right_amplitude",
+        "type": "string",
+        "description": "Right amplitude in mA, same shape as ``left_amplitude``."
+      },
+      {
+        "name": "right_pulse_width",
+        "type": "float",
+        "units": "us",
+        "description": "Right pulse width."
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "description": "Free-text note from the initial assessment."
+      }
+    ],
+    "scale_columns": {
+      "pattern": "scale_<name>",
+      "type": "float",
+      "description": "The initial assessment's clinical scales, named as in the session files' ``scale_<name>`` columns. The stimulation columns hold the settings the patient arrived on."
+    }
+  },
+  "participants_tsv": {
+    "columns": [
+      {
+        "name": "participant_id",
+        "type": "string",
+        "description": "Pseudonymous subject label typed by the clinician, as ``sub-<label>``."
+      },
+      {
+        "name": "dbs_indication",
+        "type": "string",
+        "description": "Condition the stimulation treats, from the app's list (``PD``, ``ET``, ``Dystonia``, ``OCD``, ``MDD``, ``TS``) or typed."
       }
     ]
   },
@@ -177,9 +254,15 @@
       {
         "name": "source_file",
         "type": "string",
-        "description": "The session or notes file this row came from. A notes file gives one row per note, with only ``acq_time`` and ``notes`` filled. Not redundant with the entities above: ``run`` defaults to ``01`` and does not auto-increment, so two visits on the same day can share all three, and this is then the only thing that tells their rows apart. A block is unique across the table on ``(participant_id, session_id, run_id, block_id)``."
+        "description": "The session or notes file this row came from. A notes file gives one row per note, with only ``acq_time`` and ``notes`` filled. Not redundant with the entities above: ``run`` defaults to ``01`` and does not auto-increment, so two visits on the same day can share all three, and this is then the only thing that tells their rows apart."
+      },
+      {
+        "name": "is_initial",
+        "type": "integer",
+        "description": "``1`` on the row of a visit's initial assessment, taken from its ``sessions.tsv`` row; ``0`` on a configuration tried during the visit."
       }
-    ]
+    ],
+    "description": "One row per configuration, and one per visit for its initial assessment: these identity columns, then ``dbs_indication`` and the visit's ``target``, lead and IPG models and ``medications``, then the session columns, with the union of every file's ``scale_<name>`` columns (``n/a`` where a file has no such scale)."
   },
   "bids": {
     "filename_template": "sub-{subject}_ses-{session}_task-{task}_run-{run}_beh.tsv",

@@ -120,7 +120,7 @@ void main() {
     final note = sources.last.rows.single;
     expect(note.acqTime, '2026-02-03T09:00:00');
     expect(note.notes, 'n');
-    expect(note.blockId, isEmpty, reason: 'written as n/a');
+    expect(note.blockId, '0', reason: 'each note is a row of its own');
   });
 
   test('every action explains itself', () {

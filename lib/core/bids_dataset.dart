@@ -27,6 +27,14 @@ typedef DatasetEntry = ({
   /// The instant of the first recorded row, for `scans.tsv`; empty when the
   /// file has no dated rows.
   String acqTime,
+
+  /// The visit's row of `sessions.tsv` and the person's row of
+  /// `participants.tsv`; empty for a notes file.
+  Map<String, String> visit,
+  Map<String, String> participant,
+
+  /// Each `scale_<name>` column of [visit], to its scale's name.
+  Map<String, String> visitScales,
 });
 
 /// One file of the dataset: a path relative to the dataset root, and content.
@@ -36,6 +44,7 @@ typedef DatasetFile = ({String path, String content});
 /// dataset root in a stable order, so a caller need not know the layout rules.
 List<DatasetFile> buildBidsDataset(
   List<DatasetEntry> entries, {
+  required Map<String, dynamic> contract,
   required String appName,
   required String appVersion,
   required String repoUrl,
@@ -58,27 +67,51 @@ List<DatasetFile> buildBidsDataset(
   final subjects = <String>{
     for (final e in entries) BidsName.label(e.name.subject),
   }.toList()..sort();
+  final indication = <String, String>{
+    for (final e in entries)
+      if ((e.participant['dbs_indication'] ?? '').isNotEmpty)
+        BidsName.label(e.name.subject): e.participant['dbs_indication']!,
+  };
 
   files.add((
     path: 'participants.tsv',
-    content: writeTsvRecords(
-      const ['participant_id'],
-      [
-        for (final s in subjects) {'participant_id': 'sub-$s'},
-      ],
-    ),
+    content: writeTsvRecords(participantColumns, [
+      for (final s in subjects)
+        {'participant_id': 'sub-$s', 'dbs_indication': indication[s] ?? ''},
+    ]),
   ));
   files.add((
     path: 'participants.json',
-    content: _json(<String, dynamic>{
-      'participant_id': {
-        'Description':
-            'Pseudonymous subject label typed by the clinician. '
-            'The dataset holds no other participant-level variables: the app '
-            'records no demographics.',
-      },
-    }),
+    content: _json(_describe(contract, 'participants_tsv')),
   ));
+
+  final visits = <String, List<DatasetEntry>>{};
+  for (final e in entries) {
+    if (e.visit.isEmpty) continue;
+    (visits[BidsName.label(e.name.subject)] ??= []).add(e);
+  }
+  for (final subject in visits.keys.toList()..sort()) {
+    final rows = <String, Map<String, String>>{};
+    final scales = <String, String>{};
+    for (final e in visits[subject]!) {
+      rows[e.visit['session_id'] ?? ''] = e.visit;
+      scales.addAll(e.visitScales);
+    }
+    final ordered = rows.keys.toList()..sort();
+    final columns = [
+      ...visitColumns.take(visitColumns.length - 1),
+      ...scales.keys,
+      visitColumns.last,
+    ];
+    files.add((
+      path: 'sub-$subject/sub-${subject}_sessions.tsv',
+      content: writeTsvRecords(columns, [for (final k in ordered) rows[k]!]),
+    ));
+    files.add((
+      path: 'sub-$subject/sub-${subject}_sessions.json',
+      content: _json(_describe(contract, 'sessions_tsv', scales: scales)),
+    ));
+  }
 
   // scans.tsv is per subject+session, so group before emitting.
   final scans = <String, List<DatasetEntry>>{};
@@ -168,6 +201,28 @@ Map<String, List<DatasetFile>> recordedFiles(List<DatasetFile> files) {
   return out;
 }
 
+/// Column descriptions for an index table, from the contract's [kind]
+/// section, plus its [scales] columns.
+Map<String, dynamic> _describe(
+  Map<String, dynamic> contract,
+  String kind, {
+  Map<String, String> scales = const {},
+}) {
+  final section = contract[kind] as Map<String, dynamic>;
+  String plain(Object? text) => '${text ?? ''}'.replaceAll('``', '');
+  return <String, dynamic>{
+    for (final c in (section['columns'] as List).cast<Map<String, dynamic>>())
+      c['name'] as String: {'Description': plain(c['description'])},
+    for (final e in scales.entries)
+      e.key: {
+        'LongName': e.value,
+        'Description': plain(
+          (section['scale_columns'] as Map<String, dynamic>?)?['description'],
+        ),
+      },
+  };
+}
+
 String _json(Object? value) =>
     '${const JsonEncoder.withIndent('  ').convert(value)}\n';
 
@@ -178,11 +233,13 @@ String _readme(String appName, String appVersion, String repoUrl) =>
 Recorded with $appName $appVersion ($repoUrl).
 
 Each file under `sub-*/ses-*/${BidsName.datatype}/` is one deep brain
-stimulation programming session, in long form: one row per (block, scale),
-where a block is one stimulation configuration that was tried and rated. The
-accompanying `.json` sidecar documents every column, including the contact
-grammar used by the anode/cathode cells and the current-split notation used by
-the amplitude cells.
+stimulation programming session: one row per stimulation configuration that
+was tried, with one `scale_<name>` column per rated scale. What belongs to the
+visit (target, leads, IPG, medications and the initial assessment) is the
+visit's row in `sub-*/sub-*_sessions.tsv`; the DBS indication is in
+`participants.tsv`. Every `.json` sidecar documents its table's columns,
+including each scale's name, the contact grammar used by the anode/cathode
+cells and the current-split notation used by the amplitude cells.
 
 `_beh.tsv` rather than `_events.tsv` because these files carry no `onset` or
 `duration` column and accompany no recording, which is the case the
@@ -192,9 +249,15 @@ Reports generated from this data are under `$reportsDerivativeDir/`.
 
 ## Columns
 
-Programming sessions (`task-programming`): ${sessionColumns.join(', ')}.
+Programming sessions (`task-programming`): ${sessionColumns.join(', ')}, with
+the scale columns before `notes`.
 
-Annotations (`task-notes`): ${annotationColumns.join(', ')}.
+Visits (`sub-*_sessions.tsv`): ${visitColumns.join(', ')}, with the scale
+columns before `notes`.
+
+Participants: ${participantColumns.join(', ')}.
+
+Notes files from older versions (`task-notes`): ${annotationColumns.join(', ')}.
 
 ## Provenance
 

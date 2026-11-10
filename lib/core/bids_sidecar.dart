@@ -54,8 +54,8 @@ const _tasks = <String, ({String name, String description})>{
     name: 'programming',
     description:
         'Deep brain stimulation programming. Stimulation configurations are '
-        'set, tried and rated during a clinical visit, one row per block and '
-        'rated scale.',
+        'set, tried and rated during a clinical visit, one row per '
+        'configuration tried.',
   ),
   'annotation_tsv': (
     name: 'notes',
@@ -69,14 +69,19 @@ const _tasks = <String, ({String name, String description})>{
 ///
 /// [task] is the `task-` label of the file when the user renamed it; BIDS
 /// derives that label from `TaskName`, so the two must match.
+///
+/// [scaleColumns] maps each `scale_<name>` column the file holds to its
+/// scale's name, documented from the section's `scale_columns` entry.
 Map<String, dynamic> buildSidecar(
   Map<String, dynamic> contract,
   String kind, {
   required String appVersion,
   String? task,
+  Map<String, String> scaleColumns = const {},
 }) {
-  final columns = ((contract[kind] as Map<String, dynamic>)['columns'] as List)
-      .cast<Map<String, dynamic>>();
+  final section = contract[kind] as Map<String, dynamic>;
+  final columns = (section['columns'] as List).cast<Map<String, dynamic>>();
+  final scales = section['scale_columns'] as Map<String, dynamic>?;
   final bids = contract['bids'] as Map<String, dynamic>? ?? const {};
   return <String, dynamic>{
     if (_tasks[kind] != null)
@@ -88,8 +93,21 @@ Map<String, dynamic> buildSidecar(
     'SchemaVersion': contract['schema_version'],
     if (bids['na'] != null) 'MissingValueCode': bids['na'],
     for (final column in columns) column['name'] as String: _entry(column),
+    if (scales != null)
+      for (final e in scaleColumns.entries)
+        e.key: {
+          'LongName': e.value,
+          'Description': (scales['description'] as String).replaceAll('``', ''),
+        },
   };
 }
+
+/// The scale names a sidecar documents, by column.
+Map<String, String> scaleNamesIn(Map<String, dynamic> sidecar) => {
+  for (final e in sidecar.entries)
+    if (e.key.startsWith('scale_') && e.value is Map)
+      e.key: '${(e.value as Map)['LongName'] ?? e.key.substring(6)}',
+};
 
 /// The sidecar for a programming-session file, pretty-printed.
 String sessionSidecarJson(
@@ -111,17 +129,30 @@ String annotationSidecarJson(
 
 /// The sidecar for the combined table, pretty-printed, in header key order.
 ///
-/// Composed from two contract sections because `aggregate_tsv` declares only
-/// the four identity columns; the others are session columns carried through
-/// unchanged. [computedAcqTime] notes on `acq_time` that a row from a legacy
-/// file had its timestamp derived rather than recorded.
+/// Composed from the contract's sections, since `aggregate_tsv` declares only
+/// its identity columns; the others come from the participant, visit and
+/// session tables, with [scaleColumns] for the table's scales.
+/// [computedAcqTime] notes on `acq_time` that a row from a legacy file had its
+/// timestamp derived rather than recorded.
 String aggregateSidecarJson(
   Map<String, dynamic> contract, {
   required String appVersion,
   bool computedAcqTime = true,
+  Map<String, String> scaleColumns = const {},
 }) {
   final keys = buildSidecar(contract, 'aggregate_tsv', appVersion: appVersion);
-  final session = buildSidecar(contract, 'session_tsv', appVersion: appVersion);
+  final person = buildSidecar(
+    contract,
+    'participants_tsv',
+    appVersion: appVersion,
+  );
+  final visit = buildSidecar(contract, 'sessions_tsv', appVersion: appVersion);
+  final session = buildSidecar(
+    contract,
+    'session_tsv',
+    appVersion: appVersion,
+    scaleColumns: scaleColumns,
+  );
   // Document-level fields first, then the two column sets in header order.
   const documentLevel = {
     'TaskName',
@@ -135,6 +166,9 @@ String aggregateSidecarJson(
       if (keys.containsKey(field)) field: keys[field],
     for (final entry in keys.entries)
       if (!documentLevel.contains(entry.key)) entry.key: entry.value,
+    for (final entry in [...person.entries, ...visit.entries])
+      if (!documentLevel.contains(entry.key) && !keys.containsKey(entry.key))
+        entry.key: entry.value,
     for (final entry in session.entries)
       if (!documentLevel.contains(entry.key)) entry.key: entry.value,
   };

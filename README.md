@@ -75,12 +75,13 @@ clone builds and tests immediately.
 
 ## Output
 
-Data is written as BIDS `_beh.tsv` with a JSON sidecar documenting every column,
-one row per (block, scale), so it pivots directly:
+Every session is saved in a BIDS folder: a `_beh.tsv` with one row per
+configuration and one `scale_<name>` column per scale, the visit's details and
+initial assessment in `sessions.tsv`, and the DBS indication in
+`participants.tsv`, each with a JSON sidecar documenting every column:
 
 ```python
 df = pd.read_csv(path, sep="\t", na_values=["n/a"])
-df.pivot_table(index=["append_id", "block_id"], columns="scale_name", values="scale_value")
 ```
 
 **Export → BIDS dataset** lays a set of sessions out as a validator-ready

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart' show PdfPageFormat;
 
 import '../core/bids.dart';
+import '../core/bids_merge.dart' show nextFreeRun;
 import '../core/bids_sidecar.dart';
 import '../core/electrode/amplitude.dart';
 import '../core/electrode/contact_state.dart';
@@ -17,6 +18,8 @@ import '../core/prefs/user_prefs.dart';
 import '../core/safe_file.dart';
 import '../core/schema_columns.dart' show isInitialValue;
 import '../core/session/authoring.dart';
+import '../core/session/bids_folder.dart';
+import '../core/session/bids_session.dart';
 import '../core/session/scale_presets.dart';
 import '../core/session/tsv_kind.dart';
 import '../core/session/scale_scoring.dart'
@@ -31,6 +34,7 @@ import '../report/session_pdf.dart';
 import '../app_info.dart';
 import 'amplitude_split.dart';
 import 'bids_export.dart';
+import 'bids_folders.dart';
 import 'bids_merge_ui.dart';
 import 'close_guard.dart';
 import 'electrode_view.dart';
@@ -235,6 +239,13 @@ class _SessionScreenState extends State<SessionScreen> {
   String? _selectedProgram;
   // Per-user overrides (programs + presets), loaded async.
   UserPrefs _prefs = UserPrefs();
+
+  /// The BIDS folder new sessions are saved in, and the patients it holds.
+  BidsFolder? _folder;
+  List<String> _patients = const [];
+
+  /// Whether the clinical details were filled from the patient's last visit.
+  bool _fromLastVisit = false;
   late final Future<(ElectrodeCatalog, StimLimits, ScalePresets)> _contracts;
 
   @override
@@ -242,7 +253,12 @@ class _SessionScreenState extends State<SessionScreen> {
     super.initState();
     _contracts = _loadContracts();
     loadUserPrefs().then((p) {
-      if (mounted) setState(() => _prefs = p);
+      if (!mounted) return;
+      setState(() {
+        _prefs = p;
+        _folder = p.startFolder;
+      });
+      _loadPatients();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _offerRecovery());
     activeSessionGuard = _mayLeave;
@@ -265,7 +281,8 @@ class _SessionScreenState extends State<SessionScreen> {
       return;
     }
     if (sniffTsvKind(content) != TsvKind.programming) return;
-    final recovered = SessionAuthoring()..loadExisting(content);
+    final recovered = SessionAuthoring()
+      ..loadExisting(parseAnySessionTsv(content));
     if (recovered.rows.isEmpty || !mounted) return;
 
     final name = pickedBasename(file.path);
@@ -274,7 +291,9 @@ class _SessionScreenState extends State<SessionScreen> {
       title: 'Unfinished session found',
       message:
           '$name was left open with ${blockCount(recovered.rows)} blocks '
-          'recorded. They were saved as you went, and can be reopened here.',
+          'recorded. They were saved in the app as you went, and can be '
+          'reopened here. Open it from its BIDS folder instead to keep saving '
+          'there.',
     );
     if (!mounted || keep == null) return;
     if (!keep) {
@@ -299,7 +318,7 @@ class _SessionScreenState extends State<SessionScreen> {
       _currentStep = 2;
     });
     _loadPathologyScales();
-    _snack('Reopened $name. Export it to save it outside the app.');
+    _snack('Reopened $name. It is saved in the app only.');
   }
 
   // Chart data is derived from every inserted row, so it is cached and rebuilt
@@ -709,16 +728,10 @@ class _SessionScreenState extends State<SessionScreen> {
     _autosave();
   }
 
-  /// Write every entry to disk as it is inserted.
-  ///
-  /// The working copy is unconditional; [_savePath] is written too when the
-  /// picker returned a path `dart:io` can open, which on Android it does not.
-  /// Both go through [SafeFileWriter], so a crash mid-write leaves either the
-  /// previous complete file or the new one.
+  /// Write every entry to disk as it is inserted: the app's working copy, then
+  /// the session's tables in its BIDS folder. Both writes are atomic, so a
+  /// crash mid-write leaves either the previous complete file or the new one.
   Future<void> _autosave() async {
-    // Resolved here rather than only in New/Open, because the wizard lets the
-    // File step be skipped entirely: without this a whole visit recorded that
-    // way would be held in memory.
     final work = _workingPath ?? await workingPath(_ids.name.filename);
     _workingPath = work;
     try {
@@ -727,46 +740,32 @@ class _SessionScreenState extends State<SessionScreen> {
       if (mounted) _snack('Could not save this entry: $e');
       return;
     }
-    // File into the dataset the moment there is something to file. Done here
-    // rather than at New so the dataset is never left holding a header-only
-    // TSV that no scans.tsv lists, which is a dataset that does not validate.
-    if (_datasetRoot != null &&
-        _savePath == null &&
-        _authoring.rows.isNotEmpty) {
+    if (_datasetRoot != null && _authoring.rows.isNotEmpty) {
       await _fileIntoDataset();
-    }
-
-    final path = _savePath;
-    if (path == null) return;
-    try {
-      await _writer.write(path, _authoring.serialize());
-    } catch (e) {
-      if (mounted) {
-        _snack(
-          'Autosave to your file failed: $e. The entry is saved in the app.',
-        );
-      }
     }
   }
 
-  /// Place this visit in the chosen dataset; see [fileIntoDataset].
+  /// Save this visit into its BIDS folder; see [fileIntoDataset].
   Future<void> _fileIntoDataset() async {
     final root = _datasetRoot;
     final name = _datasetName;
     if (root == null || name == null) return;
+    final first = _savePath == null;
     try {
       final path = await fileIntoDataset(
         root: root,
-        name: name,
-        tsv: _authoring.serialize(),
-        kind: 'session_tsv',
-        acqTime: _authoring.rows.first.acqTime,
+        entry: sessionEntry(
+          name: name,
+          rows: _authoring.rows,
+          contract: await loadTsvContract(),
+        ),
+        filed: !first,
       );
       if (path == null) {
         if (mounted) {
           _snack(
-            'That dataset already holds ${name.filename}. This visit stays in '
-            'the app; export it under a different run.',
+            'That BIDS folder already holds ${name.filename}. This visit stays '
+            'in the app; start it again under a different run.',
           );
         }
         setState(() => _datasetRoot = null);
@@ -774,38 +773,52 @@ class _SessionScreenState extends State<SessionScreen> {
       }
       if (!mounted) return;
       setState(() => _savePath = path);
-      _snack('Filed as ${name.relativeDir}/${name.filename}.');
+      if (first) _snack('Saved as ${name.relativeDir}/${name.filename}.');
     } catch (e) {
       if (mounted) {
         _snack(
-          'Could not file into the dataset: $e. The visit is saved in the app.',
+          'Could not save into the BIDS folder: $e. The visit is saved in the '
+          'app.',
         );
       }
       setState(() => _datasetRoot = null);
     }
   }
 
-  /// Write the `_beh.json` sidecar beside [tsvPath].
-  ///
-  /// Best-effort and silent: the sidecar documents the columns for whoever
-  /// analyses the file later, so failing to write it must never stop a session
-  /// from being recorded. Skipped when one is already there, since its content
-  /// depends only on the schema version, not on the session.
-  Future<void> _writeSidecar(String tsvPath) async {
-    try {
-      final json = tsvPath.replaceFirst(RegExp(r'\.tsv$'), '.json');
-      if (json == tsvPath || File(json).existsSync()) return;
-      final contract = await loadTsvContract();
-      await File(json).writeAsString(
-        sessionSidecarJson(
-          contract,
-          appVersion: appVersion,
-          task: _ids.name.task,
-        ),
-      );
-    } catch (_) {
-      // No sidecar is a documentation loss, not a data loss.
-    }
+  /// Reload the patients of the chosen BIDS folder.
+  Future<void> _loadPatients() async {
+    final root = _folder?.path;
+    final found = root == null ? const <String>[] : await participantsIn(root);
+    if (mounted) setState(() => _patients = found);
+  }
+
+  /// Fill the DBS indication, target, leads and IPGs from [subject]'s last
+  /// visit in the chosen folder. Each stays editable: a lead can be replaced.
+  Future<void> _prefillFromHistory(String subject) async {
+    final root = _folder?.path;
+    if (root == null || subject.isEmpty || _started) return;
+    final history = await patientHistory(root, subject);
+    final last = history.lastVisit;
+    if (!mounted || (history.indication.isEmpty && last.isEmpty)) return;
+    final catalog = (await _contracts).$1.withDevices(_prefs.devices);
+    if (!mounted) return;
+    String cell(String c) => last[c] ?? '';
+    setState(() {
+      _pathologyCtrl.text = history.indication;
+      _targetCtrl.text = cell('target');
+      _leftIpgCtrl.text = cell('left_ipg_model');
+      _rightIpgCtrl.text = cell('right_ipg_model');
+      _sameIpg =
+          _rightIpgCtrl.text.isEmpty || _rightIpgCtrl.text == _leftIpgCtrl.text;
+      final left = cell('left_electrode_model');
+      final right = cell('right_electrode_model');
+      if (catalog.models.containsKey(left)) {
+        _modelName = left;
+        _rightModelName = right.isEmpty || right == left ? null : right;
+      }
+      _fromLastVisit = true;
+    });
+    _loadPathologyScales();
   }
 
   Future<void> _newSession() async {
@@ -814,78 +827,91 @@ class _SessionScreenState extends State<SessionScreen> {
       _snack('Enter the patient ID first.');
       return;
     }
-    final bids = _ids.name;
-    final name = bids.filename;
-    final authoring = SessionAuthoring();
-
-    // Loose file, or straight into a dataset. Asked here because the answer
-    // decides where every autosave of this visit lands.
-    final into = await askNewTarget(context, bids, what: 'this visit');
-    if (into == null || !mounted) return;
-    if (into.root != null) {
-      final work = await workingPath(into.name.filename);
-      if (!mounted) return;
-      setState(() {
-        _authoring = authoring;
-        _savePath = null;
-        _workingPath = work;
-        _datasetRoot = into.root;
-        _datasetName = into.name;
-        _savePathIsSandboxCopy = false;
-        _ids.run.text = into.name.run;
-        _initialBlock = null;
-        _initialSaved = null;
-      });
+    final folder = _folder ?? await addBidsFolder(context, _prefs);
+    if (folder == null || !mounted) return;
+    final root = folder.path;
+    final dir = Directory(root);
+    await dir.create(recursive: true);
+    final taken = <String>{
+      for (final e in dir.listSync(recursive: true, followLinks: false))
+        e.path
+            .substring(root.length)
+            .replaceAll(r'\', '/')
+            .replaceAll(RegExp('^/+'), ''),
+    };
+    final hidden = RegExp(r'(^|/)\.');
+    if (!taken.contains('dataset_description.json') &&
+        taken.any((p) => !hidden.hasMatch(p))) {
       _snack(
-        'Recording into ${into.root}. '
-        'The visit is filed there as soon as the first block is inserted.',
+        '$root has other content and is not a BIDS folder. Choose an empty '
+        'folder or one this app saved into.',
       );
       return;
     }
-
-    final folder = canWriteChosenFolder ? await chooseSaveFolder(_prefs) : null;
-    if (canWriteChosenFolder && folder == null) return;
+    final name = nextFreeRun(_ids.name, taken);
+    final history = await patientHistory(root, subject);
+    final indication = _pathologyCtrl.text.trim();
     if (!mounted) return;
-    final NewTsvTarget? target;
-    try {
-      target = await createNewTsv(
-        dialogTitle: 'Create new session TSV',
-        fileName: name,
-        header: authoring.serialize(),
-        folder: folder,
-      );
-    } on PathExistsException {
-      if (mounted) {
-        _snack(
-          '$name is already in $folder. Change the run number, '
-          'or use Open to continue that session.',
-        );
-      }
-      return;
-    } catch (e) {
-      if (mounted) _snack('Could not create $name: $e');
+    if (history.indication.isNotEmpty &&
+        indication.isNotEmpty &&
+        history.indication != indication &&
+        !await _confirm(
+          'Change the DBS indication?',
+          'This BIDS folder records ${history.indication} for $subject. '
+              'Saving this visit changes it to $indication.',
+          'Change it',
+        )) {
       return;
     }
-    if (target == null) return; // dialog shown but cancelled
-    if (target.fellBack && mounted) {
-      _snack('No file dialog available; saved to ${target.location}');
+    final visit = await visitRow(root, name);
+    if (!mounted) return;
+    if (visit.isNotEmpty &&
+        !await _confirm(
+          'This visit is already in the folder',
+          'Session ${name.session} of $subject has an earlier run. This run '
+              'is saved as run ${name.run}; an initial assessment recorded '
+              "here replaces the visit's values in its sessions.tsv.",
+          'Continue',
+        )) {
+      return;
     }
-    final p = target.path;
-    if (p != null) await _writeSidecar(p);
-    final work = await workingPath(name);
+    final work = await workingPath(name.filename);
     if (!mounted) return;
     setState(() {
-      _authoring = authoring;
-      _savePath = p;
+      _authoring = SessionAuthoring();
+      _savePath = null;
       _workingPath = work;
-      _datasetRoot = null;
-      _datasetName = null;
-      _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(p);
+      _datasetRoot = root;
+      _datasetName = name;
+      _savePathIsSandboxCopy = false;
+      _ids.run.text = name.run;
       _initialBlock = null;
       _initialSaved = null;
     });
-    _snack('New session: ${target.location}');
+    _snack(
+      'New session in ${folder.name}. It is saved there from the first entry.',
+    );
   }
+
+  Future<bool> _confirm(String title, String message, String yes) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(yes),
+            ),
+          ],
+        ),
+      ) ??
+      false;
 
   Future<void> _open() async {
     // `pickFile`, not `pickFiles`: `allowMultiple` defaults to TRUE, so
@@ -919,8 +945,9 @@ class _SessionScreenState extends State<SessionScreen> {
     }
 
     _invalidateEntryCharts();
-    _authoring.loadExisting(content);
+    _authoring.loadExisting(await readSessionFile(content, path: picked.path));
     final bids = BidsName.parse(picked.name);
+    final root = picked.path == null ? null : bidsRootOf(picked.path!);
 
     // The file names its own electrode model, so the dropdown follows it. A
     // mismatch is not cosmetic: it labels one lead's contacts with another
@@ -936,12 +963,11 @@ class _SessionScreenState extends State<SessionScreen> {
 
     if (!mounted) return;
     setState(() {
-      // Autosave future inserts back to the opened file (when a real path).
-      _savePath = picked.path;
+      _savePath = root == null ? null : picked.path;
       _workingPath = work;
       _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(picked.path);
-      _datasetRoot = null;
-      _datasetName = null;
+      _datasetRoot = bids == null ? null : root ?? _folder?.path;
+      _datasetName = bids;
       _initialBlock = null;
       _initialSaved = null;
       if (bids != null) _ids.fill(bids);
@@ -959,6 +985,14 @@ class _SessionScreenState extends State<SessionScreen> {
         'Opened ${picked.name} (${_authoring.rows.length} rows, '
         'next block ${_authoring.blockId}, append ${_authoring.appendId}).';
     _snack(_savePathIsSandboxCopy ? '$opened $sandboxCopyNotice' : opened);
+    if (_datasetRoot == null) {
+      _snack(
+        'This file has no BIDS name or no BIDS folder to save into. It is '
+        'saved in the app only.',
+      );
+    } else if (root == null) {
+      _snack('From the next entry it is saved into ${_folder!.name}.');
+    }
     if (unknownModel) {
       _snack(
         'This file names an electrode model ("$named", "$namedRight") '
@@ -996,20 +1030,6 @@ class _SessionScreenState extends State<SessionScreen> {
     return chosen;
   }
 
-  Future<void> _export() async {
-    if (_authoring.rows.isEmpty) {
-      _snack('Insert at least one block before exporting.');
-      return;
-    }
-    await exportFile(
-      context,
-      filename: _ids.name.filename,
-      anchor: _exportKey,
-      build: () async =>
-          (bytes: utf8.encode(_authoring.serialize()), warning: null),
-    );
-  }
-
   /// Export this session as a one-subject BIDS dataset (zipped).
   ///
   /// The TSV on its own carries BIDS entities in its *name*; this is the tree
@@ -1030,17 +1050,14 @@ class _SessionScreenState extends State<SessionScreen> {
       return;
     }
     if (!mounted) return;
-    final rows = _authoring.rows;
     await exportBidsDataset(
       context,
       anchor: _exportKey,
       entries: [
-        datasetEntry(
+        sessionEntry(
           name: _ids.name,
-          tsv: _authoring.serialize(),
+          rows: _authoring.rows,
           contract: contract,
-          kind: 'session_tsv',
-          acqTime: rows.isEmpty ? '' : rows.first.acqTime,
         ),
       ],
     );
@@ -1195,10 +1212,9 @@ class _SessionScreenState extends State<SessionScreen> {
             spacing: 12,
             runSpacing: 8,
             children: [
-              action(Icons.table_chart_outlined, 'Raw data file', _export),
               action(
                 Icons.folder_zip_outlined,
-                'Research dataset (BIDS, zip)',
+                'BIDS folder (zip)',
                 _exportBids,
               ),
             ],
@@ -1795,6 +1811,69 @@ class _SessionScreenState extends State<SessionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownMenu<String>(
+                    key: ValueKey(_folder?.name),
+                    expandedInsets: EdgeInsets.zero,
+                    label: const Text('BIDS folder'),
+                    enabled: !started,
+                    initialSelection: _folder?.name,
+                    dropdownMenuEntries: [
+                      for (final f
+                          in _prefs.bidsFolders ?? const <BidsFolder>[])
+                        DropdownMenuEntry(value: f.name, label: f.name),
+                    ],
+                    onSelected: (name) {
+                      setState(
+                        () => _folder = _prefs.bidsFolders
+                            ?.where((f) => f.name == name)
+                            .firstOrNull,
+                      );
+                      _loadPatients();
+                    },
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.create_new_folder_outlined),
+                  tooltip: 'Add a BIDS folder',
+                  onPressed: started
+                      ? null
+                      : () async {
+                          final added = await addBidsFolder(context, _prefs);
+                          if (added == null || !mounted) return;
+                          setState(() => _folder = added);
+                          _loadPatients();
+                        },
+                ),
+              ],
+            ),
+            if (_folder case final f?)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 8),
+                child: Text(
+                  f.path,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            if (_patients.isNotEmpty && !started) ...[
+              const SizedBox(height: 8),
+              DropdownMenu<String>(
+                expandedInsets: EdgeInsets.zero,
+                label: const Text('Patient already in this folder'),
+                dropdownMenuEntries: [
+                  for (final p in _patients)
+                    DropdownMenuEntry(value: p, label: p),
+                ],
+                onSelected: (p) {
+                  if (p == null) return;
+                  setState(() => _ids.subject.text = p);
+                  _prefillFromHistory(p);
+                },
+              ),
+            ],
+            const SizedBox(height: 12),
             BidsNameFields(entries: _ids, decoration: field),
             const SizedBox(height: 16),
             Wrap(
@@ -1844,6 +1923,15 @@ class _SessionScreenState extends State<SessionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_fromLastVisit)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  "Filled from this patient's last visit. Check each value: "
+                  'a reimplantation changes the target, leads or IPG.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             Row(
               children: [
                 Expanded(

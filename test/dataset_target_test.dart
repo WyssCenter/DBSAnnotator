@@ -14,6 +14,8 @@ import 'package:dbs_annotator/ui/bids_merge_ui.dart';
 import 'package:dbs_annotator/ui/session_screen.dart';
 import 'package:dbs_annotator/ui/stim_params_form.dart';
 import 'package:flutter/material.dart';
+import 'package:dbs_annotator/core/session/session_row.dart';
+import 'package:dbs_annotator/ui/bids_export.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 BidsName _name(String task) =>
@@ -27,13 +29,24 @@ void main() {
     setUp(() => root = Directory.systemTemp.createTempSync('dbs_target'));
     tearDown(() => root.deleteSync(recursive: true));
 
+    final contract =
+        jsonDecode(File('schema/tsv_schema.json').readAsStringSync())
+            as Map<String, dynamic>;
     Future<String?> put(BidsName name, String kind, {String tsv = 'a'}) =>
         fileIntoDataset(
           root: root.path,
-          name: name,
-          tsv: tsv,
-          kind: kind,
-          acqTime: '2026-02-03T09:00:00+00:00',
+          entry: kind == 'session_tsv'
+              ? sessionEntry(
+                  name: name,
+                  rows: [SessionRow(blockId: '1', notes: tsv)],
+                  contract: contract,
+                )
+              : notesEntry(
+                  name: name,
+                  tsv: tsv,
+                  contract: contract,
+                  acqTime: '2026-02-03T09:00:00+00:00',
+                ),
         );
 
     test('notes are filed beside the visit, under their own task', () async {

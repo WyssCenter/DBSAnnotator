@@ -357,10 +357,12 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     try {
       final path = await fileIntoDataset(
         root: root,
-        name: name,
-        tsv: text,
-        kind: 'annotation_tsv',
-        acqTime: _entries.last.acqTime,
+        entry: notesEntry(
+          name: name,
+          tsv: text,
+          contract: await loadTsvContract(),
+          acqTime: _entries.last.acqTime,
+        ),
       );
       if (path == null) {
         if (mounted) {
@@ -421,11 +423,10 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       context,
       anchor: _exportKey,
       entries: [
-        datasetEntry(
+        notesEntry(
           name: _ids.name,
           tsv: writeAnnotations(oldestFirst),
           contract: contract,
-          kind: 'annotation_tsv',
           acqTime: oldestFirst.first.acqTime,
         ),
       ],

@@ -128,7 +128,7 @@ void main() {
       expect(
         serializeSessionTsv(const []).trimRight(),
         'acq_time\tblock_id\tappend_id\tis_initial\tis_final\tis_starred\t'
-        'scale_name\tscale_value\tpathology\ttarget\tleft_electrode_model\t'
+        'scale_name\tscale_value\tdbs_indication\ttarget\tleft_electrode_model\t'
         'right_electrode_model\tleft_ipg_model\tright_ipg_model\t'
         'program_id\t'
         'left_stim_freq\tleft_anode\tleft_cathode\tleft_amplitude\t'

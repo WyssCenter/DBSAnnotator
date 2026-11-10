@@ -24,7 +24,7 @@ void main() {
     expect(back.clinical!['OCD'], ['Y-BOCS', 'MADRS']);
     expect(back.session!['PD']!.first, ['Tremor', '0', '10']);
     // Unset fields stay null (fall back to bundled defaults).
-    expect(back.saveFolder, isNull);
+    expect(back.bidsFolders, isNull);
   });
 
   test('the session report remembers its sections', () {

@@ -49,9 +49,10 @@ Files and data
    truncated file. Reopen the workflow and the app offers the unfinished session
    back. You lose at most the entry you were typing.
 
-**Why is there a row per scale instead of a row per configuration?**
-   So that data pools across sites that rate different scales. See
-   :ref:`why-long-not-wide`.
+**Why do two session files have different columns?**
+   Each rated scale is a ``scale_<name>`` column, and the scales depend on the
+   indication. ``pandas.concat`` lines files up by column name. See
+   :ref:`where-values-live`.
 
 Reports
 -------

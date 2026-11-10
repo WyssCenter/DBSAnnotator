@@ -34,6 +34,7 @@ import 'package:dbs_annotator/core/electrode/electrode_model.dart';
 import 'package:dbs_annotator/core/electrode/geometry.dart';
 import 'package:dbs_annotator/core/electrode/stimulation_rule.dart';
 import 'package:dbs_annotator/core/session/authoring.dart';
+import 'package:dbs_annotator/core/session/session_file.dart';
 import 'package:dbs_annotator/core/session/scale_presets.dart';
 import 'package:dbs_annotator/core/session/scale_scoring.dart';
 import 'package:dbs_annotator/core/session/session_row.dart'
@@ -486,7 +487,8 @@ Future<(ElectrodeCatalog, StimLimits, ScalePresets)> _contracts() async => (
 
 /// The committed example, so the charts and tables have real content.
 SessionAuthoring _seededAuthoring() =>
-    SessionAuthoring()..loadExisting(File(_fixture).readAsStringSync());
+    SessionAuthoring()
+      ..loadExisting(parseSessionTsv(File(_fixture).readAsStringSync()));
 
 /// Press New and keep a loose file, as a clinician would. The file is
 /// written to a scratch folder, outside the fake clock that cannot finish it.

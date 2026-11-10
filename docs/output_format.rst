@@ -45,73 +45,70 @@ path.
    ``_events.tsv`` and spell three columns ``block_ID``, ``session_ID`` and
    ``program_ID``. They open as they are.
 
-Row shape
----------
+.. _where-values-live:
 
-The session file is in **long form: one row per (block, scale)**.
+Where each value lives
+----------------------
 
-A *block* is one stimulation configuration. If five scales are rated at a
-configuration, that block contributes five rows, and each of them repeats that
-block's stimulation values. This is deliberate, and it is the single most
-important thing to understand about the format:
+A session is saved inside a BIDS folder as three tables, so that nothing is
+repeated on every row:
+
+``participants.tsv``, one row per patient
+   The ``participant_id`` and the patient's ``dbs_indication``.
+
+``sub-<label>/sub-<label>_sessions.tsv``, one row per visit
+   What belongs to the visit as a whole: the anatomical ``target``, the lead
+   and IPG models of each side, the ``medications``, and the whole **initial
+   assessment**, that is the stimulation the patient arrived on and the clinical
+   scales rated before any change. The leads and target are kept per visit, not
+   per patient, because a reimplantation can change them.
+
+``sub-<label>/ses-<label>/beh/..._beh.tsv``, one row per configuration
+   Each stimulation configuration tried during the visit, with its ratings.
+
+The ``beh/`` file is **wide: one row per configuration, one column per scale**.
+Each scale gets a ``scale_<name>`` column holding the rating alone:
 
 .. include:: _generated/example_rows.inc.rst
 
-.. _why-long-not-wide:
+.. include:: _generated/scale_columns.inc.rst
 
-Why long and not wide
-~~~~~~~~~~~~~~~~~~~~~
-
-One row per block with a column per scale looks tidier and is worse. The column
-set becomes indication-specific, because an OCD session and a Parkinson's
-session rate different things, so pooling the two needs an outer join on
-mismatched headers, and adding a scale mid-study changes the header of every
-file written from then on.
-
-In long form, a site using different scales simply writes different *rows*, and
-everything pools with a concatenation. It is also the shape that pivots without
-reshaping:
+Which scales a visit rates depends on the indication, so two files can have
+different scale columns. ``pandas.concat`` lines them up by name and fills the
+gaps with ``NaN``, so pooling files needs no reshaping:
 
 .. code-block:: python
 
    import pandas as pd
 
-   df = pd.read_csv(path, sep="\t", na_values=["n/a"])
-   wide = df.pivot_table(
-       index=["append_id", "block_id"],
-       columns="scale_name",
-       values="scale_value",
-   )
+   files = [pd.read_csv(p, sep="\t", na_values=["n/a"]) for p in paths]
+   pooled = pd.concat(files, ignore_index=True)
+
+To bring in the visit's columns, join on ``session_id`` from the visit table;
+the combined table (see :ref:`combined-table`) does this for you.
 
 Which rows are which
 ~~~~~~~~~~~~~~~~~~~~
 
-``is_initial`` separates the two kinds of entry:
+Every row of the ``beh/`` file is a configuration that was tried and rated. The
+initial assessment is not a row there: it is the visit's row in
+``sessions.tsv``, which is why it never counts among the configurations tested.
 
-``is_initial = 1``
-   The **baseline** block: the clinical assessment and the settings the patient
-   arrived on, recorded before any configuration is tried. Excluded from
-   "configurations tested" and from the tested-parameter ranges in reports.
+``is_final = 1`` marks the configuration the patient was left on at the end of
+the visit, as the clinician marked it; every other row is ``0``. At most one row
+carries it, and none does when the clinician did not say. ``is_starred = 1``
+marks configurations the clinician starred as particularly good; any number of
+rows may.
 
-``is_initial = 0``
-   A **recording** block: one configuration that was tried and rated.
+Older files
+~~~~~~~~~~~
 
-``is_final = 1`` marks the rows of the recording block the patient was left on
-at the end of the visit, as the clinician marked it; every other row is ``0``.
-At most one block carries it, and none does when the clinician did not say.
-Files written before the column existed leave it empty, and read as unmarked.
-
-Each lead has its own model column, ``left_electrode_model`` and
-``right_electrode_model``, filled with the same name when both leads are the
-same model. Older files have one ``electrode_model`` column, which is read as
-the model of both.
-
-.. warning::
-
-   Read ``is_initial`` numerically, not as a truthy string. Some files write
-   ``0.0``/``1.0``, and ``df.is_initial.astype(bool)`` is ``True`` for the
-   *string* ``"0.0"``, which silently moves the baseline into the tested set.
-   Use ``df.is_initial.astype(float).eq(1)``.
+Session files from earlier versions are in long form, one row per configuration
+and scale, with ``block_id``, ``is_initial``, ``scale_name`` and
+``scale_value`` columns and the visit's values repeated on every row. The app
+still opens and imports them, and saves them in the tables above. Read
+``is_initial`` in those files numerically (``df.is_initial.astype(float).eq(1)``),
+because some write ``0.0`` and ``1.0``.
 
 Omitted ratings
 ~~~~~~~~~~~~~~~
@@ -203,8 +200,21 @@ Session columns
 
 .. include:: _generated/session_columns.inc.rst
 
-Annotations columns
+Visit columns
+-------------
+
+.. include:: _generated/sessions_columns.inc.rst
+
+Participant columns
 -------------------
+
+.. include:: _generated/participants_columns.inc.rst
+
+Notes file columns
+------------------
+
+Earlier versions could also record a separate file of timestamped notes
+(``task-notes``). The app still imports them.
 
 .. include:: _generated/annotation_columns.inc.rst
 
@@ -238,8 +248,8 @@ The suffix is ``_beh`` and the files sit in a ``beh/`` datatype directory: the
 BIDS suffix for behavioural data recorded without an accompanying imaging or
 electrophysiology recording.
 
-Columns are in snake_case, as BIDS recommends (``block_id``, ``append_id``,
-``program_id``), a missing value is ``n/a``, the timestamp is one ``acq_time``
+Columns are in snake_case, as BIDS recommends (``append_id``, ``program_id``,
+``scale_mood``), a missing value is ``n/a``, the timestamp is one ``acq_time``
 cell, and lines end in LF.
 
 ``append_id`` counts **data-entry episodes within one file**: it goes up each
@@ -292,9 +302,9 @@ patient's visits, or several patients for a study, means concatenating a folder
 of files and losing the one thing that told their rows apart, the filename.
 
 **Combined table (TSV)**, on the reports screen, writes the
-imported files as one long table with four identity columns prepended, and
-its ``.json`` sidecar beside it (see :doc:`screens/reports` for where both are
-saved):
+imported sessions as one table, one row per configuration, with identity
+columns in front, and its ``.json`` sidecar beside it (see
+:doc:`screens/reports` for where both are saved):
 
 .. code-block:: text
 
@@ -302,10 +312,12 @@ saved):
    sub-01          ses-20260203   01      sub-01_ses-20260203_..._beh.tsv   ...
    sub-07          ses-20260401   01      sub-07_ses-20260401_..._beh.tsv   ...
 
-The twenty-one session columns follow unchanged, which makes twenty-five in
-all. A notes file contributes one row per note, with only ``acq_time`` and
-``notes`` filled and every other session column ``n/a``, so its rows are the
-ones with no ``block_id``. So:
+After the identity columns come ``is_initial``, the patient's
+``dbs_indication``, the visit's target, lead and IPG models and medications,
+then the session columns with the union of every file's ``scale_<name>``
+columns, ``n/a`` where a file has no such scale. Each visit's initial
+assessment is a row of its own with ``is_initial = 1``; every configuration
+tried is a row with ``is_initial = 0``. So:
 
 .. code-block:: python
 
@@ -315,9 +327,7 @@ ones with no ``block_id``. So:
 ``participant_id`` uses the BIDS spelling and the BIDS value shape deliberately,
 so the table joins onto ``participants.tsv`` with no transformation.
 
-A block is unique across the table on
-``(participant_id, session_id, run_id, block_id)``. ``source_file`` is a key
-column rather than a convenience: ``run`` defaults to ``01`` and does not
+``source_file`` is a key column rather than a convenience: ``run`` defaults to ``01`` and does not
 auto-increment, so two visits on the same day can share all three entities
 above, and the filename is then the only thing that separates their rows.
 
@@ -345,20 +355,19 @@ filename twice is refused rather than concatenated, because duplicate rows
 double every count derived from the table with nothing on the face of it to show
 why.
 
-Notes files join this table one row per note, with only ``acq_time`` and
-``notes`` filled. Grouping by ``block_id`` therefore leaves them out, since their
-``block_id`` is ``n/a``; select them with ``df.block_id.isna()`` when you want
-them.
+Notes files from earlier versions join this table one row per note, with only
+``acq_time`` and ``notes`` filled.
 
 What is still not standard
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The columns themselves. Of the twenty-one in a session file, only ``notes`` and
-``acq_time`` resemble anything BIDS defines; ``block_id``, ``left_cathode``,
-``left_amplitude`` and the rest are this application's own. That is permitted,
+The columns themselves. Of those in a session file, only ``notes`` and
+``acq_time`` resemble anything BIDS defines; ``left_cathode``,
+``left_amplitude``, the ``scale_<name>`` columns and the rest are this
+application's own. That is permitted,
 since BIDS allows additional columns and asks that they be documented in a
 sidecar, which is what the ``_beh.json`` is for, but it does mean no generic
-BIDS tool will understand what a *block* is. Read this page, or the sidecar.
+BIDS tool will understand what a *configuration* is. Read this page, or the sidecar.
 
 The placement of the combined table is the part with the least precedent: a
 ``desc-``-only filename at a derivative root has no ``sub-`` entity, because the

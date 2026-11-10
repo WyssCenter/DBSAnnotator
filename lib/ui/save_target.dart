@@ -107,8 +107,8 @@ typedef NewTsvTarget = ({
   bool fellBack,
 });
 
-/// Ask for the folder a new file is created in, opening at the last one,
-/// and remember the choice in [prefs]. Null when cancelled.
+/// Ask for the folder a new file is created in, opening at the default BIDS
+/// folder. Null when cancelled.
 Future<String?> chooseSaveFolder(UserPrefs prefs) async {
   final String? folder;
   try {
@@ -116,14 +116,10 @@ Future<String?> chooseSaveFolder(UserPrefs prefs) async {
         debugSaveDir?.path ??
         await FilePicker.getDirectoryPath(
           dialogTitle: 'Choose the folder to save this session in',
-          initialDirectory: prefs.saveFolder,
+          initialDirectory: prefs.startFolder?.path,
         );
   } catch (_) {
     return null;
-  }
-  if (folder != null) {
-    prefs.saveFolder = folder;
-    await saveUserPrefs(prefs);
   }
   return folder;
 }

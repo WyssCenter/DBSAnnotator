@@ -22,7 +22,6 @@ import '../core/bids_dataset.dart';
 import '../core/bids_merge.dart';
 import '../core/bids_sidecar.dart';
 import '../core/safe_file.dart';
-import 'bids_export.dart';
 
 /// Whether a picked directory can be written to. False on the tablets, where
 /// it is a security-scoped path or a `content://` URI `dart:io` cannot open.
@@ -105,15 +104,17 @@ List<DatasetFile> readDatasetZip(Uint8List bytes) {
 /// validator will see and nothing is destroyed), then the indexes themselves.
 ///
 /// [binary] holds the bytes of planned files whose content is [kBinaryContent].
+/// Without [backup], as while a visit is recorded, no `.bak-` copies are left.
 Future<void> applyMergeToDirectory(
   String root,
   MergePlan plan, {
   Map<String, Uint8List> binary = const {},
+  bool backup = true,
 }) async {
   String full(String rel) => '$root/$rel';
 
   final stamp = DateTime.now().millisecondsSinceEpoch;
-  for (final path in plan.rowMerged) {
+  for (final path in backup ? plan.rowMerged : const <String>[]) {
     final file = File(full(path));
     if (file.existsSync()) await file.copy('${full(path)}.bak-$stamp');
   }
@@ -398,40 +399,46 @@ Future<bool> confirmRecordInto(
   return ok ?? false;
 }
 
-/// File one recorded TSV of [kind] into the dataset at [root] as [name]: the
-/// TSV and its sidecar at the BIDS path, and the dataset index files brought
-/// up to date. Returns the file's path, or null when the dataset already
-/// holds it.
+/// File [entry] into the BIDS folder at [root]: its files at their BIDS
+/// paths, and its rows in `participants.tsv`, `sessions.tsv` and `scans.tsv`
+/// added or brought up to date. Returns the `beh/` file's path, or null when
+/// the folder already holds a different recording under that name.
 ///
-/// Goes through [planBidsMerge] like every other write into a dataset, so a
-/// `participants.tsv` carrying the study's own columns keeps them, and a file
-/// already filed there is refused rather than overwritten.
+/// Once [filed], the entry's own files are rewritten on every save; before,
+/// a file already at that path is refused rather than overwritten. Only the
+/// paths the entry touches are read, so a large folder costs nothing extra.
 Future<String?> fileIntoDataset({
   required String root,
-  required BidsName name,
-  required String tsv,
-  required String kind,
-  required String acqTime,
+  required DatasetEntry entry,
+  bool filed = false,
 }) async {
   final contract = await loadTsvContract();
   final incoming = buildBidsDataset(
-    [
-      datasetEntry(
-        name: name,
-        tsv: tsv,
-        contract: contract,
-        kind: kind,
-        acqTime: acqTime,
-      ),
-    ],
+    [entry],
+    contract: contract,
     appName: appName,
     appVersion: appVersion,
     repoUrl: repoUrl,
   );
-  final plan = planBidsMerge(await readDatasetDirectory(root), incoming);
+  final existing = <DatasetFile>[];
+  for (final f in incoming) {
+    final file = File('$root/${f.path}');
+    if (file.existsSync()) {
+      existing.add((path: f.path, content: await file.readAsString()));
+    }
+  }
+  final dir = entry.name.relativeDir;
+  final plan = planBidsMerge(
+    existing,
+    incoming,
+    upsert: true,
+    overwrite: filed
+        ? {'$dir/${entry.name.filename}', '$dir/${entry.name.sidecarFilename}'}
+        : const {},
+  );
   if (plan.refused.isNotEmpty) return null;
-  await applyMergeToDirectory(root, plan);
-  return '$root/${name.relativeDir}/${name.filename}';
+  await applyMergeToDirectory(root, plan, backup: false);
+  return '$root/$dir/${entry.name.filename}';
 }
 
 /// Show exactly what the merge will do and wait for a yes.

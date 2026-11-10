@@ -10,7 +10,7 @@ import '../core/annotation.dart';
 import '../core/bids.dart';
 import '../core/session/aggregate.dart' show AggregateSource;
 import '../core/session/longitudinal.dart' show patientIdsMatch;
-import '../core/session/session_file.dart';
+import '../core/session/bids_session.dart';
 import '../core/session/session_row.dart';
 import '../core/session/tsv_kind.dart';
 
@@ -34,7 +34,7 @@ typedef Uploaded = ({
       file: (
         name: name,
         kind: kind,
-        rows: parseSessionTsv(content),
+        rows: parseAnySessionTsv(content),
         notes: const <Annotation>[],
       ),
       rejected: null,
@@ -251,8 +251,8 @@ List<AggregateSource> aggregateSources(List<Uploaded> files) => [
       rows: f.kind == TsvKind.programming
           ? f.rows
           : [
-              for (final n in f.notes)
-                SessionRow(acqTime: n.acqTime, notes: n.notes),
+              for (final (i, n) in f.notes.indexed)
+                SessionRow(blockId: '$i', acqTime: n.acqTime, notes: n.notes),
             ],
     ),
 ];

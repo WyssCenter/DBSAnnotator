@@ -16,6 +16,7 @@ import 'package:dbs_annotator/app_info.dart';
 import 'package:dbs_annotator/core/bids.dart';
 import 'package:dbs_annotator/core/bids_dataset.dart';
 import 'package:dbs_annotator/core/bids_merge.dart';
+import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:dbs_annotator/core/tsv.dart';
 import 'package:dbs_annotator/ui/bids_export.dart';
 import 'package:dbs_annotator/ui/bids_merge_ui.dart';
@@ -56,23 +57,36 @@ Future<Directory> _seed() async {
   return root;
 }
 
+DatasetEntry _entry(
+  Map<String, dynamic> contract, {
+  String note = 'x',
+  String target = 'STN',
+}) => sessionEntry(
+  name: _name,
+  rows: [
+    SessionRow(
+      blockId: '1',
+      isInitial: '0',
+      acqTime: '2026-02-03T09:00:00+00:00',
+      pathology: 'PD',
+      target: target,
+      notes: note,
+    ),
+  ],
+  contract: contract,
+);
+
 List<DatasetFile> _visit(Map<String, dynamic> contract, {String tsv = 'x'}) =>
     buildBidsDataset(
-      [
-        datasetEntry(
-          name: _name,
-          tsv: tsv,
-          contract: contract,
-          kind: 'session_tsv',
-          acqTime: '2026-02-03T09:00:00+00:00',
-        ),
-      ],
+      [_entry(contract, note: tsv)],
+      contract: contract,
       appName: appName,
       appVersion: appVersion,
       repoUrl: repoUrl,
     );
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late Directory root;
   // Read from the repo rather than the asset bundle, which a plain
   // `flutter test` has no binding for.
@@ -143,6 +157,44 @@ void main() {
     expect(rows.single['participant_id'], 'sub-01');
     expect(rows.single['age'], '54');
     expect(rows.single['group'], 'OCD');
+    expect(rows.single['dbs_indication'], 'PD');
+  });
+
+  test('the visit gets its row in sessions.tsv', () async {
+    await file();
+    final rows = parseTsvRecords(
+      File('${root.path}/sub-01/sub-01_sessions.tsv').readAsStringSync(),
+    );
+    expect(rows.single['session_id'], 'ses-preop');
+    expect(rows.single['target'], 'STN');
+  });
+
+  test('recording the visit again updates its own rows only', () async {
+    expect(
+      await fileIntoDataset(root: root.path, entry: _entry(contract)),
+      isNotNull,
+    );
+    final path = await fileIntoDataset(
+      root: root.path,
+      entry: _entry(contract, note: 'second block', target: 'GPi'),
+      filed: true,
+    );
+    expect(File(path!).readAsStringSync(), contains('second block'));
+    final visit = parseTsvRecords(
+      File('${root.path}/sub-01/sub-01_sessions.tsv').readAsStringSync(),
+    ).single;
+    expect(visit['target'], 'GPi');
+    final person = parseTsvRecords(
+      File('${root.path}/participants.tsv').readAsStringSync(),
+    ).single;
+    expect(person['age'], '54', reason: "the lab's columns survive");
+    expect(
+      Directory(
+        root.path,
+      ).listSync(recursive: true).where((e) => e.path.contains('.bak-')),
+      isEmpty,
+      reason: 'recording leaves no backup copies behind',
+    );
   });
 
   test('imaging alongside the session is untouched', () async {
@@ -164,7 +216,7 @@ void main() {
       File(
         '${root.path}/${_name.relativeDir}/${_name.filename}',
       ).readAsStringSync(),
-      'first recording',
+      contains('first recording'),
       reason: 'the archived visit survives',
     );
   });

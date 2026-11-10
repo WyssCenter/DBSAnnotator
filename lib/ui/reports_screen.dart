@@ -480,6 +480,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       sidecar = aggregateSidecarJson(
         await loadTsvContract(),
         appVersion: appVersion,
+        scaleColumns: out.scaleNames,
       );
     } catch (e) {
       if (mounted) _snack('Combined table export failed: $e');
