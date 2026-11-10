@@ -1,5 +1,4 @@
-/// Loading a BIDS dataset into Reports, and the combined table written back
-/// into it.
+/// Importing from a BIDS folder, and the combined table written back into it.
 library;
 
 import 'dart:convert';
@@ -11,7 +10,7 @@ import 'package:dbs_annotator/core/electrode/electrode_model.dart';
 import 'package:dbs_annotator/core/session/tsv_kind.dart';
 import 'package:dbs_annotator/report/upload_actions.dart';
 import 'package:dbs_annotator/ui/bids_merge_ui.dart';
-import 'package:dbs_annotator/ui/reports_screen.dart';
+import 'package:dbs_annotator/ui/import_export_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -233,40 +232,49 @@ void main() {
     });
   });
 
-  testWidgets('loading a dataset fills the list with the chosen participants', (
-    tester,
-  ) async {
-    debugDataset = (
-      root: 'C:/Studies/OCD-DBS',
-      files: [
-        (path: _beh('01', 'a', 'programming'), content: _session),
-        (path: _beh('01', 'b', 'programming'), content: _session),
-        (path: _beh('02', 'a', 'programming'), content: _session),
-        (path: 'dataset_description.json', content: '{}'),
-      ],
-    );
-    addTearDown(() => debugDataset = null);
-    await tester.binding.setSurfaceSize(const Size(1400, 1600));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    final catalog = ElectrodeCatalog.fromJson(
-      jsonDecode(File('schema/electrode_models.json').readAsStringSync())
-          as Map<String, dynamic>,
-    );
-    await tester.pumpWidget(MaterialApp(home: ReportsScreen(catalog: catalog)));
+  testWidgets(
+    'importing from a BIDS folder fills the list with the chosen participants',
+    (tester) async {
+      debugDataset = (
+        root: 'C:/Studies/OCD-DBS',
+        files: [
+          (path: _beh('01', 'a', 'programming'), content: _session),
+          (path: _beh('01', 'b', 'programming'), content: _session),
+          (path: _beh('02', 'a', 'programming'), content: _session),
+          (path: 'dataset_description.json', content: '{}'),
+        ],
+      );
+      addTearDown(() => debugDataset = null);
+      await tester.binding.setSurfaceSize(const Size(1400, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final catalog = ElectrodeCatalog.fromJson(
+        jsonDecode(File('schema/electrode_models.json').readAsStringSync())
+            as Map<String, dynamic>,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ImportExportPanel(catalog: catalog),
+            ),
+          ),
+        ),
+      );
 
-    await tester.tap(find.text('Load from dataset'));
-    await tester.pumpAndSettle();
-    expect(find.text('Load which participants?'), findsOneWidget);
-    await tester.tap(find.text('sub-02'));
-    await tester.pump();
-    await tester.tap(find.text('Load'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Import from a BIDS folder'));
+      await tester.pumpAndSettle();
+      expect(find.text('Import which participants?'), findsOneWidget);
+      await tester.tap(find.text('sub-02'));
+      await tester.pump();
+      await tester.tap(find.text('Import'));
+      await tester.pumpAndSettle();
 
-    expect(find.textContaining('sub-01_ses-a_'), findsOneWidget);
-    expect(find.textContaining('sub-01_ses-b_'), findsOneWidget);
-    expect(find.textContaining('sub-02_'), findsNothing);
-    expect(find.text('Needs two or more TSVs.'), findsNothing);
-  });
+      expect(find.textContaining('sub-01_ses-a_'), findsOneWidget);
+      expect(find.textContaining('sub-01_ses-b_'), findsOneWidget);
+      expect(find.textContaining('sub-02_'), findsNothing);
+      expect(find.text('Needs two or more files.'), findsNothing);
+    },
+  );
 
   testWidgets('a zip description that cannot be read still marks the root', (
     tester,

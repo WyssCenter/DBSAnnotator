@@ -3,6 +3,7 @@
 /// counters.
 library;
 
+import '../schema_columns.dart';
 import 'session_file.dart';
 import 'session_row.dart';
 
@@ -19,18 +20,17 @@ class SessionAuthoring {
   /// Append ID every insert of this app session uses; see [nextAppendId].
   int get appendId => _appendId;
 
-  /// Load an existing TSV and continue its numbering.
-  void loadExisting(String tsv) {
+  /// Load an existing session's rows and continue its numbering.
+  void loadExisting(List<SessionRow> existing) {
     rows
       ..clear()
-      ..addAll(parseSessionTsv(tsv));
+      ..addAll(existing);
     _blockId = nextBlockId(rows);
     _appendId = nextAppendId(rows);
   }
 
-  /// Append one insert (one block) and return the rows added. [stim] holds the
-  /// 10 stimulation columns keyed by their exact TSV names; missing keys become
-  /// empty cells. [isInitial] marks a Step-1 baseline rather than a recording.
+  /// Append one block and return its rows, or rewrite block [replacing] in
+  /// place. [stim] maps the stimulation column names to their cells.
   List<SessionRow> addInsert({
     required bool isInitial,
     required Map<String, String> stim,
@@ -38,17 +38,30 @@ class SessionAuthoring {
     String programId = '',
     String leftElectrodeModel = '',
     String rightElectrodeModel = '',
+    String pathology = '',
+    String target = '',
+    String leftIpgModel = '',
+    String rightIpgModel = '',
+    String medications = '',
+    bool starred = false,
     String notes = '',
     DateTime? at,
+    int? replacing,
   }) {
     final inserted = buildInsertRows(
-      blockId: _blockId,
+      blockId: replacing ?? _blockId,
       appendId: _appendId,
       isInitial: isInitial,
       scales: scales,
       programId: programId,
       leftElectrodeModel: leftElectrodeModel,
       rightElectrodeModel: rightElectrodeModel,
+      pathology: pathology,
+      target: target,
+      leftIpgModel: leftIpgModel,
+      rightIpgModel: rightIpgModel,
+      medications: medications,
+      starred: starred,
       notes: notes,
       leftStimFreq: stim['left_stim_freq'] ?? '',
       leftAnode: stim['left_anode'] ?? '',
@@ -62,8 +75,14 @@ class SessionAuthoring {
       rightPulseWidth: stim['right_pulse_width'] ?? '',
       at: at,
     );
-    rows.addAll(inserted);
-    _blockId += 1;
+    if (replacing == null) {
+      rows.addAll(inserted);
+      _blockId += 1;
+      return inserted;
+    }
+    final at0 = rows.indexWhere((r) => r.blockId == '$replacing');
+    rows.removeWhere((r) => r.blockId == '$replacing');
+    rows.insertAll(at0 < 0 ? rows.length : at0, inserted);
     return inserted;
   }
 
@@ -78,6 +97,15 @@ class SessionAuthoring {
     }
   }
 
-  /// The full TSV document, with the canonical column header.
+  /// Star or unstar every row of [blockId].
+  void setStarred(String blockId, bool starred) {
+    final mark = initialCell(starred);
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].blockId != blockId || rows[i].isStarred == mark) continue;
+      rows[i] = SessionRow.fromMap({...rows[i].toMap(), 'is_starred': mark});
+    }
+  }
+
+  /// The long-form document of the app's working copy.
   String serialize() => serializeSessionTsv(rows);
 }

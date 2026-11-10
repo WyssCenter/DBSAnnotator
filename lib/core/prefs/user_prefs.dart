@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../electrode/electrode_model.dart';
 import '../safe_file.dart';
 import '../session/scale_presets.dart';
 
@@ -11,11 +12,12 @@ import '../session/scale_presets.dart';
 ///
 /// Any field left null means "use the bundled default"; the UI merges with
 /// `?? <default>`.
+/// A BIDS folder sessions are saved in, under the name shown in Setup.
+typedef BidsFolder = ({String name, String path});
+
 class UserPrefs {
   UserPrefs({
-    this.stimFrequencies,
-    this.stimAmplitudes,
-    this.stimPulseWidths,
+    this.stimDefaults,
     this.programs,
     this.clinical,
     this.clinicalRanges,
@@ -24,13 +26,20 @@ class UserPrefs {
     this.entryPanelOrder,
     this.entryVisibleConfigs,
     this.entryTableExpanded,
+    this.entryChartsExpanded,
     this.reportSections,
+    this.bidsFolders,
+    this.defaultBidsFolder,
+    this.darkTheme,
+    this.textScale,
+    this.pathologies,
+    this.targets,
+    this.devices,
   });
 
-  /// Stimulation quick-pick lists (override `limits.json` stimulation_presets).
-  List<num>? stimFrequencies;
-  List<num>? stimAmplitudes;
-  List<num>? stimPulseWidths;
+  /// DBS indication -> [frequency, amplitude, pulse width] to start from,
+  /// overriding `limits.json` stimulation_defaults.
+  Map<String, List<num>>? stimDefaults;
 
   /// Program names (override the default None/A/B/C/D).
   List<String>? programs;
@@ -58,16 +67,43 @@ class UserPrefs {
   /// Whether the inserted-entries table below the charts is expanded.
   bool? entryTableExpanded;
 
+  /// Whether the comparison charts in Programming are expanded.
+  bool? entryChartsExpanded;
+
+  /// The BIDS folders sessions are saved in, for example one per cohort.
+  List<BidsFolder>? bidsFolders;
+
+  /// The [bidsFolders] name Setup starts on.
+  String? defaultBidsFolder;
+
+  /// The appearance chosen in the side menu; null means light and 1.0.
+  bool? darkTheme;
+  double? textScale;
+
+  /// The folder Setup starts on: the default one, else the first.
+  BidsFolder? get startFolder {
+    final all = bidsFolders ?? const <BidsFolder>[];
+    return all.where((f) => f.name == defaultBidsFolder).firstOrNull ??
+        all.firstOrNull;
+  }
+
+  /// The Setup indication and target lists as edited; null means the
+  /// defaults.
+  List<String>? pathologies;
+  List<String>? targets;
+
+  /// The leads and IPGs offered in Setup; null means the bundled ones.
+  Devices? devices;
+
   /// Report sections to include, by [ReportSection.name]; null means every
   /// section. Persisted so a dropped section stays dropped on the next export.
   List<String>? reportSections;
 
   factory UserPrefs.fromJson(Map<String, dynamic> j) {
-    List<num>? nums(String k) => (j[k] as List?)?.map((e) => e as num).toList();
     return UserPrefs(
-      stimFrequencies: nums('stim_frequencies'),
-      stimAmplitudes: nums('stim_amplitudes'),
-      stimPulseWidths: nums('stim_pulse_widths'),
+      stimDefaults: (j['stim_defaults'] as Map?)?.map(
+        (k, v) => MapEntry(k as String, (v as List).cast<num>().toList()),
+      ),
       programs: (j['programs'] as List?)?.map((e) => e as String).toList(),
       clinical: (j['clinical'] as Map?)?.map(
         (k, v) =>
@@ -91,6 +127,33 @@ class UserPrefs {
           .toList(),
       entryVisibleConfigs: (j['entry_visible_configs'] as num?)?.toInt(),
       entryTableExpanded: j['entry_table_expanded'] as bool?,
+      entryChartsExpanded: j['entry_charts_expanded'] as bool?,
+      bidsFolders: switch (j['bids_folders']) {
+        final List<dynamic> list => [
+          for (final f in list.cast<Map<String, dynamic>>())
+            (name: f['name'] as String, path: f['path'] as String),
+        ],
+        _ => switch (j['save_folder']) {
+          final String path => [(name: 'Default', path: path)],
+          _ => null,
+        },
+      },
+      defaultBidsFolder: j['default_bids_folder'] as String?,
+      darkTheme: j['dark_theme'] as bool?,
+      textScale: (j['text_scale'] as num?)?.toDouble(),
+      pathologies: (j['pathologies'] as List?)?.cast<String>(),
+      targets: (j['targets'] as List?)?.cast<String>(),
+      devices: (j['devices'] as Map?)?.map(
+        (k, v) => MapEntry(k as String, (
+          leads: ((v as Map)['leads'] as Map).map(
+            (name, json) => MapEntry(
+              name as String,
+              ElectrodeModel.fromJson(json as Map<String, dynamic>),
+            ),
+          ),
+          ipgs: (v['ipgs'] as List).cast<String>(),
+        )),
+      ),
       reportSections: (j['report_sections'] as List?)
           ?.map((e) => e as String)
           .toList(),
@@ -98,9 +161,7 @@ class UserPrefs {
   }
 
   Map<String, dynamic> toJson() => {
-    if (stimFrequencies != null) 'stim_frequencies': stimFrequencies,
-    if (stimAmplitudes != null) 'stim_amplitudes': stimAmplitudes,
-    if (stimPulseWidths != null) 'stim_pulse_widths': stimPulseWidths,
+    if (stimDefaults != null) 'stim_defaults': stimDefaults,
     if (programs != null) 'programs': programs,
     if (clinical != null) 'clinical': clinical,
     if (clinicalRanges != null) 'clinical_ranges': clinicalRanges,
@@ -110,7 +171,28 @@ class UserPrefs {
     if (entryVisibleConfigs != null)
       'entry_visible_configs': entryVisibleConfigs,
     if (entryTableExpanded != null) 'entry_table_expanded': entryTableExpanded,
+    if (entryChartsExpanded != null)
+      'entry_charts_expanded': entryChartsExpanded,
     if (reportSections != null) 'report_sections': reportSections,
+    if (bidsFolders case final folders?)
+      'bids_folders': [
+        for (final f in folders) {'name': f.name, 'path': f.path},
+      ],
+    if (defaultBidsFolder != null) 'default_bids_folder': defaultBidsFolder,
+    if (darkTheme != null) 'dark_theme': darkTheme,
+    if (textScale != null) 'text_scale': textScale,
+    if (pathologies != null) 'pathologies': pathologies,
+    if (targets != null) 'targets': targets,
+    if (devices case final d?)
+      'devices': {
+        for (final MapEntry(:key, :value) in d.entries)
+          key: {
+            'leads': {
+              for (final l in value.leads.entries) l.key: l.value.toJson(),
+            },
+            'ipgs': value.ipgs,
+          },
+      },
   };
 }
 
@@ -152,6 +234,7 @@ ScalePresets mergeScalePresets(ScalePresets base, UserPrefs prefs) {
                   scaleOptimizationModes.contains(r[3].trim().toLowerCase())
               ? r[3].trim().toLowerCase()
               : defaultScaleOptimizationMode,
+          step: r.length > 4 ? r[4] : '',
         ),
     ],
   );
@@ -165,6 +248,8 @@ ScalePresets mergeScalePresets(ScalePresets base, UserPrefs prefs) {
     clinical: clinical,
     session: session,
     clinicalRanges: clinicalRanges,
+    pathologies: base.pathologies,
+    targets: base.targets,
   );
 }
 

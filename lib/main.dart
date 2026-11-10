@@ -7,8 +7,9 @@ import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app_info.dart' show appName;
+import 'core/prefs/user_prefs.dart';
 import 'ui/close_guard.dart';
-import 'ui/home_screen.dart';
+import 'ui/session_screen.dart';
 import 'ui/theme.dart';
 
 /// Preferred desktop window size, used only when the display can spare it.
@@ -74,9 +75,12 @@ Future<void> _fitWindowToWorkArea() async {
 }
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await loadUserPrefs();
+  themeMode.value = prefs.darkTheme == true ? ThemeMode.dark : ThemeMode.light;
+  textScale.value = prefs.textScale ?? 1.0;
   // Mobile platforms own the window; only desktop needs explicit sizing.
   if (!kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
-    WidgetsFlutterBinding.ensureInitialized();
     await windowManager.ensureInitialized();
     const options = WindowOptions(
       title: appName,
@@ -131,7 +135,7 @@ class DbsAnnotatorApp extends StatelessWidget {
                 .copyWith(textScaler: TextScaler.linear(scale)),
             child: child!,
           ),
-          home: const HomeScreen(),
+          home: const SessionScreen(),
         ),
       ),
     );

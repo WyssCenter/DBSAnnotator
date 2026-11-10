@@ -7,7 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('UserPrefs round-trips through JSON', () {
     final p = UserPrefs(
-      stimFrequencies: [10, 20, 30],
+      stimDefaults: {
+        'PD': [130, 1.5, 60],
+      },
       programs: ['None', 'A', 'Custom'],
       clinical: {
         'OCD': ['Y-BOCS', 'MADRS'],
@@ -19,12 +21,35 @@ void main() {
       },
     );
     final back = UserPrefs.fromJson(p.toJson());
-    expect(back.stimFrequencies, [10, 20, 30]);
+    expect(back.stimDefaults!['PD'], [130, 1.5, 60]);
     expect(back.programs, ['None', 'A', 'Custom']);
     expect(back.clinical!['OCD'], ['Y-BOCS', 'MADRS']);
     expect(back.session!['PD']!.first, ['Tremor', '0', '10']);
     // Unset fields stay null (fall back to bundled defaults).
-    expect(back.stimAmplitudes, isNull);
+    expect(back.bidsFolders, isNull);
+  });
+
+  test('BIDS folders, the default and the appearance survive a restart', () {
+    final back = UserPrefs.fromJson(
+      UserPrefs(
+        bidsFolders: [
+          (name: 'OCD cohort', path: '/data/ocd'),
+          (name: 'PD cohort', path: '/data/pd'),
+        ],
+        defaultBidsFolder: 'PD cohort',
+        darkTheme: true,
+        textScale: 1.2,
+      ).toJson(),
+    );
+    expect(back.startFolder, (name: 'PD cohort', path: '/data/pd'));
+    expect(back.bidsFolders, hasLength(2));
+    expect(back.darkTheme, isTrue);
+    expect(back.textScale, 1.2);
+  });
+
+  test('an older save folder becomes the default BIDS folder', () {
+    final back = UserPrefs.fromJson({'save_folder': '/data/sessions'});
+    expect(back.startFolder, (name: 'Default', path: '/data/sessions'));
   });
 
   test('the session report remembers its sections', () {
@@ -47,7 +72,7 @@ void main() {
         'PD': ['UPDRS'],
       },
       session: {
-        'PD': [(name: 'Tremor', min: '0', max: '10', mode: 'min')],
+        'PD': [(name: 'Tremor', min: '0', max: '10', mode: 'min', step: '')],
       },
     );
 
@@ -93,6 +118,7 @@ void main() {
         min: '0',
         max: '4',
         mode: 'min',
+        step: '',
       ));
     });
 
@@ -102,7 +128,7 @@ void main() {
         UserPrefs(
           session: {
             'PD': [
-              ['Mood', '0', '10', 'max'],
+              ['Mood', '0', '10', 'max', '1'],
             ],
           },
         ),
@@ -112,6 +138,7 @@ void main() {
         min: '0',
         max: '10',
         mode: 'max',
+        step: '1',
       ));
     });
 

@@ -38,21 +38,20 @@ void main() {
 
     test('plots the session scales over the recording blocks', () {
       expect(data.chart.series.keys, [
-        'Obsessions',
-        'Compulsions',
-        'Anxiety',
-        'Mood',
-        'Energy',
+        'MDS-UPDRS 3.3 Rigidity RUE',
+        'MDS-UPDRS 3.4 Finger tapping R',
+        'MDS-UPDRS 3.17 Rest tremor RUE',
+        'MDS-UPDRS 3.10 Gait',
       ]);
       expect(data.chart.xs, [1, 2, 3, 4, 5, 6, 7]);
       expect(data.chart.isEmpty, isFalse);
     });
 
     test('clamps the y-axis to the declared scale range', () {
-      // Every scale declares 0..10, so the axis is pinned there rather than
+      // Every item declares 0..4, so the axis is pinned there rather than
       // hugging the data (the desktop `get_declared_scale_range`).
       expect(data.chart.yMin, 0);
-      expect(data.chart.yMax, 10);
+      expect(data.chart.yMax, 4);
     });
 
     test('ranks blocks by aggregate index, best first', () {
@@ -69,11 +68,11 @@ void main() {
 
     test('the replicate spread is reported as the ranking resolution', () {
       // The only estimate the session offers of how much the index moves when
-      // nothing changes: 0.070 between blocks 6 and 7. That is 7x the 0.010
-      // separating blocks 2, 3 and 4, so a third-decimal margin is not a
-      // finding and the document must say so.
-      expect(data.replicateSpread, closeTo(0.070, 5e-4));
-      expect(data.rankingResolutionNote, contains('0.070'));
+      // nothing changes: 0.125 between blocks 6 and 7. That is twice the
+      // 0.0625 separating blocks 2 and 3, so that margin is not a finding and
+      // the document must say so.
+      expect(data.replicateSpread, closeTo(0.125, 5e-4));
+      expect(data.rankingResolutionNote, contains('0.125'));
       expect(data.rankingResolutionNote, contains('not distinguishable'));
     });
 
@@ -89,10 +88,10 @@ void main() {
     test(
       'lists only the SESSION scales as targets, not clinical baselines',
       () {
-        expect(data.targetsText, contains('Obsessions: min'));
+        expect(data.targetsText, contains('MDS-UPDRS 3.3 Rigidity RUE: min'));
         expect(
           data.targetsText,
-          isNot(contains('Y-BOCS')),
+          isNot(contains('UPDRS-III')),
           reason: 'clinical baseline scales are not session targets',
         );
       },
@@ -108,13 +107,12 @@ void main() {
     test('respects explicit scale prefs (max flips the ranking)', () {
       final maxPrefs = [
         for (final name in [
-          'Obsessions',
-          'Compulsions',
-          'Anxiety',
-          'Mood',
-          'Energy',
+          'MDS-UPDRS 3.3 Rigidity RUE',
+          'MDS-UPDRS 3.4 Finger tapping R',
+          'MDS-UPDRS 3.17 Rest tremor RUE',
+          'MDS-UPDRS 3.10 Gait',
         ])
-          (name: name, min: 0.0, max: 10.0, mode: ScaleMode.max, custom: null),
+          (name: name, min: 0.0, max: 4.0, mode: ScaleMode.max, custom: null),
       ];
       final flipped = buildSessionReportData(
         rows: _exampleRows(),

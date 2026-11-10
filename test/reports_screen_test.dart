@@ -1,37 +1,44 @@
 import 'dart:io';
 
+import 'package:dbs_annotator/core/annotation.dart';
 import 'package:dbs_annotator/report/upload_actions.dart';
-import 'package:dbs_annotator/ui/reports_screen.dart';
+import 'package:dbs_annotator/ui/import_export_panel.dart';
 import 'package:dbs_annotator/ui/scales_chart_painter.dart';
 import 'package:dbs_annotator/ui/session/entries_table.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+Widget _host(ImportExportPanel panel, {Key? key}) => MaterialApp(
+  key: key,
+  home: Scaffold(body: SingleChildScrollView(child: panel)),
+);
+
 void main() {
-  testWidgets('with nothing uploaded, every action is offered but disabled', (
+  testWidgets('with nothing imported, every action is offered but disabled', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(const MaterialApp(home: ReportsScreen()));
+    await tester.pumpWidget(_host(const ImportExportPanel()));
     await tester.pump();
 
-    expect(find.text('Upload TSVs'), findsOneWidget);
-    expect(find.text('No files uploaded.'), findsOneWidget);
-    // Listed rather than hidden, so what the screen can do is visible before
-    // anything is uploaded, with the reason it cannot do it yet.
+    expect(find.text('Import session files'), findsOneWidget);
+    expect(find.text('No files imported.'), findsOneWidget);
     for (final label in const [
       'Single session report',
-      'Longitudinal report',
+      'Report across visits',
       'Combined table (TSV)',
-      'Create a BIDS dataset (zip)',
-      'Add to an existing dataset',
+      'BIDS folder (zip)',
+      'Add to a BIDS folder',
     ]) {
-      expect(find.text(label), findsOneWidget, reason: label);
+      expect(find.text(label), findsWidgets, reason: label);
     }
-    expect(find.text('Upload a TSV first.'), findsNWidgets(5));
-    final load = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Load from dataset'),
+    expect(find.text('Import a session first.'), findsNWidgets(5));
+    final load = tester.widget<ButtonStyleButton>(
+      find.ancestor(
+        of: find.text('Import from a BIDS folder'),
+        matching: find.bySubtype<ButtonStyleButton>(),
+      ),
     );
     expect(load.onPressed, isNotNull);
     for (final button in tester.widgetList<OutlinedButton>(
@@ -40,7 +47,6 @@ void main() {
       expect(button.onPressed, isNull, reason: 'no action is tappable yet');
     }
 
-    // The info stays open on a disabled row: it says what the row needs.
     expect(find.byTooltip('About this export'), findsNWidgets(5));
     await tester.tap(find.byTooltip('About this export').first);
     await tester.pumpAndSettle();
@@ -54,8 +60,10 @@ void main() {
     expect(find.text(ReportAction.sessionReport.needs), findsOneWidget);
   });
 
-  testWidgets('one session: the page scrolls as a whole, and the dataset add '
-      'files only the TSV unless the report is ticked', (tester) async {
+  testWidgets('one session: the preview shows its table, and adding to a BIDS '
+      'folder files only the session unless the report is ticked', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1000, 700));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     const name = 'sub-01_ses-20260203_task-programming_run-01_beh.tsv';
@@ -63,41 +71,58 @@ void main() {
       name,
       File('test/fixtures/$name').readAsStringSync(),
     ).file!;
-    await tester.pumpWidget(
-      MaterialApp(home: ReportsScreen(initialFiles: [upload])),
-    );
+    await tester.pumpWidget(_host(ImportExportPanel(initialFiles: [upload])));
     await tester.pump();
 
-    final page = find.byType(Scrollable).first;
-    await tester.drag(page, const Offset(0, -1500));
-    await tester.pumpAndSettle();
-    expect(tester.state<ScrollableState>(page).position.pixels, greaterThan(0));
     expect(find.byType(SessionEntriesTable), findsOneWidget);
-    expect(
-      find.text('Upload TSVs').hitTestable(),
-      findsNothing,
-      reason: 'scrolled away with the rest of the page',
-    );
-    await tester.drag(page, const Offset(0, 3000));
-    await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Add to dataset'));
+    final add = find.widgetWithText(OutlinedButton, 'Add to a BIDS folder');
+    await tester.ensureVisible(add);
+    await tester.tap(add);
     await tester.pumpAndSettle();
     final boxes = tester
         .widgetList<CheckboxListTile>(find.byType(CheckboxListTile))
         .map((b) => b.value)
         .toList();
     expect(boxes, [true, false]);
-    final format = find.descendant(
+    Finder inDialog(String text) => find.descendant(
       of: find.byType(AlertDialog),
-      matching: find.text('PDF'),
+      matching: find.text(text),
     );
-    expect(format, findsNothing, reason: 'no format without the report');
-    await tester.tap(find.text('Report'));
+    expect(inDialog('PDF'), findsNothing, reason: 'no format without report');
+    await tester.tap(inDialog('Report'));
     await tester.pumpAndSettle();
-    expect(format, findsOneWidget);
+    expect(inDialog('PDF'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('a notes file alone has no single session report', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final notes = classifyUpload(
+      'sub-01_ses-20260203_task-notes_run-01_beh.tsv',
+      writeAnnotations([
+        const Annotation(
+          acqTime: '2026-02-03T09:00:00+00:00',
+          notes: 'planted note',
+        ),
+      ]),
+    );
+    expect(notes.file, isNotNull, reason: '${notes.rejected}');
+    await tester.pumpWidget(
+      _host(ImportExportPanel(initialFiles: [notes.file!])),
+    );
+    await tester.pump();
+
+    expect(
+      find.text(
+        'A notes file from an earlier version has no report of its own.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -117,15 +142,14 @@ void main() {
           .any((p) => p.painter is ScalesChartPainter);
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: ReportsScreen(
+        _host(
+          ImportExportPanel(
             initialFiles: [upload('01', '20260203'), upload('01', '20260310')],
           ),
         ),
       );
       await tester.pump();
       expect(charted(), isTrue);
-      // No targets confirmed, so the dialog's defaults rank, as at export.
       final painter = tester
           .widgetList<CustomPaint>(find.byType(CustomPaint))
           .map((p) => p.painter)
@@ -134,9 +158,9 @@ void main() {
       expect(painter.spec.bestXs, isNotEmpty);
 
       await tester.pumpWidget(
-        MaterialApp(
+        _host(
           key: UniqueKey(),
-          home: ReportsScreen(
+          ImportExportPanel(
             initialFiles: [upload('01', '20260203'), upload('02', '20260310')],
           ),
         ),

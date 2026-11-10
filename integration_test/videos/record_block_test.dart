@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:dbs_annotator/core/electrode/electrode_model.dart';
 import 'package:dbs_annotator/core/electrode/geometry.dart';
 import 'package:dbs_annotator/core/electrode/stimulation_rule.dart';
+import 'package:dbs_annotator/core/prefs/user_prefs.dart';
 import 'package:dbs_annotator/ui/electrode_view.dart';
-import 'package:dbs_annotator/ui/home_screen.dart';
 import 'package:dbs_annotator/ui/scale_slider.dart';
+import 'package:dbs_annotator/ui/session_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -32,10 +35,6 @@ Offset _contact(ElectrodeLayout l, int level, int segment) => l.levels
     .contactRects[ContactKey(level, segment)]!
     .center;
 
-/// A stimulation preset chip on the [side]th parameters card.
-Future<void> _preset(WidgetTester tester, String value, {int side = 0}) =>
-    tap(tester, find.widgetWithText(ActionChip, value).at(side));
-
 /// Rates every session scale at [fractions] of its bar.
 Future<void> _rate(WidgetTester tester, List<double> fractions) async {
   final sliders = find.byType(ScaleSlider);
@@ -57,48 +56,55 @@ void main() {
 
   testWidgets('recording a session', (tester) async {
     final model = (await loadElectrodeCatalog()).models[_model]!;
-    await startVideo(tester, const HomeScreen());
-    await tapText(tester, 'Complete workflow');
-    await typeInto(tester, 'Patient ID (sub-)', '01');
-    await tapText(tester, 'New');
-    await tapText(tester, 'Loose TSV');
+    final study = Directory.systemTemp.createTempSync('dbs_video_bids');
+    await startVideo(
+      tester,
+      FutureBuilder<void>(
+        future: Future(
+          () => saveUserPrefs(
+            UserPrefs(bidsFolders: [(name: 'Study', path: study.path)]),
+          ),
+        ),
+        builder: (context, saved) =>
+            saved.connectionState == ConnectionState.done
+            ? const SessionScreen()
+            : const SizedBox.shrink(),
+      ),
+    );
+    await typeInto(tester, 'Patient ID', '01');
+    await tapText(tester, 'DBS indication');
+    await tap(tester, find.text('OCD').last);
+    await tapText(tester, 'New session');
+    await tapText(tester, 'Next');
 
-    // Stimulation first: presets on the left, typed on the right.
-    await _preset(tester, '125');
-    await _preset(tester, '3');
-    await _preset(tester, '60');
-    await typeInto(tester, 'Frequency', '130', at: 1);
+    // Stimulation first: OCD defaults on the left, typed on the right.
     await typeInto(tester, 'Amplitude', '3.5', at: 1);
-    await typeInto(tester, 'Pulse width', '60', at: 1);
     await _tapLead(tester, model, 0, (l) => _contact(l, 2, 1), taps: 2);
     await _tapLead(tester, model, 0, (l) => _contact(l, 2, 2), taps: 2);
     await _tapLead(tester, model, 0, (l) => l.caseRect.center);
     await _tapLead(tester, model, 1, (l) => _contact(l, 3, 0), taps: 2);
     await _tapLead(tester, model, 1, (l) => l.caseRect.center);
 
-    // Then the pathology and its clinical scores.
-    await tapText(tester, 'OCD');
+    // Then the clinical scores the pathology loaded.
     await typeInto(tester, 'Score', '28');
     await typeInto(tester, 'Score', '15', at: 1);
     await typeInto(tester, 'Notes', 'Baseline on admission settings.');
-    await tapText(tester, 'Insert baseline');
     await tapText(tester, 'Next');
     await pause(tester, 1500);
-    await tapText(tester, 'Next');
 
     // Three configurations, each changing one thing.
-    await _preset(tester, '5');
+    await typeInto(tester, 'Amplitude', '6');
     await _rate(tester, [0.6, 0.55, 0.5, 0.45, 0.4]);
-    await typeInto(tester, 'Notes', 'Left raised to 5 mA.');
-    await tapText(tester, 'Insert recording block');
-    await _preset(tester, '7');
+    await typeInto(tester, 'Notes', 'Left raised to 6 mA.');
+    await tapText(tester, 'Save configuration');
+    await typeInto(tester, 'Amplitude', '7');
     await _rate(tester, [0.35, 0.4, 0.3, 0.55, 0.5]);
     await typeInto(tester, 'Notes', 'Left raised to 7 mA, less checking.');
-    await tapText(tester, 'Insert recording block');
-    await _preset(tester, '100');
+    await tapText(tester, 'Save configuration');
+    await typeInto(tester, 'Frequency', '100');
     await _rate(tester, [0.2, 0.25, 0.25, 0.65, 0.6]);
     await typeInto(tester, 'Notes', 'Left frequency down to 100 Hz.');
-    await tapText(tester, 'Insert recording block');
+    await tapText(tester, 'Save configuration');
 
     await center(tester, find.textContaining('Inserted entries'));
     await pause(tester, 2500);

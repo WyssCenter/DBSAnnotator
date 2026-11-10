@@ -7,8 +7,6 @@ import 'dart:io';
 import 'package:dbs_annotator/ui/save_target.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'screen_test_helpers.dart';
-
 void main() {
   group('pickedBasename', () {
     // Both call sites carried `path.replaceAll(r'', '/').split('/').last`,
@@ -67,30 +65,6 @@ void main() {
       final second = await workingPath('sub-01_ses-20260203_beh.tsv');
       expect(second, isNot(first));
       expect(second, endsWith('sub-01_ses-20260203_beh-2.tsv'));
-    });
-  });
-
-  group('createNewTsv', () {
-    test('refuses the same file spelled another way', () async {
-      final dir = Directory.systemTemp.createTempSync('dbs_same');
-      addTearDown(() => dir.deleteSync(recursive: true));
-      debugSaveDir = dir;
-      addTearDown(() => debugSaveDir = null);
-      final existing = File('${dir.path}/a_beh.tsv')..writeAsStringSync('x');
-      await expectLater(
-        createNewTsv(
-          dialogTitle: 't',
-          fileName: 'a_beh.tsv',
-          header: 'h',
-          confirmReplace: mustNotAsk,
-          avoid: (
-            path: '${dir.path}/./${existing.uri.pathSegments.last}',
-            reason: 'same',
-          ),
-        ),
-        throwsA(isA<SameFileException>()),
-      );
-      expect(existing.readAsStringSync(), 'x');
     });
   });
 

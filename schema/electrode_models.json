@@ -29,6 +29,35 @@
       "ALEVA directSTIM"
     ]
   },
+  "ipgs": {
+    "Medtronic": [
+      "Medtronic Percept PC",
+      "Medtronic Percept RC",
+      "Medtronic Activa PC",
+      "Medtronic Activa RC",
+      "Medtronic Activa SC"
+    ],
+    "Boston Scientific": [
+      "Boston Scientific Vercise Genus",
+      "Boston Scientific Vercise Gevia",
+      "Boston Scientific Vercise PC",
+      "Boston Scientific Vercise RC"
+    ],
+    "Abbott": [
+      "Abbott Infinity 5",
+      "Abbott Infinity 7",
+      "Abbott Liberta RC",
+      "Abbott Brio"
+    ],
+    "PINS Medical": [
+      "PINS Medical G101A",
+      "PINS Medical G102",
+      "PINS Medical G102R"
+    ],
+    "ALEVA": [
+      "ALEVA directSTIM"
+    ]
+  },
   "models": {
     "Medtronic 3387": {
       "name": "Medtronic 3387",

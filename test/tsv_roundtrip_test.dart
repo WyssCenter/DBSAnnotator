@@ -72,6 +72,22 @@ void main() {
       expect(parsed.run, '01');
     });
 
+    test('acq sits between task and run, and only when filled in', () {
+      const name = BidsName(
+        subject: '01',
+        session: '20260724',
+        task: 'programming',
+        run: '01',
+        acquisition: 'med-on',
+      );
+      expect(
+        name.filename,
+        'sub-01_ses-20260724_task-programming_acq-medon_run-01_beh.tsv',
+      );
+      expect(BidsName.parse(name.filename)!.acquisition, 'medon');
+      expect(name.withSuffix('report').filename, contains('_acq-medon_'));
+    });
+
     test('still parses a pre-0.5.0 _events name, and says so', () {
       final parsed = BidsName.parse(
         'sub-P07_ses-20250101_task-programming_run-02_events.tsv',

@@ -1,5 +1,7 @@
+import 'package:dbs_annotator/core/electrode/electrode_model.dart';
+import 'package:dbs_annotator/ui/devices_dialog.dart';
 import 'package:dbs_annotator/ui/scale_presets_dialog.dart';
-import 'package:dbs_annotator/ui/setting_presets_dialog.dart';
+import 'package:dbs_annotator/ui/stim_defaults_dialog.dart';
 import 'package:dbs_annotator/ui/stim_params_form.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,7 +33,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('setting presets dialog sorts + de-dupes and returns lists', (
+  testWidgets('stim defaults dialog keeps filled rows and checks ranges', (
     tester,
   ) async {
     const limits = StimLimits(
@@ -39,26 +41,98 @@ void main() {
       amplitude: (min: 0, max: 15),
       pulseWidth: (min: 10, max: 200),
       sessionScale: (min: 0, max: 10),
+      defaults: {
+        'PD': [130, 1.5, 60],
+      },
     );
-    StimPresetLists? result;
+    Map<String, List<num>>? result;
     await pumpHost(tester, (context) async {
-      result = await showSettingPresetsDialog(
+      result = await showStimDefaultsDialog(
         context,
         limits: limits,
-        frequencies: const [125, 25], // intentionally unsorted
-        amplitudes: const [1.5],
-        pulseWidths: const [60],
+        indications: const ['PD', 'ET'],
       );
     });
 
-    expect(find.text('Edit parameter presets'), findsOneWidget);
+    expect(find.text('Default settings per DBS indication'), findsOneWidget);
+    final etFrequency = find.widgetWithText(TextField, 'Frequency').at(1);
+    await tester.enterText(etFrequency, '500');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(result, isNull);
+    expect(find.textContaining('ET: Frequency must be 10-200'), findsOneWidget);
+
+    await tester.enterText(etFrequency, '');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(result, {
+      'PD': [130, 1.5, 60],
+    });
+  });
+
+  testWidgets('devices dialog edits leads and IPGs per manufacturer', (
+    tester,
+  ) async {
+    const m3389 = ElectrodeModel(
+      name: 'Medtronic 3389',
+      numContacts: 4,
+      contactHeight: 1.5,
+      contactSpacing: 0.5,
+      leadDiameter: 1.27,
+      isDirectional: false,
+      tipContact: false,
+      segmentsPerLevel: 1,
+      directionalLevels: null,
+      levelDirectional: [false, false, false, false],
+    );
+    Devices? result;
+    await pumpHost(tester, (context) async {
+      result = await showDevicesDialog(
+        context,
+        devices: {
+          'Medtronic': (
+            leads: {'Medtronic 3389': m3389},
+            ipgs: ['Medtronic Percept RC'],
+          ),
+        },
+      );
+    });
+
+    // Models show without their manufacturer, and are saved with it.
+    expect(find.widgetWithText(TextField, '3389'), findsOneWidget);
+    await tester.tap(find.text('Add manufacturer'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Manufacturer'),
+      'Newronika',
+    );
+    // A new lead opens its design: five levels, the top one directional.
+    await tester.tap(find.text('Add lead'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Close lead design'), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextField, 'Lead model'), 'A');
+    await tester.tap(find.byTooltip('More levels'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilterChip, 'E4'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Close lead design'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Close lead design'), findsNothing);
+    await tester.tap(find.text('Add IPG'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'IPG model'),
+      'AlphaDBS',
+    );
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
-    expect(result, isNotNull);
-    expect(result!.frequencies, [25, 125]); // sorted ascending
-    expect(result!.amplitudes, [1.5]);
-    expect(result!.pulseWidths, [60]);
+    expect(result!.keys, ['Medtronic', 'Newronika']);
+    expect(result!['Medtronic']!.leads.keys, ['Medtronic 3389']);
+    final lead = result!['Newronika']!.leads['Newronika A']!;
+    expect(lead.name, 'Newronika A');
+    expect(lead.levelDirectional, [false, true, true, false, true]);
+    expect(result!['Newronika']!.ipgs, ['Newronika AlphaDBS']);
   });
 
   testWidgets('clinical presets dialog returns names and their ranges', (
@@ -99,7 +173,10 @@ void main() {
       result = await showSessionPresetsDialog(
         context,
         presets: const {
-          'PD': [(name: 'Tremor', min: '0', max: '10', mode: 'max')],
+          'PD': [
+            (name: 'Tremor', min: '0', max: '10', mode: 'max', step: '1'),
+            (name: 'Mood', min: '0', max: '10', mode: 'min', step: ''),
+          ],
         },
       );
     });
@@ -108,10 +185,11 @@ void main() {
     await tester.tap(find.text('Save & Close'));
     await tester.pumpAndSettle();
 
-    // The hidden optimization mode is carried through unchanged.
+    // The hidden optimization mode and rating step are carried through.
     expect(result, {
       'PD': [
-        ['Tremor', '0', '10', 'max'],
+        ['Tremor', '0', '10', 'max', '1'],
+        ['Mood', '0', '10', 'min'],
       ],
     });
   });
@@ -124,7 +202,7 @@ void main() {
       result = await showSessionPresetsDialog(
         context,
         presets: const {
-          'PD': [(name: 'Tremor', min: '0', max: '10', mode: 'max')],
+          'PD': [(name: 'Tremor', min: '0', max: '10', mode: 'max', step: '')],
         },
       );
     });
@@ -146,8 +224,8 @@ void main() {
       result = await showSessionPresetsDialog(
         context,
         presets: const {
-          'A': [(name: 'Tremor', min: '0', max: '10', mode: 'max')],
-          'B': [(name: 'Rigidity', min: '0', max: '10', mode: 'max')],
+          'A': [(name: 'Tremor', min: '0', max: '10', mode: 'max', step: '')],
+          'B': [(name: 'Rigidity', min: '0', max: '10', mode: 'max', step: '')],
         },
       );
     });

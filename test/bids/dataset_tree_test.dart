@@ -96,14 +96,20 @@ void main() {
     final files = buildBidsDataset(
       [
         for (final s in sources)
-          datasetEntry(
-            name: s.name,
-            tsv: s.tsv,
-            contract: contract,
-            kind: s.kind,
-            acqTime: '2026-02-03T09:00:00+00:00',
-          ),
+          s.kind == 'session_tsv'
+              ? sessionEntry(
+                  name: s.name,
+                  rows: parseSessionTsv(s.tsv),
+                  contract: contract,
+                )
+              : notesEntry(
+                  name: s.name,
+                  tsv: s.tsv,
+                  contract: contract,
+                  acqTime: '2026-02-03T09:00:00+00:00',
+                ),
       ],
+      contract: contract,
       appName: appName,
       appVersion: appVersion,
       repoUrl: repoUrl,
@@ -166,7 +172,23 @@ void main() {
 
     test('participants.tsv lists both subjects, once each', () {
       final file = buildTree().firstWhere((f) => f.path == 'participants.tsv');
-      expect(file.content, 'participant_id\nsub-01\nsub-07\n');
+      final ids = [
+        for (final line in file.content.trim().split('\n').skip(1))
+          line.split('\t').first,
+      ];
+      expect(file.content, startsWith('participant_id\tdbs_indication\n'));
+      expect(ids, ['sub-01', 'sub-07']);
+    });
+
+    test('each subject gets one sessions.tsv row per visit', () {
+      final file = buildTree().firstWhere(
+        (f) => f.path == 'sub-01/sub-01_sessions.tsv',
+      );
+      final ids = [
+        for (final line in file.content.trim().split('\n').skip(1))
+          line.split('\t').first,
+      ];
+      expect(ids, ['ses-20260203', 'ses-20260918']);
     });
 
     test('every raw data file sits in a beh/ datatype directory', () {
@@ -174,7 +196,8 @@ void main() {
         if (!file.path.endsWith('.tsv')) continue;
         if (file.path.startsWith('derivatives/')) continue;
         if (!file.path.contains('/')) continue; // participants.tsv
-        if (file.path.endsWith('_scans.tsv')) continue; // session level
+        if (file.path.endsWith('_scans.tsv')) continue;
+        if (file.path.endsWith('_sessions.tsv')) continue;
         expect(
           file.path,
           contains('/${BidsName.datatype}/'),
@@ -226,25 +249,24 @@ void main() {
     // broken in exactly the way only a validator catches.
     final extra = buildBidsDataset(
       [
-        datasetEntry(
+        sessionEntry(
           name: const BidsName(
             subject: '99',
             session: '20260401',
             task: 'programming',
             run: '01',
           ),
-          tsv: serializeSessionTsv(const [
+          rows: const [
             SessionRow(
               blockId: '1',
               isInitial: '0',
               acqTime: '2026-04-01T09:00:00+00:00',
             ),
-          ]),
+          ],
           contract: contract,
-          kind: 'session_tsv',
-          acqTime: '2026-04-01T09:00:00+00:00',
         ),
       ],
+      contract: contract,
       appName: appName,
       appVersion: appVersion,
       repoUrl: repoUrl,
@@ -279,11 +301,7 @@ void main() {
     expect(written, isNotEmpty);
   });
 
-  // `datasetEntry` is a pure adapter whose two jobs are both silent when
-  // wrong: a sidecar built for the wrong kind documents columns the file does
-  // not have, and an empty acq_time written as '' rather than 'n/a' leaves a
-  // blank cell, which BIDS forbids.
-  group('datasetEntry', () {
+  group('dataset entries', () {
     const name = BidsName(
       subject: '01',
       session: '20260203',
@@ -291,52 +309,45 @@ void main() {
       run: '01',
     );
 
-    test('builds the sidecar for the kind it was asked for', () {
-      final session = datasetEntry(
+    test('builds the sidecar for the kind of file', () {
+      final session = sessionEntry(
         name: name,
-        tsv: 'x',
+        rows: const [SessionRow(blockId: '1', isInitial: '0')],
         contract: contract,
-        kind: 'session_tsv',
-        acqTime: '2026-02-03T09:00:00+00:00',
       );
-      final notes = datasetEntry(
+      final notes = notesEntry(
         name: name,
         tsv: 'x',
         contract: contract,
-        kind: 'annotation_tsv',
         acqTime: '2026-02-03T09:00:00+00:00',
       );
       final sessionJson = jsonDecode(session.sidecar) as Map<String, dynamic>;
       final notesJson = jsonDecode(notes.sidecar) as Map<String, dynamic>;
 
-      expect(sessionJson.keys, contains('block_id'));
+      expect(sessionJson.keys, contains('is_final'));
+      expect(sessionJson.keys, isNot(contains('block_id')));
       expect(
         notesJson.keys,
-        isNot(contains('block_id')),
+        isNot(contains('is_final')),
         reason: 'a notes sidecar must not document session columns',
       );
       expect(notesJson.keys, contains('acq_time'));
     });
 
     test('an empty acq_time becomes n/a, never a blank cell', () {
-      // BIDS: "Missing and non-applicable values MUST be coded as n/a", and it
-      // lands in scans.tsv, where a blank column is invalid.
-      final entry = datasetEntry(
+      final entry = sessionEntry(
         name: name,
-        tsv: 'x',
+        rows: const [],
         contract: contract,
-        kind: 'session_tsv',
-        acqTime: '',
       );
       expect(entry.acqTime, 'n/a');
     });
 
-    test('passes the tsv and name through untouched', () {
-      final entry = datasetEntry(
+    test('passes a notes tsv and its name through untouched', () {
+      final entry = notesEntry(
         name: name,
         tsv: 'header\nrow\n',
         contract: contract,
-        kind: 'session_tsv',
         acqTime: '2026-02-03T09:00:00+00:00',
       );
       expect(entry.tsv, 'header\nrow\n');
@@ -344,12 +355,10 @@ void main() {
     });
 
     test('the sidecar is pretty-printed and newline-terminated', () {
-      final entry = datasetEntry(
+      final entry = sessionEntry(
         name: name,
-        tsv: 'x',
+        rows: const [],
         contract: contract,
-        kind: 'session_tsv',
-        acqTime: 'n/a',
       );
       expect(entry.sidecar, contains('\n  "'));
       expect(entry.sidecar, endsWith('\n'));

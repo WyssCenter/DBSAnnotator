@@ -1,5 +1,5 @@
-/// Recording into a dataset from either workflow: the Task field, filing
-/// notes beside a visit, and the session label check.
+/// Recording into a BIDS folder: the Task field, filing and notes filed
+/// beside a visit.
 library;
 
 import 'dart:convert';
@@ -9,11 +9,12 @@ import 'package:dbs_annotator/core/bids.dart';
 import 'package:dbs_annotator/core/electrode/electrode_model.dart';
 import 'package:dbs_annotator/core/session/scale_presets.dart';
 import 'package:dbs_annotator/core/tsv.dart';
-import 'package:dbs_annotator/ui/annotations_screen.dart';
 import 'package:dbs_annotator/ui/bids_merge_ui.dart';
 import 'package:dbs_annotator/ui/session_screen.dart';
 import 'package:dbs_annotator/ui/stim_params_form.dart';
 import 'package:flutter/material.dart';
+import 'package:dbs_annotator/core/session/session_row.dart';
+import 'package:dbs_annotator/ui/bids_export.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 BidsName _name(String task) =>
@@ -27,13 +28,24 @@ void main() {
     setUp(() => root = Directory.systemTemp.createTempSync('dbs_target'));
     tearDown(() => root.deleteSync(recursive: true));
 
+    final contract = jsonDecode(
+      File('schema/tsv_schema.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
     Future<String?> put(BidsName name, String kind, {String tsv = 'a'}) async =>
         (await fileIntoDataset(
           root: root.path,
-          name: name,
-          tsv: tsv,
-          kind: kind,
-          acqTime: '2026-02-03T09:00:00+00:00',
+          entry: kind == 'session_tsv'
+              ? sessionEntry(
+                  name: name,
+                  rows: [SessionRow(blockId: '1', notes: tsv)],
+                  contract: contract,
+                )
+              : notesEntry(
+                  name: name,
+                  tsv: tsv,
+                  contract: contract,
+                  acqTime: '2026-02-03T09:00:00+00:00',
+                ),
         ))?.path;
 
     test('notes are filed beside the visit, under their own task', () async {
@@ -73,59 +85,9 @@ void main() {
     });
   });
 
-  group('session label', () {
-    Future<void> open(
-      WidgetTester tester,
-      String proposed, {
-      String? Function(String)? note,
-    }) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => askSessionLabel(context, proposed, note: note),
-              child: const Text('go'),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-    }
-
-    bool useEnabled(WidgetTester tester) => tester
-        .widget<FilledButton>(find.widgetWithText(FilledButton, 'Use'))
-        .enabled;
-
-    testWidgets('says how a typed label will be filed', (tester) async {
-      await open(tester, '3-mo');
-      expect(find.textContaining('Filed as ses-3mo'), findsOneWidget);
-      expect(useEnabled(tester), isTrue);
-    });
-
-    testWidgets('an empty label cannot be used', (tester) async {
-      await open(tester, '20260203');
-      await tester.enterText(find.byType(TextField), '');
-      await tester.pump();
-      expect(useEnabled(tester), isFalse);
-    });
-
-    testWidgets('a name already filed is explained, not refused', (
-      tester,
-    ) async {
-      await open(
-        tester,
-        'preop',
-        note: (label) => label == 'preop' ? 'filed as run-02' : null,
-      );
-      expect(find.textContaining('filed as run-02'), findsOneWidget);
-      expect(useEnabled(tester), isTrue);
-    });
-  });
-
   group('the Task field', () {
     String taskText(WidgetTester tester) => tester
-        .widget<TextField>(find.widgetWithText(TextField, 'Task (task-)'))
+        .widget<TextField>(find.widgetWithText(TextField, 'Task'))
         .controller!
         .text;
 
@@ -151,12 +113,6 @@ void main() {
       );
       await tester.pump();
       expect(taskText(tester), 'programming');
-    });
-
-    testWidgets('defaults to notes in annotation-only mode', (tester) async {
-      await tester.pumpWidget(const MaterialApp(home: AnnotationsScreen()));
-      await tester.pump();
-      expect(taskText(tester), 'notes');
     });
   });
 }

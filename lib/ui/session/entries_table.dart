@@ -28,6 +28,7 @@ class SessionEntriesTable extends StatelessWidget {
     required this.rows,
     this.bestBlocks = const [],
     this.secondBlocks = const [],
+    this.onToggleStar,
   });
 
   final List<SessionRow> rows;
@@ -35,6 +36,9 @@ class SessionEntriesTable extends StatelessWidget {
   /// Rank 1 and rank 2 blocks, shaded as the chart bands them.
   final List<int> bestBlocks;
   final List<int> secondBlocks;
+
+  /// Called with a block id when its star is tapped; null shows stars only.
+  final ValueChanged<String>? onToggleStar;
 
   static const _headers = [
     'Blk',
@@ -49,7 +53,7 @@ class SessionEntriesTable extends StatelessWidget {
   ];
 
   /// Relative column widths; Notes takes the largest share.
-  static const _flex = <double>[3, 5, 8, 4, 9, 5, 15, 15, 12];
+  static const _flex = <double>[5, 5, 8, 4, 9, 5, 15, 15, 12];
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +87,7 @@ class SessionEntriesTable extends StatelessWidget {
     // no baseline keeps date and time on its first block, so the day is never
     // lost from the table.
     final hasInitial = rows.any((r) => coerceInt(r.isInitial) == 1);
+    final starred = starredBlocksIn(rows);
     // Read as the wall clock recorded in `acq_time`, never converted: parsing
     // the instant would render it in this device's zone, so a block recorded
     // at 09:00 in Geneva would read 03:00 in Chicago. See `recordedDate`.
@@ -140,7 +145,13 @@ class SessionEntriesTable extends StatelessWidget {
                 : null,
           ),
           children: [
-            _cell(isNewBlock ? r.blockId : '', bold: isNewBlock),
+            isNewBlock
+                ? _blockCell(
+                    r.blockId,
+                    starrable: !isInitial,
+                    starred: starred.contains(r.blockId),
+                  )
+                : _cell(''),
             _cell(isNewBlock ? (isInitial ? 'Initial' : 'Rec') : ''),
             _cell(isNewBlock ? stamp(r, isInitial, blockIndex == 0) : ''),
             _cell(isNewBlock ? r.programId : ''),
@@ -164,6 +175,36 @@ class SessionEntriesTable extends StatelessWidget {
         },
         defaultVerticalAlignment: TableCellVerticalAlignment.top,
         children: tableRows,
+      ),
+    );
+  }
+
+  Widget _blockCell(
+    String id, {
+    required bool starrable,
+    required bool starred,
+  }) {
+    final toggle = onToggleStar;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 2,
+        children: [
+          Text(id, style: const TextStyle(fontWeight: FontWeight.w600)),
+          if (starrable && (starred || toggle != null))
+            Tooltip(
+              message: starred ? 'Starred' : 'Star this configuration',
+              child: InkWell(
+                onTap: toggle == null ? null : () => toggle(id),
+                child: Icon(
+                  starred ? Icons.star : Icons.star_border,
+                  size: 18,
+                  semanticLabel: starred ? 'Starred' : 'Not starred',
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

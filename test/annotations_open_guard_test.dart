@@ -33,10 +33,10 @@ void main() {
     // Why a guard is needed rather than a parse failure: `parseAnnotations`
     // is total, and every annotation column exists in a programming file.
     expect(
-      annotationColumns.every(sessionColumns.contains),
+      annotationColumns.every(workingColumns.contains),
       isTrue,
       reason:
-          'annotationColumns must be a subset of sessionColumns for the '
+          'annotationColumns must be a subset of workingColumns for the '
           'silent-success trap to exist; if this ever stops being true, the '
           'guard is still correct but this test needs rewriting',
     );
@@ -54,14 +54,14 @@ void main() {
       'destroy it', () {
     // What autosave does on the first typed note if the guard is removed.
     final rewritten = writeAnnotations(parseAnnotations(programming));
-    final lostColumns = sessionColumns.where(
+    final lostColumns = workingColumns.where(
       (c) => !annotationColumns.contains(c),
     );
 
     expect(lostColumns, isNotEmpty);
     for (final column in ['block_id', 'scale_name', 'scale_value']) {
       expect(
-        sessionColumns.contains(column),
+        workingColumns.contains(column),
         isTrue,
         reason: 'guarding against a schema rename silently weakening this test',
       );

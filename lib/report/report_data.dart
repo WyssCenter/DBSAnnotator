@@ -477,6 +477,11 @@ const kNoTargetsText =
     'Scale targets: none set, so no ranking was applied. Open this session in '
     'the app and set a target per scale to rank the configurations.';
 
+/// Legend for the mark on starred blocks in the session-data table.
+const kStarredLegend =
+    '* Starred by the clinician during the visit as a particularly good '
+    'configuration. A clinical impression, not part of the ranking.';
+
 /// Clinical-liability statement printed under the session-data table, verbatim
 /// from the desktop (`report_common.add_table_legend`). Deliberately not
 /// paraphrased, and shared so both formats carry it identically.
@@ -585,6 +590,9 @@ class SessionReportData {
     required this.hasInitial,
     required this.initScales,
     required this.initNotes,
+    this.medications = '',
+    this.sessionDetails = '',
+    this.hasStars = false,
     required this.tableData,
     required this.electrodeModel,
     this.leftOnMarked = false,
@@ -642,6 +650,15 @@ class SessionReportData {
   final List<ScalePair> initScales;
 
   final String initNotes;
+
+  /// Medications from the latest initial assessment, or ''.
+  final String medications;
+
+  /// Pathology, target and IPG as one printable line, or '' when none.
+  final String sessionDetails;
+
+  /// Whether any block is starred, so the table legend explains the mark.
+  final bool hasStars;
 
   /// Lateral table rows, two per recording block (L then R), keyed by
   /// [sessionTableHeaders]. Cells may contain '\n' for stacked values.
@@ -1142,6 +1159,22 @@ SessionReportData buildSessionReportData({
             .toList();
   final initScales = _collectScalePairs(initSessionRows);
   final initNotes = latestInit?.notes.trim() ?? '';
+  final starred = starredBlocksIn(rows);
+  final leftIpg = sessionValueIn(rows, (r) => r.leftIpgModel);
+  final rightIpg = sessionValueIn(rows, (r) => r.rightIpgModel);
+  final sessionDetails = [
+    for (final (label, value) in [
+      ('DBS indication', sessionValueIn(rows, (r) => r.pathology)),
+      ('Target', sessionValueIn(rows, (r) => r.target)),
+      (
+        'IPG',
+        rightIpg.isEmpty || rightIpg == leftIpg
+            ? leftIpg
+            : 'left $leftIpg, right $rightIpg',
+      ),
+    ])
+      if (value.isNotEmpty) '$label: $value',
+  ].join('    ');
 
   final blocks = <int, List<SessionRow>>{};
   for (final row in recordingRows) {
@@ -1314,7 +1347,7 @@ SessionReportData buildSessionReportData({
         ? ''
         : '${idx.toStringAsFixed(indexDecimals)}\n(rank ${rankOf[entry.key]})';
     List<String> side(bool left) => [
-      '${entry.key}',
+      starred.contains('${entry.key}') ? '${entry.key} *' : '${entry.key}',
       left
           ? [
               if (_onLaterDay(first.acqTime, sessionDate))
@@ -1421,6 +1454,9 @@ SessionReportData buildSessionReportData({
     hasInitial: latestInit != null,
     initScales: initScales,
     initNotes: initNotes,
+    medications: latestInit?.medications.trim() ?? '',
+    sessionDetails: sessionDetails,
+    hasStars: starred.isNotEmpty,
     tableData: tableData,
     electrodeModel: electrodeModel,
     leftOnMarked: leftOn != null,

@@ -73,4 +73,48 @@ void main() {
       }
     }
   });
+  test('every lead manufacturer offers IPGs too', () {
+    final catalog = loadCatalog();
+    expect(catalog.ipgs.keys, containsAll(catalog.manufacturers.keys));
+  });
+
+  test("the user's devices are offered per manufacturer", () {
+    final bundled = loadCatalog();
+    final m3389 = bundled.models['Medtronic 3389']!;
+    final designed = m3389.redesigned(
+      levelDirectional: [false, true, true, true, false],
+      tipContact: true,
+    );
+    final catalog = bundled.withDevices({
+      'Medtronic': (
+        leads: {'Medtronic 3389': m3389},
+        ipgs: ['Medtronic Percept RC'],
+      ),
+      'Newronika': (leads: {'Newronika Lead A': designed}, ipgs: const []),
+    });
+    expect(catalog.manufacturers, {
+      'Medtronic': ['Medtronic 3389'],
+      'Newronika': ['Newronika Lead A'],
+    });
+    expect(catalog.ipgs, {
+      'Medtronic': ['Medtronic Percept RC'],
+    });
+    final lead = catalog.models['Newronika Lead A']!;
+    expect(lead.name, 'Newronika Lead A');
+    expect(lead.numContacts, 5);
+    expect(lead.directionalLevels, [1, 2, 3]);
+    expect(lead.isDirectional, isTrue);
+    expect(lead.tipContact, isTrue);
+    expect(lead.contactHeight, m3389.contactHeight);
+    // A design survives the saved settings.
+    final back = ElectrodeModel.fromJson(lead.toJson());
+    expect(back.levelDirectional, lead.levelDirectional);
+    // A hidden lead still draws, so older files keep their diagrams.
+    expect(catalog.models, contains('Medtronic 3387'));
+    // The bundled devices round-trip unchanged.
+    final again = bundled.withDevices(bundled.devices);
+    expect(again.manufacturers, bundled.manufacturers);
+    expect(again.ipgs, bundled.ipgs);
+    expect(bundled.withDevices(null), same(bundled));
+  });
 }

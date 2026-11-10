@@ -1,11 +1,9 @@
-/// Reports and datasets: upload TSVs, then produce whatever they support.
+/// Import and export on the Setup step: import session files or a BIDS
+/// folder, then produce whatever they support.
 ///
-/// One entry point instead of two screens, because which one you needed
-/// depended on how many files you had, so the choice came before the
-/// information needed to make it. Here the actions are always listed and the
-/// ones the upload cannot support are disabled with the reason in place of
-/// their description, rather than accepting the tap and answering with a
-/// snackbar.
+/// The actions are always listed, and the ones the imported files cannot
+/// support are disabled with the reason in place of their description, rather
+/// than accepting the tap and answering with a snackbar.
 library;
 
 import 'dart:typed_data';
@@ -29,7 +27,6 @@ import '../core/session/scale_scoring.dart';
 import '../core/session/session_row.dart';
 import '../core/session/tsv_kind.dart';
 import '../core/timestamps.dart';
-import '../report/annotations_report.dart';
 import '../report/attestation.dart';
 import '../report/entry_charts.dart';
 import '../report/longitudinal_data.dart';
@@ -51,20 +48,19 @@ import 'scales_chart_painter.dart';
 import 'session/entries_table.dart';
 import 'session/entry_charts_view.dart';
 import 'share_util.dart';
-import 'theme.dart';
 
-class ReportsScreen extends StatefulWidget {
-  const ReportsScreen({super.key, this.catalog, this.initialFiles});
+class ImportExportPanel extends StatefulWidget {
+  const ImportExportPanel({super.key, this.catalog, this.initialFiles});
 
   /// Injected by tests and the screenshot build, which have no asset bundle.
   final ElectrodeCatalog? catalog;
   final List<Uploaded>? initialFiles;
 
   @override
-  State<ReportsScreen> createState() => _ReportsScreenState();
+  State<ImportExportPanel> createState() => _ImportExportPanelState();
 }
 
-class _ReportsScreenState extends State<ReportsScreen> {
+class _ImportExportPanelState extends State<ImportExportPanel> {
   late final List<Uploaded> _files = chronological(widget.initialFiles ?? []);
   final _exportKey = GlobalKey();
 
@@ -150,7 +146,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         rejected.add('$name could not be read');
       } else if (_files.any((f) => f.name == name) ||
           added.any((f) => f.name == name)) {
-        rejected.add('$name is already uploaded');
+        rejected.add('$name is already imported');
       } else {
         final c = classifyUpload(name, content);
         if (c.file case final file?) added.add(file);
@@ -184,7 +180,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Future<void> _editTargets() async {
     final seed = _targetsOrDefault;
     if (seed.isEmpty) {
-      _snack('The uploaded files have no session scale ratings to rank.');
+      _snack('The imported files have no session scale ratings to rank.');
       return;
     }
     final updated = await showScaleTargetsDialog(context, seed);
@@ -199,9 +195,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   // ---- Actions ----
 
-  bool get _isSession => _sessions.isNotEmpty;
-
-  String get _source => _isSession ? _sessions.single.name : _files.first.name;
+  String get _source => _sessions.single.name;
 
   /// The source TSV's name without its suffix, the stem of its report.
   String get _reportBase => _source
@@ -211,10 +205,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
         '',
       );
 
-  /// The sections to render, asked for a session and all of them for notes.
-  /// Null when cancelled.
+  /// The sections to render. Null when cancelled.
   Future<Set<ReportSection>?> _askSessionSections() async {
-    if (!_isSession) return kAllReportSections;
     final sections = await showReportSectionsDialog(
       context,
       _sections,
@@ -230,30 +222,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     required ReportAttestation attestation,
   }) async {
     final subject = BidsName.parse(_source)?.subject ?? 'unknown';
-    if (!_isSession) {
-      final data = buildAnnotationsReportData(
-        entries: _notes,
-        subjectId: subject,
-        sourceFile: _source,
-      );
-      if (docx) {
-        return (
-          bytes: buildAnnotationsDocx(
-            data,
-            pageSize: _letter ? DocxPageSize.letter : DocxPageSize.a4,
-            attestation: attestation,
-          ),
-          warning: null,
-        );
-      }
-      final report = await buildAnnotationsPdf(
-        data,
-        pageFormat: _letter ? PdfPageFormat.letter : PdfPageFormat.a4,
-        attestation: attestation,
-      );
-      return (bytes: report.bytes, warning: _warn(report.lostCharacters));
-    }
-
     final data = buildSessionReportData(
       rows: _rows,
       scalePrefs: _targets,
@@ -261,9 +229,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
     final gfx = await renderReportGraphics(
       data,
-      _catalog?.models[electrodeModelIn(_rows)],
+      _catalog?.withDevices(_prefs.devices).models[electrodeModelIn(_rows)],
       sections,
-      right: _catalog?.models[electrodeModelIn(_rows, right: true)],
+      right: _catalog
+          ?.withDevices(_prefs.devices)
+          .models[electrodeModelIn(_rows, right: true)],
     );
     if (docx) {
       return (
@@ -294,7 +264,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Future<void> _sessionReport({required bool docx}) async {
     final sections = await _askSessionSections();
     if (sections == null || !mounted) return;
-    final attestation = await askAttestation(context, rated: _isSession);
+    final attestation = await askAttestation(context, rated: true);
     if (attestation == null || !mounted) return;
     await exportFile(
       context,
@@ -318,7 +288,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (choice.report) {
       final sections = await _askSessionSections();
       if (sections == null || !mounted) return;
-      final attestation = await askAttestation(context, rated: _isSession);
+      final attestation = await askAttestation(context, rated: true);
       if (attestation == null || !mounted) return;
       try {
         report = await _buildSessionReport(
@@ -391,7 +361,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       scalePrefs: _targetsOrDefault,
     );
     if (data.isEmpty && data.notesWithoutVisit.isEmpty) {
-      _snack('The uploaded files contain no visits or notes to report.');
+      _snack('The imported files contain no visits or notes to report.');
       return;
     }
     // The creation date goes inside the desc- label: BIDS wants the suffix
@@ -418,9 +388,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 .rows;
             final gfx = await renderReportGraphics(
               visit.session,
-              _catalog?.models[electrodeModelIn(rows)],
+              _catalog?.withDevices(_prefs.devices).models[electrodeModelIn(
+                rows,
+              )],
               const {ReportSection.electrodes},
-              right: _catalog?.models[electrodeModelIn(rows, right: true)],
+              right: _catalog
+                  ?.withDevices(_prefs.devices)
+                  .models[electrodeModelIn(rows, right: true)],
             );
             if (gfx.electrodes != null) leads[visit.filename] = gfx.electrodes!;
           }
@@ -458,8 +432,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (out.rowCount == 0) {
       _snack(
         out.skipped.isEmpty
-            ? 'The uploaded files contain no rows to combine.'
-            : 'No uploaded file carries BIDS entities in its name.',
+            ? 'The imported files contain no rows to combine.'
+            : 'No imported file carries BIDS entities in its name.',
       );
       return;
     }
@@ -474,6 +448,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       sidecar = aggregateSidecarJson(
         await loadTsvContract(),
         appVersion: appVersion,
+        scaleColumns: out.scaleNames,
       );
     } catch (e) {
       if (mounted) _snack('Combined table export failed: $e');
@@ -494,12 +469,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
         );
         if (!copy) return;
       } catch (e) {
-        if (mounted) _snack('Could not save into the dataset: $e');
+        if (mounted) _snack('Could not save into the BIDS folder: $e');
         return;
       }
     } else if (source != null) {
       _snack(
-        'Not saved into the dataset: some of these files were not loaded '
+        'Not saved into the BIDS folder: some of these files were not imported '
         'from it.',
       );
     }
@@ -543,7 +518,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final built = datasetFromUploads(_files, contract);
     if (built.files.isEmpty) {
       if (mounted) {
-        _snack('No uploaded file carries BIDS entities in its name.');
+        _snack('No imported file carries BIDS entities in its name.');
       }
       return;
     }
@@ -577,7 +552,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (plan.write.isEmpty) {
       _snack(
         plan.refused.isEmpty
-            ? 'That dataset already has these files.'
+            ? 'That BIDS folder already has these files.'
             : 'Nothing to add: ${plan.refused.join(', ')} already there.',
       );
       return;
@@ -665,14 +640,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
         try {
           merged = mergedZip(source, plan, binary: binary);
         } catch (e) {
-          _snack('Merged dataset export failed: $e');
+          _snack('Merged BIDS folder export failed: $e');
           return (outcome: ExportOutcome.notDelivered, warning: null);
         }
         final outcome = await exportFile(
           context,
           filename: '${name.replaceAll(RegExp(r'\.zip$'), '')}-merged.zip',
           anchor: _exportKey,
-          failureLabel: 'Merged dataset export failed',
+          failureLabel: 'Merged BIDS folder export failed',
           build: () async => (bytes: merged, warning: null),
         );
         return (outcome: outcome, warning: null);
@@ -691,7 +666,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final built = datasetFromUploads(_files, contract);
     if (!mounted) return;
     if (built.entries.isEmpty) {
-      _snack('No uploaded file carries BIDS entities in its name.');
+      _snack('No imported file carries BIDS entities in its name.');
       return;
     }
     await exportBidsDataset(
@@ -716,46 +691,36 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Reports and datasets'),
-        actions: const [TextSizeButtons(), HelpButton(), ThemeToggleButton()],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _uploadBar(theme),
-          if (_files.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _fileList(theme),
-          ],
-          const SizedBox(height: 12),
-          _actions(theme),
-          const Divider(height: 24),
-          _preview(theme),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _uploadBar(theme),
+        if (_files.isNotEmpty) ...[const SizedBox(height: 8), _fileList(theme)],
+        const SizedBox(height: 12),
+        _actions(theme),
+        const Divider(height: 24),
+        _preview(theme),
+      ],
     );
   }
 
-  Widget _uploadBar(ThemeData theme) => Row(
+  Widget _uploadBar(ThemeData theme) => Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    crossAxisAlignment: WrapCrossAlignment.center,
     children: [
       FilledButton.icon(
         key: _exportKey,
         onPressed: _upload,
-        icon: const Icon(Icons.upload_file),
-        label: const Text('Upload TSVs'),
+        icon: const Icon(Icons.file_open_outlined),
+        label: const Text('Import session files'),
       ),
-      const SizedBox(width: 8),
       FilledButton.icon(
         onPressed: _loadDataset,
         icon: const Icon(Icons.folder_open),
-        label: const Text('Load from dataset'),
+        label: const Text('Import from a BIDS folder'),
       ),
-      const SizedBox(width: 12),
-      Expanded(
-        child: Text(uploadSummary(_files), style: theme.textTheme.bodyMedium),
-      ),
+      Text(uploadSummary(_files), style: theme.textTheme.bodyMedium),
       if (_files.isNotEmpty)
         TextButton.icon(
           onPressed: () => setState(() {
@@ -791,8 +756,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 Expanded(
                   child: Text(
                     'These files name different patients. A combined table or '
-                    'dataset may be what you want; a longitudinal report is '
-                    'not, so it stays off.',
+                    'a BIDS folder may be what you want; a report across '
+                    'visits is not, so it stays off.',
                     style: theme.textTheme.bodyMedium,
                   ),
                 ),
@@ -856,7 +821,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       _btn('PDF', () => _sessionReport(docx: false)),
       _btn('Word', () => _sessionReport(docx: true)),
       _btn(
-        'Add to dataset',
+        'Add to a BIDS folder',
         _addSingleToDataset,
         withBidsEntities(_files).isEmpty
             ? 'The file name carries no sub- entity.'
@@ -891,7 +856,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 48),
         child: Text(
-          'Upload one or more TSV files to see what can be produced from them.',
+          'Import one or more session files to see what can be produced from them.',
           style: theme.textTheme.bodyLarge?.copyWith(
             color: theme.disabledColor,
           ),
@@ -956,7 +921,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ).sessionChart;
       if (chart.series.isEmpty) {
         return Text(
-          'No session scale values in the uploaded files.',
+          'No session scale values in the imported files.',
           style: theme.textTheme.bodyLarge,
           textAlign: TextAlign.center,
         );

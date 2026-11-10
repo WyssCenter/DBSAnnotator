@@ -8,8 +8,8 @@ library;
 
 enum ReportSection {
   baseline(
-    'Baseline assessment',
-    'Pre-session clinical scale scores and the notes taken before '
+    'Initial assessment',
+    'Clinical scale scores, medications and notes recorded before '
         'stimulation was changed.',
   ),
   chart(

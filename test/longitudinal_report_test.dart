@@ -275,7 +275,7 @@ void main() {
     expect(pdf.bytes.sublist(0, 4), '%PDF'.codeUnits);
     expect(
       _part(buildLongitudinalDocx(data: empty), 'word/document.xml'),
-      contains('No session TSV was uploaded.'),
+      contains('No session file was imported.'),
     );
   });
 
@@ -288,7 +288,7 @@ void main() {
     );
     expect(real.visits, hasLength(1));
     expect(real.visits.first.blocks, [1, 2, 3, 4, 5, 6, 7]);
-    expect(real.visits.first.clinicalScales.keys, contains('Y-BOCS'));
+    expect(real.visits.first.clinicalScales.keys, contains('UPDRS-III'));
     expect(real.sessionChart.xs, hasLength(7));
   });
 }

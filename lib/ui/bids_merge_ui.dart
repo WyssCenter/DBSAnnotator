@@ -26,7 +26,6 @@ import '../core/safe_file.dart';
 import '../core/session/aggregate.dart';
 import '../core/session/tsv_kind.dart';
 import '../report/upload_actions.dart';
-import 'bids_export.dart';
 
 /// Whether a picked directory can be written to. False on the tablets, where
 /// it is a security-scoped path or a `content://` URI `dart:io` cannot open.
@@ -216,7 +215,7 @@ const _appTasks = {'programming', 'notes'};
           path: f.path,
           reason: kind == null
               ? 'could not be read as text'
-              : 'not readable as a session or notes TSV',
+              : 'not readable as a session or notes file',
         ));
       }
       continue;
@@ -386,7 +385,7 @@ class DatasetChangedException implements Exception {
 
   @override
   String toString() =>
-      'The dataset changed while the merge was being prepared, so nothing '
+      'The BIDS folder changed while the merge was being prepared, so nothing '
       'was written. Run the merge again.';
 }
 
@@ -411,16 +410,20 @@ Future<void> _requireUnchanged(
   if (!mapEquals(before, now)) throw const DatasetChangedException();
 }
 
+///
+/// Without [backup], as while a visit is recorded, no `.bak-` copies are left.
 Future<String?> _applyMerge(
   String root,
   MergePlan plan, {
   Map<String, Uint8List> binary = const {},
+  bool backup = true,
 }) async {
   String full(String rel) => '$root/$rel';
 
   final stamp = DateTime.now().millisecondsSinceEpoch;
   var backedUp = false;
-  for (final path in [...plan.rowMerged, ...plan.rebuilt]) {
+  for (final path
+      in backup ? [...plan.rowMerged, ...plan.rebuilt] : const <String>[]) {
     final file = File(full(path));
     if (file.existsSync()) {
       await file.copy('${full(path)}.bak-$stamp');
@@ -544,22 +547,16 @@ const _kBidsIndexRows =
     'The participant gets a row in participants.tsv and the visit a row in '
     "that session's scans.tsv.";
 const _kBidsNothingChanged =
-    'Recorded files already in the dataset are never changed.';
+    'Recorded files already in the BIDS folder are never changed.';
 const _kBidsTableCreated =
-    'is created from every session and notes TSV in the dataset.';
+    'is created from every session and notes file in the BIDS folder.';
 const _kBidsTableRebuilt =
-    'is rebuilt from every session and notes TSV in the dataset.';
+    'is rebuilt from every session and notes file in the BIDS folder.';
 const _kBidsTableKept =
-    'is left as it is, because it already matches the dataset or no '
-    'recording in the dataset could be included.';
+    'is left as it is, because it already matches the BIDS folder or no '
+    'recording in the BIDS folder could be included.';
 const _kBidsTableNotCreated =
-    'is not created, because no recording in the dataset could be included.';
-
-/// Said where recording into a dataset is offered but cannot be done.
-const kDatasetDesktopOnly =
-    'Recording into a dataset needs the desktop app, which can write into a '
-    'chosen folder. Record a loose TSV here and add it to a dataset later '
-    'from Reports > Add.';
+    'is not created, because no recording in the BIDS folder could be included.';
 
 /// The answer to [checkDatasetFolder].
 enum FolderCheck { proceed, cancel, chooseAnother }
@@ -583,7 +580,7 @@ Future<FolderCheck> checkDatasetFolder(
     context: context,
     builder: (context) => AlertDialog(
       title: Text(
-        empty ? 'Start a new BIDS dataset here?' : 'Not a BIDS dataset',
+        empty ? 'Start a new BIDS folder here?' : 'Not a BIDS folder',
       ),
       scrollable: true,
       content: SizedBox(
@@ -594,7 +591,7 @@ Future<FolderCheck> checkDatasetFolder(
                     'dataset_description.json, README and participants.tsv '
                     'are written along with the first visit.' : 'This folder has other content and no '
                     'dataset_description.json. Choose the top-level folder of a '
-                    'BIDS dataset, or an empty folder to start one.'}',
+                    'BIDS folder, or an empty folder to start one.'}',
         ),
       ),
       actions: [
@@ -607,7 +604,7 @@ Future<FolderCheck> checkDatasetFolder(
             context,
             empty ? FolderCheck.proceed : FolderCheck.chooseAnother,
           ),
-          child: Text(empty ? 'Start a dataset' : chooseAnother),
+          child: Text(empty ? 'Start a BIDS folder' : chooseAnother),
         ),
       ],
     ),
@@ -646,288 +643,57 @@ Future<({String root, List<DatasetFile> existing})?> pickCheckedDatasetFolder(
   }
 }
 
-/// Ask whether a new recording is a loose file or goes into a dataset, and,
-/// when a dataset, which one and under what session label. [what] names the
-/// recording in the dialogs: "this visit", "these notes".
+/// File [entry] into the BIDS folder at [root]: its files at their BIDS
+/// paths, and its rows in `participants.tsv`, `sessions.tsv` and `scans.tsv`
+/// added or brought up to date. Returns the `beh/` file's path and any
+/// warning from the write, or null when the folder already holds a different
+/// recording under that name.
 ///
-/// `root` is null for a loose file. The label is proposed as today's date but
-/// stays editable: `ses-YYYYMMDD` is this app's convention, and plenty of
-/// groups use `ses-preop` or `ses-3mo`. Filing into someone's tree under a
-/// scheme they do not use turns a filename edit into a history problem.
-Future<({String? root, BidsName name})?> askNewTarget(
-  BuildContext context,
-  BidsName proposed, {
-  required String what,
-}) async {
-  final theme = Theme.of(context);
-  final choice = await showDialog<String>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('Where should $what be saved?'),
-      scrollable: true,
-      content: SizedBox(
-        width: 480,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'A loose TSV goes wherever you choose. Into a dataset, it is '
-              'filed at its BIDS path and the dataset index files are kept up '
-              'to date as you record.',
-            ),
-            if (!canWriteChosenFolder) ...[
-              const SizedBox(height: 8),
-              Text(kDatasetDesktopOnly, style: theme.textTheme.bodySmall),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, 'loose'),
-          child: const Text('Loose TSV'),
-        ),
-        FilledButton(
-          onPressed: canWriteChosenFolder
-              ? () => Navigator.pop(context, 'dataset')
-              : null,
-          child: const Text('Into a dataset'),
-        ),
-      ],
-    ),
-  );
-  if (choice == null || !context.mounted) return null;
-  if (choice == 'loose') return (root: null, name: proposed);
-
-  final folder = await pickCheckedDatasetFolder(context);
-  if (folder == null || !context.mounted) return null;
-  BidsName named(String session) => BidsName(
-    subject: proposed.subject,
-    session: session,
-    task: proposed.task,
-    run: proposed.run,
-  );
-  // A name already filed moves to the next free run: the dataset can hold
-  // any number of recordings per session, but two cannot share a file name.
-  final filed = {for (final f in folder.existing) f.path};
-  final label = await askSessionLabel(
-    context,
-    proposed.session,
-    note: (session) {
-      final asked = named(session);
-      final free = nextFreeRun(asked, filed);
-      return free.run == BidsName.index(asked.run)
-          ? null
-          : '${asked.filename} is already in this dataset, so this recording '
-                'is filed as run-${free.run}.';
-    },
-  );
-  if (label == null || !context.mounted) return null;
-  final name = nextFreeRun(named(label), filed);
-  if (!await confirmRecordInto(context, folder.root, name, what: what)) {
-    return null;
-  }
-  return (root: folder.root, name: name);
-}
-
-/// Ask for the `ses-` label of a recording filed into a dataset, proposing
-/// [proposed]. Returns the label as it will be filed, or null when cancelled.
-///
-/// [note] says what filing under a label implies, or returns null.
-Future<String?> askSessionLabel(
-  BuildContext context,
-  String proposed, {
-  String? Function(String label)? note,
-}) => showDialog<String>(
-  context: context,
-  builder: (_) => _SessionLabelDialog(proposed, note),
-);
-
-/// Owns its controller, so the field outlives the dialog's closing animation.
-class _SessionLabelDialog extends StatefulWidget {
-  const _SessionLabelDialog(this.proposed, this.note);
-
-  final String proposed;
-  final String? Function(String label)? note;
-
-  @override
-  State<_SessionLabelDialog> createState() => _SessionLabelDialogState();
-}
-
-class _SessionLabelDialogState extends State<_SessionLabelDialog> {
-  late final _ctrl = TextEditingController(text: widget.proposed)
-    ..addListener(() => setState(() {}));
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final typed = _ctrl.text.trim();
-    final label = BidsName.label(typed);
-    final note = label.isEmpty ? null : widget.note?.call(label);
-    return AlertDialog(
-      title: const Text('Session label'),
-      scrollable: true,
-      content: SizedBox(
-        width: 480,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _ctrl,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: 'ses-',
-                helperText: label.isEmpty
-                    ? null
-                    : label != typed
-                    ? 'Filed as ses-$label: BIDS labels are letters and digits.'
-                    : 'Often the date, but use whatever this study uses.',
-                helperMaxLines: 3,
-                errorText: typed.isNotEmpty && label.isEmpty
-                    ? 'Letters and digits only.'
-                    : null,
-              ),
-            ),
-            // Below the field, not in its helper: a BIDS filename is long, and
-            // a helper is cut at its line limit.
-            if (note != null) ...[const SizedBox(height: 12), Text(note)],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: label.isEmpty ? null : () => Navigator.pop(context, label),
-          child: const Text('Use'),
-        ),
-      ],
-    );
-  }
-}
-
-/// Say where a recording filed straight into a dataset will go.
-Future<bool> confirmRecordInto(
-  BuildContext context,
-  String root,
-  BidsName name, {
-  required String what,
-}) async {
-  final theme = Theme.of(context);
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Record into this dataset?'),
-      scrollable: true,
-      content: SizedBox(
-        width: 480,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(root, style: theme.textTheme.bodySmall),
-            const SizedBox(height: 12),
-            Text(
-              '${what[0].toUpperCase()}${what.substring(1)} will be filed as:',
-            ),
-            Text(
-              '  ${name.relativeDir}/${name.filename}',
-              style: theme.textTheme.bodySmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'when the first entry is recorded, and updated at every entry '
-              'after that. $_kBidsPlacement $_kBidsIndexRows '
-              '$_kBidsNothingChanged The combined table under '
-              '$aggregateDerivativeDir/ is refreshed once when the recording '
-              'ends: when you leave the screen, close the window, or start or '
-              'open another file. If the recording is interrupted, the table '
-              'leaves out $what until the next merge from the Reports screen '
-              'or the next visit recorded into this dataset refreshes it.',
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('Record here'),
-        ),
-      ],
-    ),
-  );
-  return ok ?? false;
-}
-
-/// File one recorded TSV of [kind] into the dataset at [root] as [name]: the
-/// TSV and its sidecar at the BIDS path, and the dataset index files brought
-/// up to date. Returns the file's path and any `.bidsignore` warning from the
-/// write, or null when the dataset already holds the file.
-///
-/// Goes through [planBidsMerge] like every other write into a dataset, so a
-/// `participants.tsv` carrying the study's own columns keeps them, and a file
-/// already filed there is refused rather than overwritten.
+/// Once [filed], the entry's own files are rewritten on every save; before,
+/// a file already at that path is refused rather than overwritten. Only the
+/// paths the entry touches are read, so a large folder costs nothing extra.
 Future<({String path, List<String> unread, String? warning})?> fileIntoDataset({
   required String root,
-  required BidsName name,
-  required String tsv,
-  required String kind,
-  required String acqTime,
+  required DatasetEntry entry,
+  bool filed = false,
 }) => inDatasetQueue(
-  () => _fileIntoDataset(
-    root: root,
-    name: name,
-    tsv: tsv,
-    kind: kind,
-    acqTime: acqTime,
-  ),
+  () => _fileIntoDataset(root: root, entry: entry, filed: filed),
 );
 
 Future<({String path, List<String> unread, String? warning})?>
 _fileIntoDataset({
   required String root,
-  required BidsName name,
-  required String tsv,
-  required String kind,
-  required String acqTime,
+  required DatasetEntry entry,
+  bool filed = false,
 }) async {
   final contract = await loadTsvContract();
   final incoming = buildBidsDataset(
-    [
-      datasetEntry(
-        name: name,
-        tsv: tsv,
-        contract: contract,
-        kind: kind,
-        acqTime: acqTime,
-      ),
-    ],
+    [entry],
+    contract: contract,
     appName: appName,
     appVersion: appVersion,
     repoUrl: repoUrl,
   );
-  final plan = planBidsMerge(await readDatasetDirectory(root), incoming);
+  final existing = <DatasetFile>[];
+  for (final f in incoming) {
+    final file = File('$root/${f.path}');
+    if (file.existsSync()) {
+      existing.add((path: f.path, content: await file.readAsString()));
+    }
+  }
+  final dir = entry.name.relativeDir;
+  final plan = planBidsMerge(
+    existing,
+    incoming,
+    upsert: true,
+    overwrite: filed
+        ? {'$dir/${entry.name.filename}', '$dir/${entry.name.sidecarFilename}'}
+        : const {},
+  );
   if (plan.refused.isNotEmpty) return null;
-  final warning = await _applyMerge(root, plan);
+  final warning = await _applyMerge(root, plan, backup: false);
   return (
-    path: '$root/${name.relativeDir}/${name.filename}',
+    path: '$root/$dir/${entry.name.filename}',
     unread: plan.unread,
     warning: warning,
   );
@@ -952,7 +718,7 @@ Future<bool> confirmMerge(
   final ok = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Add to this dataset?'),
+      title: const Text('Add to this BIDS folder?'),
       content: SizedBox(
         width: 520,
         child: SingleChildScrollView(
@@ -1044,7 +810,7 @@ Future<({bool tsv, bool report, bool docx})?> askSingleSessionAdd(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
-        title: const Text('Add to a BIDS dataset'),
+        title: const Text('Add to a BIDS folder'),
         scrollable: true,
         content: SizedBox(
           width: 460,
@@ -1055,7 +821,7 @@ Future<({bool tsv, bool report, bool docx})?> askSingleSessionAdd(
               CheckboxListTile(
                 value: tsv,
                 onChanged: (v) => setState(() => tsv = v ?? false),
-                title: const Text('Session TSV and sidecar'),
+                title: const Text('Session file and sidecar'),
                 subtitle: const Text(
                   'Filed under sub-<participant>/ses-<session>/beh/.',
                 ),
@@ -1109,7 +875,7 @@ Future<({bool tsv, bool report, bool docx})?> askSingleSessionAdd(
 Future<String?> pickDatasetFolder() async {
   try {
     return await FilePicker.getDirectoryPath(
-      dialogTitle: 'Choose the BIDS dataset folder',
+      dialogTitle: 'Choose the BIDS folder',
     );
   } catch (_) {
     return null;
@@ -1133,7 +899,7 @@ pickDatasetZip(void Function(String) say) async {
     // Decoding a dataset that carries imaging would run a tablet out of
     // memory, so it is refused with its size rather than attempted.
     say(
-      'That dataset is ${(size / (1024 * 1024)).round()} MB. A zip works up '
+      'That BIDS folder is ${(size / (1024 * 1024)).round()} MB. A zip works up '
       'to ${kMaxMergeZipBytes ~/ (1024 * 1024)} MB; use the desktop app.',
     );
     return null;
@@ -1142,7 +908,7 @@ pickDatasetZip(void Function(String) say) async {
     final bytes = await picked.readAsBytes();
     return (name: picked.name, bytes: bytes, files: readDatasetZip(bytes));
   } catch (e) {
-    say('Could not read that dataset: $e');
+    say('Could not read that BIDS folder: $e');
     return null;
   }
 }
@@ -1185,7 +951,7 @@ loadDatasetTsvs(BuildContext context, void Function(String) say) async {
         ],
   };
   if (byParticipant.isEmpty) {
-    say('No session or notes TSVs found there. $kBidsFolderRule');
+    say('No session or notes files found there. $kBidsFolderRule');
     return null;
   }
   if (!context.mounted) return null;
@@ -1220,7 +986,7 @@ class _ParticipantsDialogState extends State<_ParticipantsDialog> {
   Widget build(BuildContext context) {
     final all = _chosen.length == widget.byParticipant.length;
     return AlertDialog(
-      title: const Text('Load which participants?'),
+      title: const Text('Import which participants?'),
       content: SizedBox(
         width: 420,
         child: ListView(
@@ -1259,7 +1025,7 @@ class _ParticipantsDialogState extends State<_ParticipantsDialog> {
           onPressed: _chosen.isEmpty
               ? null
               : () => Navigator.pop(context, _chosen),
-          child: const Text('Load'),
+          child: const Text('Import'),
         ),
       ],
     );
@@ -1337,7 +1103,7 @@ Future<bool> saveAggregateInto(
   final copy = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Saved into the dataset'),
+      title: const Text('Saved into the BIDS folder'),
       scrollable: true,
       content: SizedBox(
         width: 480,

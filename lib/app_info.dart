@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/gestures.dart' show TapGestureRecognizer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -155,12 +157,15 @@ void showAppAbout(BuildContext context) {
     applicationVersion: 'v$appVersion',
     applicationIcon: const AppLogo(size: 48),
     children: [
-      const SizedBox(height: 8),
+      SizedBox(
+        width: min(760, MediaQuery.sizeOf(context).width - 160),
+        height: 8,
+      ),
       const Text(
         'Document DBS programming visits, the appointments at which '
-        'stimulation configurations are tested and optimised. The complete '
-        'workflow runs in four steps: file setup, initial configuration, '
-        'session-scales configuration, active recording. Writes BIDS '
+        'stimulation configurations are tested and optimised. A programming '
+        'session runs in four steps: setup, initial assessment, programming '
+        'and finish. Writes BIDS '
         'behavioural TSV with a JSON sidecar documenting every column, and '
         'exports PDF and Word reports.',
       ),
@@ -176,18 +181,5 @@ void showAppAbout(BuildContext context) {
       const SizedBox(height: 12),
       const WyssLockup(),
     ],
-  );
-}
-
-/// Shared AppBar action opening [showAppAbout].
-class HelpButton extends StatelessWidget {
-  const HelpButton({super.key});
-
-  @override
-  Widget build(BuildContext context) => IconButton(
-    icon: const Icon(Icons.help_outline),
-    iconSize: 28,
-    tooltip: 'Help / about',
-    onPressed: () => showAppAbout(context),
   );
 }

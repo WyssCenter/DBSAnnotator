@@ -37,20 +37,16 @@ PAGES = {"session_report": [2], "longitudinal_report": [3]}
 # Headings that end the section above them without being cropped themselves.
 STOPS = {
     "session_report": ["Attestation"],
-    "annotations_report": ["Attestation"],
     "longitudinal_report": ["Session data", "Programming summary", "Source files"],
 }
 
 SECTIONS = {
     "session_report": {
         "summary": "At start of session",
-        "baseline": "Baseline assessment (pre-session)",
+        "baseline": "Initial assessment (before programming)",
         "session_data": ("Session data", "Figure 1."),
         "electrodes": "Electrode configuration",
         "programming_summary": "Programming summary",
-    },
-    "annotations_report": {
-        "notes": "Wyss DBS Annotator - Session notes",
     },
     "longitudinal_report": {
         "clinical": "Clinical scales by visit",

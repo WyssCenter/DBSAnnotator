@@ -17,15 +17,26 @@ void main() {
     readJson('schema/electrode_models.json'),
   );
   final limits = StimLimits.fromJson(readJson('schema/limits.json'));
-  final scalePresets = ScalePresets.fromJson(
-    readJson('schema/scale_presets.json'),
-  );
+  final bundled = ScalePresets.fromJson(readJson('schema/scale_presets.json'));
 
+  /// The first rating saved for a PD session whose one rating has the range
+  /// [min] to [max], as typed in the session ratings settings.
   Future<String> firstScaleValue(
     WidgetTester tester, {
     required String min,
     required String max,
   }) async {
+    final presets = ScalePresets(
+      buttons: bundled.buttons,
+      clinical: bundled.clinical,
+      clinicalRanges: bundled.clinicalRanges,
+      pathologies: bundled.pathologies,
+      targets: bundled.targets,
+      session: {
+        ...bundled.session,
+        'PD': [(name: 'Tremor', min: min, max: max, mode: 'min', step: '')],
+      },
+    );
     final authoring = SessionAuthoring();
     await tester.binding.setSurfaceSize(const Size(1400, 2600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -34,32 +45,32 @@ void main() {
         home: SessionScreen(
           catalog: catalog,
           limits: limits,
-          scalePresets: scalePresets,
+          scalePresets: presets,
           authoring: authoring,
         ),
       ),
     );
     await tester.pump();
     await tester.pump();
+    await tester.tap(
+      find.widgetWithText(DropdownMenu<String>, 'DBS indication'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('PD').last);
+    await tester.pumpAndSettle();
     for (var i = 0; i < 2; i++) {
       await tester.ensureVisible(find.text('Next'));
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
     }
-    await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'PD'));
-    await tester.tap(find.widgetWithText(ChoiceChip, 'PD'));
-    await tester.pump();
-    await tester.enterText(find.widgetWithText(TextField, 'Min').first, min);
-    await tester.enterText(find.widgetWithText(TextField, 'Max').first, max);
-    await tester.ensureVisible(find.text('Recording'));
-    await tester.tap(find.text('Recording'));
-    await tester.pumpAndSettle();
-    final insert = find.text('Insert recording block');
-    await tester.ensureVisible(insert);
-    await tester.tap(insert);
+    final save = find.text('Save configuration');
+    await tester.ensureVisible(save);
+    await tester.tap(save);
     await tester.pump();
     expect(tester.takeException(), isNull);
-    return authoring.rows.first.scaleValue;
+    return authoring.rows
+        .firstWhere((r) => r.isInitial == '0' && r.scaleName == 'Tremor')
+        .scaleValue;
   }
 
   testWidgets('a rating is held inside the typed range', (tester) async {

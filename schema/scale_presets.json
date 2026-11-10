@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.5.0",
+  "schema_version": "0.6.0",
   "buttons": [
     "OCD",
     "MDD",
@@ -7,6 +7,31 @@
     "ET",
     "Dystonia",
     "TS"
+  ],
+  "pathologies": [
+    "PD",
+    "ET",
+    "Dystonia",
+    "OCD",
+    "MDD",
+    "TS",
+    "Epilepsy",
+    "Chronic pain"
+  ],
+  "targets": [
+    "STN",
+    "GPi",
+    "VIM",
+    "ALIC",
+    "VC/VS",
+    "NAcc",
+    "BNST",
+    "SCC",
+    "MFB",
+    "CM-Pf",
+    "ANT",
+    "PPN",
+    "Fornix"
   ],
   "clinical": {
     "OCD": [
@@ -157,22 +182,74 @@
     ],
     "PD": [
       [
-        "Tremor",
+        "MDS-UPDRS 3.3 Rigidity RUE",
         "0",
-        "10",
-        "min"
+        "4",
+        "min",
+        "1"
       ],
       [
-        "Rigidity",
+        "MDS-UPDRS 3.3 Rigidity LUE",
         "0",
-        "10",
-        "min"
+        "4",
+        "min",
+        "1"
       ],
       [
-        "Bradykinesia",
+        "MDS-UPDRS 3.4 Finger tapping R",
         "0",
-        "10",
-        "min"
+        "4",
+        "min",
+        "1"
+      ],
+      [
+        "MDS-UPDRS 3.4 Finger tapping L",
+        "0",
+        "4",
+        "min",
+        "1"
+      ],
+      [
+        "MDS-UPDRS 3.15 Postural tremor R",
+        "0",
+        "4",
+        "min",
+        "1"
+      ],
+      [
+        "MDS-UPDRS 3.15 Postural tremor L",
+        "0",
+        "4",
+        "min",
+        "1"
+      ],
+      [
+        "MDS-UPDRS 3.17 Rest tremor RUE",
+        "0",
+        "4",
+        "min",
+        "1"
+      ],
+      [
+        "MDS-UPDRS 3.17 Rest tremor LUE",
+        "0",
+        "4",
+        "min",
+        "1"
+      ],
+      [
+        "MDS-UPDRS 3.10 Gait",
+        "0",
+        "4",
+        "min",
+        "1"
+      ],
+      [
+        "MDS-UPDRS 3.1 Speech",
+        "0",
+        "4",
+        "min",
+        "1"
       ],
       [
         "Dyskinesia",
@@ -181,19 +258,7 @@
         "min"
       ],
       [
-        "Gait / balance",
-        "0",
-        "10",
-        "min"
-      ],
-      [
         "Paresthesia",
-        "0",
-        "10",
-        "min"
-      ],
-      [
-        "Speech difficulty",
         "0",
         "10",
         "min"

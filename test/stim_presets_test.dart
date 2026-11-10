@@ -4,9 +4,8 @@ import 'dart:io';
 import 'package:dbs_annotator/ui/stim_params_form.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Guards the quick-picks against the contract: StimLimits MUST expose the
-/// `stimulation_presets` values from schema/limits.json. Run
-/// `flutter test` from the repo root.
+/// Guards the stimulation defaults and steps against schema/limits.json.
+/// Run `flutter test` from the repo root.
 void main() {
   StimLimits loadLimits() {
     final file = File('schema/limits.json');
@@ -19,24 +18,20 @@ void main() {
     return StimLimits.fromJson(json);
   }
 
-  test('stimulation quick-picks match the curated preset list', () {
+  test('each indication starts from its curated settings', () {
     final limits = loadLimits();
-    // Curated down from the desktop's original combos: 25 Hz, 1.5 and 10.0 mA
-    // and 120 us were dropped. Values, not just counts, because a quick-pick is
-    // a one-tap dose - a wrong number here is delivered, not merely displayed.
-    expect(limits.frequencyPresets, [55, 100, 125]);
-    expect(limits.amplitudePresets, [3.0, 5.0, 7.0]);
-    expect(limits.pulseWidthPresets, [40, 60, 90]);
-
-    // Every quick-pick is inside its own field's allowed range.
-    for (final v in limits.frequencyPresets) {
-      expect(v, inInclusiveRange(limits.frequency.min, limits.frequency.max));
-    }
-    for (final v in limits.amplitudePresets) {
-      expect(v, inInclusiveRange(limits.amplitude.min, limits.amplitude.max));
-    }
-    for (final v in limits.pulseWidthPresets) {
-      expect(v, inInclusiveRange(limits.pulseWidth.min, limits.pulseWidth.max));
+    // A default is delivered unless changed, so values are pinned, not counts.
+    expect(limits.defaults, {
+      'PD': [130, 1.5, 60],
+      'OCD': [130, 5.0, 90],
+    });
+    for (final [f, a, pw] in limits.defaults.values) {
+      expect(f, inInclusiveRange(limits.frequency.min, limits.frequency.max));
+      expect(a, inInclusiveRange(limits.amplitude.min, limits.amplitude.max));
+      expect(
+        pw,
+        inInclusiveRange(limits.pulseWidth.min, limits.pulseWidth.max),
+      );
     }
   });
 
@@ -46,6 +41,10 @@ void main() {
     expect(limits.frequencyStep, 10);
     expect(limits.amplitudeStep, 1);
     expect(limits.pulseWidthStep, 10);
+    // The single arrows move by step2.
+    expect(limits.frequencyFineStep, 1);
+    expect(limits.amplitudeFineStep, 0.1);
+    expect(limits.pulseWidthFineStep, 1);
     expect(limits.amplitudeDecimals, 2);
     // Omitted session scales write this literal to the scale_value cell.
     // `n/a` since v0.5.0: BIDS requires it, and `NaN` was never a legal cell.
@@ -78,15 +77,12 @@ void main() {
     expect(steppedLabel(0.1 + 0.2 + 0.2, 2), '0.5');
   });
 
-  test('presets are optional: contract without them parses to empty lists', () {
+  test('defaults are optional: a contract without them has none', () {
     final json = jsonDecode(
       File('schema/limits.json').readAsStringSync(),
     ) as Map<String, dynamic>;
-    json.remove('stimulation_presets');
-    final limits = StimLimits.fromJson(json);
-    expect(limits.frequencyPresets, isEmpty);
-    expect(limits.amplitudePresets, isEmpty);
-    expect(limits.pulseWidthPresets, isEmpty);
+    json.remove('stimulation_defaults');
+    expect(StimLimits.fromJson(json).defaults, isEmpty);
   });
 
   test('presetLabel drops trailing .0 like the desktop combos', () {
@@ -96,19 +92,13 @@ void main() {
     expect(presetLabel(120), '120');
   });
 
-  test('withPresets overrides only the given lists (F7 user overrides)', () {
+  test("the user's defaults replace the contract's; null keeps them", () {
     final limits = loadLimits();
-    final over = limits.withPresets(frequencies: const [1, 2, 3]);
-    // Overridden list replaced; the others fall back to the contract; ranges
-    // and steps are carried through unchanged.
-    expect(over.frequencyPresets, [1, 2, 3]);
-    expect(over.amplitudePresets, limits.amplitudePresets);
-    expect(over.pulseWidthPresets, limits.pulseWidthPresets);
-    expect(over.frequency.max, limits.frequency.max);
-    expect(over.amplitudeStep, limits.amplitudeStep);
-    expect(over.sessionScaleOmittedTsv, limits.sessionScaleOmittedTsv);
-
-    // A null keeps the contract default (the merge is per-list).
-    expect(limits.withPresets().frequencyPresets, limits.frequencyPresets);
+    final over = limits.withDefaults({
+      'ET': [130, 2, 60],
+    });
+    expect(over.defaults.keys, ['ET']);
+    expect(over.amplitudeFineStep, limits.amplitudeFineStep);
+    expect(limits.withDefaults(null).defaults, limits.defaults);
   });
 }

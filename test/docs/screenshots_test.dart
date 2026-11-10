@@ -29,17 +29,16 @@ import 'dart:io';
 import 'dart:typed_data' show ByteData;
 import 'dart:ui' as ui;
 
-import 'package:dbs_annotator/core/bids.dart';
 import 'package:dbs_annotator/core/electrode/electrode_model.dart';
 import 'package:dbs_annotator/core/electrode/geometry.dart';
 import 'package:dbs_annotator/core/electrode/stimulation_rule.dart';
 import 'package:dbs_annotator/core/session/authoring.dart';
+import 'package:dbs_annotator/core/session/session_file.dart';
 import 'package:dbs_annotator/core/session/scale_presets.dart';
 import 'package:dbs_annotator/core/session/scale_scoring.dart';
 import 'package:dbs_annotator/core/session/session_row.dart'
     show electrodeModelIn;
 import 'package:dbs_annotator/report/longitudinal_data.dart';
-import 'package:dbs_annotator/report/annotations_report.dart';
 import 'package:dbs_annotator/report/longitudinal_pdf.dart';
 import 'package:dbs_annotator/report/longitudinal_sections.dart';
 import 'package:dbs_annotator/report/report_data.dart';
@@ -47,23 +46,22 @@ import 'package:dbs_annotator/report/report_sections.dart';
 import 'package:dbs_annotator/report/session_pdf.dart';
 import 'package:dbs_annotator/ui/report_images.dart';
 import 'package:dbs_annotator/ui/scales_chart_painter.dart';
-import 'package:dbs_annotator/ui/annotations_screen.dart';
 import 'package:dbs_annotator/ui/bids_merge_ui.dart';
 import 'package:dbs_annotator/ui/close_guard.dart';
 import 'package:dbs_annotator/ui/electrode_view.dart';
-import 'package:dbs_annotator/ui/home_screen.dart';
+import 'package:dbs_annotator/ui/import_export_panel.dart';
 import 'package:dbs_annotator/ui/painter_font.dart';
 import 'package:dbs_annotator/ui/report_sections_dialog.dart';
+import 'package:dbs_annotator/ui/save_target.dart' show debugSaveDir;
 import 'package:dbs_annotator/ui/scale_slider.dart';
 import 'package:dbs_annotator/ui/session/entry_charts_view.dart';
 import 'package:dbs_annotator/ui/session_screen.dart';
-import 'package:dbs_annotator/core/annotation.dart';
-import 'package:dbs_annotator/ui/reports_screen.dart';
 import 'package:dbs_annotator/ui/stim_params_form.dart';
 import 'package:dbs_annotator/ui/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart' show FontLoader, rootBundle;
+import 'package:flutter/services.dart'
+    show FontLoader, MethodChannel, rootBundle;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'example_visits.dart';
@@ -80,8 +78,7 @@ String? _textFont;
 /// than one per screenshot: mixed widths render at different apparent scales
 /// on the same documentation page. [_wide] is above the 900 px breakpoint in
 /// `session_screen.dart`, so the two-row layout the docs describe is what gets
-/// drawn; [_narrow] is below it, and is also the width for screens whose own
-/// content is capped (the home screen's card column is 600 px).
+/// drawn; [_narrow] is below it.
 const double _wide = 1440;
 const double _narrow = 900;
 
@@ -92,8 +89,6 @@ const double _narrow = 900;
 const double _dialogWidth = 1100;
 const double _textDialogWidth = 540;
 const _textDialogs = {
-  'dialog_save_location',
-  'dialog_record_into',
   'dialog_bids_start',
   'dialog_bids_not_dataset',
   'dialog_keep_recovery',
@@ -117,7 +112,7 @@ const _fixture = exampleFixture;
 const _defaultModel = 'Medtronic SenSight B33005';
 const _subjectId = '01';
 const _runId = '01';
-const _preset = 'OCD';
+const _preset = 'PD';
 const _frequency = '125';
 const _amplitude = '5.5';
 const _pulseWidth = '90';
@@ -465,6 +460,11 @@ Future<void> _shootDialog(
   await tester.pumpAndSettle();
 }
 
+/// [panel] on a page of its own, as the Setup step's card shows it.
+Widget _panel(ImportExportPanel panel) => Scaffold(
+  body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: panel),
+);
+
 /// Contracts loaded from the committed schema, so the wizard renders with real
 /// electrode models and limits instead of empty dropdowns.
 Future<(ElectrodeCatalog, StimLimits, ScalePresets)> _contracts() async => (
@@ -484,9 +484,20 @@ Future<(ElectrodeCatalog, StimLimits, ScalePresets)> _contracts() async => (
 
 /// The committed example, so the charts and tables have real content.
 SessionAuthoring _seededAuthoring() =>
-    SessionAuthoring()..loadExisting(File(_fixture).readAsStringSync());
+    SessionAuthoring()
+      ..loadExisting(parseSessionTsv(File(_fixture).readAsStringSync()));
 
-/// Tap the current step's `Next`; only the active step renders one.
+/// Choose the example's pathology in Setup, which loads its scales.
+Future<void> _choosePathology(WidgetTester tester) async {
+  await _tapFinder(
+    tester,
+    find.widgetWithText(DropdownMenu<String>, 'DBS indication'),
+  );
+  await tester.tap(find.text(_preset).last);
+  await tester.pumpAndSettle();
+}
+
+/// Tap `Next` in the wizard's bottom bar.
 Future<void> _next(WidgetTester tester) async => _tapText(tester, 'Next');
 
 /// Scroll [finder] into view, let the scroll settle, then tap it. The settle
@@ -545,7 +556,7 @@ Future<void> _selectProgram(WidgetTester tester, {String program = 'B'}) async {
 
 /// Step 0: a patient and a run, so the BIDS filename the app composes is real.
 Future<void> _seedFileStep(WidgetTester tester) async {
-  await _type(tester, 'Patient ID (sub-)', _subjectId);
+  await _type(tester, 'Patient ID', _subjectId);
   await _type(tester, 'Run', _runId);
 }
 
@@ -679,6 +690,13 @@ void main() {
   }
 
   setUpAll(() async {
+    final support = Directory.systemTemp.createTempSync('docs_support');
+    debugSaveDir = Directory.systemTemp.createTempSync('docs_save');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (_) async => support.path,
+        );
     await _loadFonts();
     _textFont = await _loadTextFont();
     // CustomPainters never see the theme, so electrode labels, slider values
@@ -692,30 +710,6 @@ void main() {
         'a host with system fonts.',
       );
     }
-  });
-
-  // ---- Home -------------------------------------------------------------
-
-  testWidgets('home', (tester) async {
-    await _pump(tester, const HomeScreen());
-    await _shootFitted(tester, 'home', width: _narrow, fallback: 620);
-  });
-
-  testWidgets('home (dark)', (tester) async {
-    await _pump(tester, const HomeScreen(), brightness: Brightness.dark);
-    await _shootFitted(tester, 'home_dark', width: _narrow, fallback: 620);
-  });
-
-  testWidgets('home (large text)', (tester) async {
-    // The in-app text-size control goes to 1.6; the docs point here when they
-    // say the app stays legible scaled up on a tablet.
-    await _pump(tester, const HomeScreen(), textScale: 1.4);
-    await _shootFitted(
-      tester,
-      'home_large_text',
-      width: _narrow,
-      fallback: 800,
-    );
   });
 
   // ---- Complete workflow ------------------------------------------------
@@ -735,16 +729,37 @@ void main() {
     await _shootFitted(tester, 'session_step0_file');
   });
 
+  testWidgets('session: side menu', (tester) async {
+    final (catalog, limits, presets) = await _contracts();
+    await _pump(
+      tester,
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
+      size: const Size(_narrow, 1200),
+    );
+    await _tapTooltip(tester, 'Open navigation menu');
+    await _shootFitted(tester, 'session_drawer', width: _narrow, height: 1000);
+  });
+
   testWidgets('session: initial configuration', (tester) async {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
       tester,
-      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
     );
     await _seedFileStep(tester);
+    await _choosePathology(tester);
     await _next(tester);
     await _seedConfiguration(tester, catalog.models[_defaultModel]!);
-    await _tapText(tester, _preset);
     await _type(tester, 'Notes', _initialNotes);
     await _shootFitted(tester, 'session_step1_config');
   });
@@ -755,12 +770,17 @@ void main() {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
       tester,
-      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
       size: const Size(_narrow, _maxHeight),
     );
     await _seedFileStep(tester);
+    await _choosePathology(tester);
     await _next(tester);
-    await _tapText(tester, _preset);
     await _shootFitted(
       tester,
       'session_step1_narrow',
@@ -774,7 +794,12 @@ void main() {
     final model = catalog.models[_defaultModel]!;
     await _pump(
       tester,
-      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
     );
     await _next(tester);
 
@@ -801,18 +826,6 @@ void main() {
     );
   });
 
-  testWidgets('session: session scales configuration', (tester) async {
-    final (catalog, limits, presets) = await _contracts();
-    await _pump(
-      tester,
-      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
-    );
-    await _next(tester);
-    await _next(tester);
-    await _tapText(tester, _preset);
-    await _shootFitted(tester, 'session_step2_scales');
-  });
-
   testWidgets('session: recording and charts', (tester) async {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
@@ -828,8 +841,6 @@ void main() {
     await _next(tester);
     await _seedConfiguration(tester, catalog.models[_defaultModel]!);
     await _next(tester);
-    await _tapText(tester, _preset);
-    await _next(tester);
 
     await _seedRatings(tester);
     await _type(tester, 'Notes', _recordingNotes);
@@ -839,8 +850,9 @@ void main() {
       tester,
       'session_step3_recording',
       from: find.text('Program'),
-      to: find.text('Insert recording block'),
+      to: find.text('Save configuration'),
     );
+    await _tapText(tester, 'Comparison charts');
     await _shootRegion(
       tester,
       'session_step3_charts',
@@ -864,20 +876,18 @@ void main() {
     await _next(tester);
     await _seedConfiguration(tester, catalog.models[_defaultModel]!);
     await _next(tester);
-    await _tapText(tester, _preset);
-    await _next(tester);
     await _seedRatings(tester);
     await _shootRegion(
       tester,
       'session_step3_recording_dark',
       from: find.text('Program'),
-      to: find.text('Insert recording block'),
+      to: find.text('Save configuration'),
     );
   });
 
   // ---- Menus ------------------------------------------------------------
 
-  testWidgets('session: export menu and paper-size submenu', (tester) async {
+  testWidgets('session: finish', (tester) async {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
       tester,
@@ -888,28 +898,11 @@ void main() {
         authoring: _seededAuthoring(),
       ),
     );
-    await _next(tester);
-    await _next(tester);
-    await _next(tester);
-
-    // Shrink to the frame before the menu opens. A menu lives in the overlay,
-    // not in the page's scroll view, so [_shootFitted] would measure the page
-    // and shrink the window out from under the menu.
-    await tester.binding.setSurfaceSize(const Size(_wide, 620));
-    await tester.pumpAndSettle();
-    // Put the Export button just below the AppBar so the menu opens into the
-    // frame rather than off the bottom of it.
-    await Scrollable.ensureVisible(
-      tester.element(find.text('Export')),
-      alignment: 0.05,
-      duration: Duration.zero,
-    );
-    await tester.pumpAndSettle();
-
-    // Only the submenu shot is kept: it shows the whole menu as well.
-    await _tapText(tester, 'Export');
-    await _tapText(tester, 'Paper size: A4');
-    await _shoot(tester, 'session_paper_size_submenu');
+    for (var i = 0; i < 3; i++) {
+      await _next(tester);
+    }
+    await _tapText(tester, 'Confirm');
+    await _shootFitted(tester, 'session_finish');
   });
 
   // ---- Dialogs ----------------------------------------------------------
@@ -920,14 +913,24 @@ void main() {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
       tester,
-      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
     );
+    await _choosePathology(tester);
+    await _tapTooltip(tester, 'Devices settings');
+    await _shootDialog(tester, 'dialog_devices');
+    await _tapTooltip(tester, 'Lead design');
+    await _shootDialog(tester, 'dialog_lead_design');
+    await _tapText(tester, 'Cancel');
     await _next(tester);
-    await _tapText(tester, _preset);
 
     for (final entry in const [
       ('Edit programs', 'dialog_programs'),
-      ('Edit parameter presets', 'dialog_parameter_presets'),
+      ('Default settings per DBS indication', 'dialog_parameter_presets'),
       ('Settings clinical scales', 'dialog_clinical_scales'),
     ]) {
       await _tapTooltip(tester, entry.$1);
@@ -940,11 +943,16 @@ void main() {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
       tester,
-      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
     );
+    await _choosePathology(tester);
     await _next(tester);
     await _next(tester);
-    await _tapText(tester, _preset);
     await _tapTooltip(tester, 'Settings session scales');
     // Unlike the clinical variant, each row here carries a Min and a Max,
     // which is why both dialogs are documented rather than one.
@@ -963,8 +971,6 @@ void main() {
       ),
     );
     await _next(tester);
-    await _next(tester);
-    await _tapText(tester, _preset);
     await _next(tester);
 
     await _tapText(tester, 'Scale targets');
@@ -987,29 +993,18 @@ void main() {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
       tester,
-      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
     );
-    await _tapText(tester, 'New');
-    await _shootDialog(tester, 'dialog_save_location');
-    await _tapText(tester, 'Cancel');
-
     const root = 'C:/Studies/OCD-DBS';
-    const name = BidsName(
-      subject: '01',
-      session: '20260203',
-      task: 'programming',
-      run: '01',
-    );
     const visit =
         'sub-01/ses-20260203/beh/'
         'sub-01_ses-20260203_task-programming_run-01_beh';
     final shots = <(String, Future<Object?> Function(BuildContext), String)>[
-      ('dialog_session_label', (c) => askSessionLabel(c, '20260203'), 'Cancel'),
-      (
-        'dialog_record_into',
-        (c) => confirmRecordInto(c, root, name, what: 'this visit'),
-        'Cancel',
-      ),
       (
         'dialog_bids_start',
         (c) => checkDatasetFolder(c, 'C:/Studies/new-study', const []),
@@ -1086,47 +1081,33 @@ void main() {
   });
 
   testWidgets('dialogs: help / about', (tester) async {
-    await _pump(tester, const HomeScreen(), size: const Size(_narrow, 1200));
-    await _tapTooltip(tester, 'Help / about');
+    final (catalog, limits, presets) = await _contracts();
+    await _pump(
+      tester,
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
+      size: const Size(_narrow, 1200),
+    );
+    await _tapTooltip(tester, 'Open navigation menu');
+    await _tapText(tester, 'Help and about');
     await _shootDialog(tester, 'dialog_about');
   });
 
-  // ---- Annotations ------------------------------------------------------
-
-  testWidgets('annotations: file step', (tester) async {
-    await _pump(tester, const AnnotationsScreen());
-    await _seedFileStep(tester);
-    await _shootFitted(tester, 'annotations_file');
-  });
-
-  testWidgets('annotations: notes step', (tester) async {
-    await _pump(tester, const AnnotationsScreen());
-    await _seedFileStep(tester);
-    await _next(tester);
-    for (final note in const [
-      'Session started; patient alert and oriented.',
-      'Reports the paraesthesia has settled since the last change.',
-      'Discussed raising the left amplitude at the next visit.',
-    ]) {
-      await _type(tester, 'Note', note);
-      await _tapText(tester, 'Insert timestamped note');
-    }
-    await _shootFitted(tester, 'annotations_notes');
-  });
-
-  // ---- Reports and datasets ---------------------------------------------
-
-  testWidgets('reports: nothing uploaded', (tester) async {
+  testWidgets('reports: nothing imported', (tester) async {
     final contracts = await _contracts();
     await _pump(
       tester,
-      ReportsScreen(catalog: contracts.$1),
+      _panel(ImportExportPanel(catalog: contracts.$1)),
       size: const Size(_narrow, 1000),
     );
     await _shootFitted(tester, 'reports_empty', width: _narrow, height: 620);
   });
 
-  testWidgets('reports: load from dataset', (tester) async {
+  testWidgets('reports: import from a BIDS folder', (tester) async {
     String beh(String sub, String ses) =>
         'sub-$sub/ses-$ses/beh/'
         'sub-${sub}_ses-${ses}_task-programming_run-01_beh.tsv';
@@ -1143,8 +1124,11 @@ void main() {
       ],
     );
     addTearDown(() => debugDataset = null);
-    await _pump(tester, ReportsScreen(catalog: (await _contracts()).$1));
-    await _tapText(tester, 'Load from dataset');
+    await _pump(
+      tester,
+      _panel(ImportExportPanel(catalog: (await _contracts()).$1)),
+    );
+    await _tapText(tester, 'Import from a BIDS folder');
     await _shootDialog(tester, 'dialog_load_participants');
   });
 
@@ -1152,16 +1136,21 @@ void main() {
     final contracts = await _contracts();
     await _pump(
       tester,
-      ReportsScreen(
-        catalog: contracts.$1,
-        initialFiles: exampleVisits(count: 1),
+      _panel(
+        ImportExportPanel(
+          catalog: contracts.$1,
+          initialFiles: exampleVisits(count: 1),
+        ),
       ),
     );
     await _shootFitted(tester, 'reports_one_session', height: 900);
   });
 
   testWidgets('reports: several visits', (tester) async {
-    await _pump(tester, ReportsScreen(initialFiles: exampleVisits()));
+    await _pump(
+      tester,
+      _panel(ImportExportPanel(initialFiles: exampleVisits())),
+    );
     await _shootFitted(tester, 'reports_visits', height: 900);
   });
 
@@ -1171,7 +1160,11 @@ void main() {
     // documenting on their own.
     await _pump(
       tester,
-      ReportsScreen(initialFiles: exampleVisits(mismatchedPatients: true)),
+      _panel(
+        ImportExportPanel(
+          initialFiles: exampleVisits(mismatchedPatients: true),
+        ),
+      ),
     );
     await _shootFitted(tester, 'reports_mismatch', height: 900);
   });
@@ -1227,27 +1220,5 @@ void main() {
     });
     File('${out.path}/longitudinal_report.pdf')
         .writeAsBytesSync(longitudinalPdf!.bytes);
-
-    final notes = buildAnnotationsReportData(
-      entries: const [
-        Annotation(
-          acqTime: '2026-02-03T09:02:10+00:00',
-          notes: 'Arrived calm; reports checking behaviour most evenings.',
-        ),
-        Annotation(
-          acqTime: '2026-02-03T09:07:45+00:00',
-          notes: 'Brief warmth on the right after the amplitude change.',
-        ),
-        Annotation(
-          acqTime: '2026-02-03T09:13:30+00:00',
-          notes: 'Leaves on the last configuration; review in six weeks.',
-        ),
-      ],
-      subjectId: _subjectId,
-      sourceFile: 'sub-01_ses-20260203_task-notes_run-01_beh.tsv',
-    );
-    final notesPdf = await tester.runAsync(() => buildAnnotationsPdf(notes));
-    File('${out.path}/annotations_report.pdf')
-        .writeAsBytesSync(notesPdf!.bytes);
   });
 }

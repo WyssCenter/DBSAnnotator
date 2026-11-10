@@ -20,7 +20,7 @@ List<SessionRow> parseSessionTsv(String content) =>
 
 /// Serialize rows to a full TSV document with the canonical column header.
 String serializeSessionTsv(List<SessionRow> rows) =>
-    writeTsvRecords(sessionColumns, rows.map((r) => r.toMap()).toList());
+    writeTsvRecords(workingColumns, rows.map((r) => r.toMap()).toList());
 
 /// A TSV integer cell as Python's `int(float(val))`; null when unparsable.
 int? _asInt(String raw) {
@@ -64,6 +64,12 @@ List<SessionRow> buildInsertRows({
   String programId = '',
   String leftElectrodeModel = '',
   String rightElectrodeModel = '',
+  String pathology = '',
+  String target = '',
+  String leftIpgModel = '',
+  String rightIpgModel = '',
+  String medications = '',
+  bool starred = false,
   String notes = '',
   String leftStimFreq = '',
   String leftAnode = '',
@@ -87,10 +93,15 @@ List<SessionRow> buildInsertRows({
     isInitial: initialCell(isInitial),
     // Marked afterwards, by the clinician, with [markFinalBlock].
     isFinal: '0',
+    isStarred: initialCell(starred),
     scaleName: scaleName,
     scaleValue: scaleValue,
     leftElectrodeModel: leftElectrodeModel,
     rightElectrodeModel: rightElectrodeModel,
+    pathology: pathology,
+    target: target,
+    leftIpgModel: leftIpgModel,
+    rightIpgModel: rightIpgModel,
     programId: programId,
     leftStimFreq: leftStimFreq,
     leftAnode: leftAnode,
@@ -102,6 +113,7 @@ List<SessionRow> buildInsertRows({
     rightCathode: rightCathode,
     rightAmplitude: rightAmplitude,
     rightPulseWidth: rightPulseWidth,
+    medications: medications,
     notes: notes,
   );
 

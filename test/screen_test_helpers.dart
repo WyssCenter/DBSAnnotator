@@ -9,7 +9,6 @@ import 'package:dbs_annotator/core/annotation.dart';
 import 'package:dbs_annotator/core/electrode/electrode_model.dart';
 import 'package:dbs_annotator/core/session/authoring.dart';
 import 'package:dbs_annotator/core/session/scale_presets.dart';
-import 'package:dbs_annotator/ui/annotations_screen.dart';
 import 'package:dbs_annotator/ui/bids_merge_ui.dart';
 import 'package:dbs_annotator/ui/close_guard.dart';
 import 'package:dbs_annotator/ui/save_target.dart';
@@ -110,28 +109,6 @@ void removeQuietly(Directory dir) {
   } on FileSystemException {
     // Windows may still hold a folder open.
   }
-}
-
-Future<void> openNotesStep(WidgetTester tester) async {
-  await tester.binding.setSurfaceSize(const Size(1000, 1600));
-  addTearDown(() => tester.binding.setSurfaceSize(null));
-  await tester.pumpWidget(
-    MaterialApp(
-      home: Builder(
-        builder: (context) => TextButton(
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute<void>(builder: (_) => const AnnotationsScreen()),
-          ),
-          child: const Text('open'),
-        ),
-      ),
-    ),
-  );
-  await tester.tap(find.text('open'));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('Notes'));
-  await tester.pumpAndSettle();
 }
 
 String workingText(Directory root) => root
@@ -373,22 +350,4 @@ File plantWork(
   final file = File('${dir.path}/$name')..writeAsStringSync(content);
   if (modified != null) file.setLastModifiedSync(modified);
   return file;
-}
-
-/// Inserts a baseline block whose notes are [text] and waits until the working
-/// copy holds it. Works from any step of the session screen.
-Future<void> addSessionEntry(
-  WidgetTester tester,
-  Directory working,
-  String text,
-) async {
-  final insert = find.text('Insert baseline').hitTestable();
-  if (insert.evaluate().isEmpty) {
-    await tester.tap(find.text('Initial configuration'));
-    await tester.pumpAndSettle();
-  }
-  await tester.enterText(find.widgetWithText(TextField, 'Notes'), text);
-  await tester.ensureVisible(insert);
-  await tester.tap(insert);
-  await settleUntil(tester, working, () => workingText(working).contains(text));
 }

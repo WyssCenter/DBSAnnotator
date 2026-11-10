@@ -3,14 +3,8 @@ import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'painter_font.dart';
 
-/// Tablet port of the desktop `ScaleProgressWidget` (ui/widgets.py): a
-/// green-gradient progress bar with the value drawn on it at **0.25**
-/// granularity, ±0.25 (single-chevron) / ±0.5 (double-chevron) buttons on each
-/// side, and an "X" that toggles the scale to *not assessed* (omitted).
-///
-/// Stateless: the parent owns [value]/[omitted] and updates them from
-/// [onChanged] (any move re-includes an omitted scale, like the desktop) and
-/// [onOmitToggle].
+/// A rating bar snapping to [step], with chevrons and an X that marks the scale
+/// not assessed. A [step] of 1 or more draws one segment per whole value.
 class ScaleSlider extends StatelessWidget {
   const ScaleSlider({
     super.key,
@@ -20,6 +14,7 @@ class ScaleSlider extends StatelessWidget {
     required this.omitted,
     required this.onChanged,
     required this.onOmitToggle,
+    this.step = 0.25,
   });
 
   final double value;
@@ -28,10 +23,12 @@ class ScaleSlider extends StatelessWidget {
   final bool omitted;
   final ValueChanged<double> onChanged;
   final VoidCallback onOmitToggle;
+  final double step;
 
-  /// Snap to 0.25 and clamp to [min, max] (desktop internal unit = value*4).
+  bool get _discrete => step >= 1;
+
   double _snap(double v) =>
-      ((v * 4).roundToDouble() / 4).clamp(min, max).toDouble();
+      ((v / step).roundToDouble() * step).clamp(min, max).toDouble();
 
   void _bump(double delta) => onChanged(_snap(value + delta));
 
@@ -49,8 +46,13 @@ class ScaleSlider extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
-        _chevron(Icons.keyboard_double_arrow_left, '-0.5', () => _bump(-0.5)),
-        _chevron(Icons.keyboard_arrow_left, '-0.25', () => _bump(-0.25)),
+        if (!_discrete)
+          _chevron(
+            Icons.keyboard_double_arrow_left,
+            '-${step * 2}',
+            () => _bump(-step * 2),
+          ),
+        _chevron(Icons.keyboard_arrow_left, '-$step', () => _bump(-step)),
         Expanded(
           child: LayoutBuilder(
             builder: (context, c) {
@@ -71,9 +73,12 @@ class ScaleSlider extends StatelessWidget {
                       fraction: (max > min)
                           ? ((value - min) / (max - min)).clamp(0.0, 1.0)
                           : 0.0,
-                      label: omitted ? '' : value.toStringAsFixed(2),
+                      label: omitted
+                          ? ''
+                          : value.toStringAsFixed(_discrete ? 0 : 2),
                       omitted: omitted,
                       dark: dark,
+                      segments: _discrete ? ((max - min) / step).round() : 0,
                     ),
                   ),
                 ),
@@ -81,8 +86,13 @@ class ScaleSlider extends StatelessWidget {
             },
           ),
         ),
-        _chevron(Icons.keyboard_arrow_right, '+0.25', () => _bump(0.25)),
-        _chevron(Icons.keyboard_double_arrow_right, '+0.5', () => _bump(0.5)),
+        _chevron(Icons.keyboard_arrow_right, '+$step', () => _bump(step)),
+        if (!_discrete)
+          _chevron(
+            Icons.keyboard_double_arrow_right,
+            '+${step * 2}',
+            () => _bump(step * 2),
+          ),
         Tooltip(
           message: omitted ? 'Include (assessed)' : 'Omit (not assessed)',
           child: IconButton(
@@ -102,12 +112,14 @@ class _BarPainter extends CustomPainter {
     required this.label,
     required this.omitted,
     required this.dark,
+    required this.segments,
   });
 
   final double fraction;
   final String label;
   final bool omitted;
   final bool dark;
+  final int segments;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -137,6 +149,14 @@ class _BarPainter extends CustomPainter {
               .createShader(fillRect),
       );
       canvas.restore();
+    }
+
+    final tick = Paint()
+      ..strokeWidth = 1
+      ..color = dark ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
+    for (var i = 1; i < segments; i++) {
+      final x = size.width * i / segments;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), tick);
     }
 
     // Border.
@@ -176,5 +196,6 @@ class _BarPainter extends CustomPainter {
       o.fraction != fraction ||
       o.label != label ||
       o.omitted != omitted ||
-      o.dark != dark;
+      o.dark != dark ||
+      o.segments != segments;
 }

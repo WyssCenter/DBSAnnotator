@@ -4,6 +4,7 @@
 library;
 
 import '../tsv.dart';
+import 'bids_session.dart';
 
 enum TsvKind {
   programming,
@@ -42,8 +43,9 @@ TsvKind sniffTsvKind(String content) {
   if (rows.isEmpty || rows.first.isEmpty) return TsvKind.unreadable;
   final header = rows.first.map((c) => c.trim()).toSet();
 
-  if (_programmingMarkers.every(header.contains) &&
-      _blockMarkers.any(header.contains)) {
+  if (isBehHeader(header) ||
+      _programmingMarkers.every(header.contains) &&
+          _blockMarkers.any(header.contains)) {
     return TsvKind.programming;
   }
   if (_notesRequired.every(header.contains) &&

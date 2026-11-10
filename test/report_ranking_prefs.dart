@@ -15,5 +15,6 @@ SessionReportData rankedReportData(
   // scales, and listing them as targets put them in the legend.
   scalePrefs: defaultScalePrefsFor(
     rows.where((r) => coerceInt(r.isInitial) != 1),
+    fallback: (0.0, 4.0),
   ),
 );

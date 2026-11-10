@@ -17,14 +17,12 @@ class StimLimits {
     this.frequencyStep = 10,
     this.amplitudeStep = 1,
     this.pulseWidthStep = 10,
-    this.frequencyFineStep = 5,
-    this.amplitudeFineStep = 0.5,
-    this.pulseWidthFineStep = 5,
+    this.frequencyFineStep = 1,
+    this.amplitudeFineStep = 0.1,
+    this.pulseWidthFineStep = 1,
     this.amplitudeDecimals = 2,
     this.sessionScaleOmittedTsv = 'NaN',
-    this.frequencyPresets = const [],
-    this.amplitudePresets = const [],
-    this.pulseWidthPresets = const [],
+    this.defaults = const {},
   });
 
   factory StimLimits.fromJson(Map<String, dynamic> json) {
@@ -39,11 +37,8 @@ class StimLimits {
     final amp = stim['amplitude'] as Map<String, dynamic>;
     final pw = stim['pulse_width'] as Map<String, dynamic>;
     final sessionScale = json['session_scale'] as Map<String, dynamic>;
-    final presets =
-        (json['stimulation_presets'] as Map<String, dynamic>?) ?? const {};
-    List<num> values(String key) => ((presets[key] as List?) ?? const [])
-        .map((e) => e as num)
-        .toList(growable: false);
+    final defaults =
+        (json['stimulation_defaults'] as Map<String, dynamic>?) ?? const {};
     return StimLimits(
       frequency: range(freq),
       amplitude: range(amp),
@@ -52,14 +47,18 @@ class StimLimits {
       frequencyStep: step1(freq, 10),
       amplitudeStep: step1(amp, 1),
       pulseWidthStep: step1(pw, 10),
-      frequencyFineStep: step2(freq, 5),
-      amplitudeFineStep: step2(amp, 0.5),
-      pulseWidthFineStep: step2(pw, 5),
+      frequencyFineStep: step2(freq, 1),
+      amplitudeFineStep: step2(amp, 0.1),
+      pulseWidthFineStep: step2(pw, 1),
       amplitudeDecimals: ((amp['decimals'] as num?) ?? 2).toInt(),
       sessionScaleOmittedTsv: (sessionScale['omitted_tsv'] as String?) ?? 'NaN',
-      frequencyPresets: values('frequencies'),
-      amplitudePresets: values('amplitudes'),
-      pulseWidthPresets: values('pulse_widths'),
+      defaults: {
+        for (final MapEntry(:key, :value) in defaults.entries)
+          key: [
+            for (final k in ['frequency', 'amplitude', 'pulse_width'])
+              (value as Map<String, dynamic>)[k] as num,
+          ],
+      },
     );
   }
 
@@ -85,36 +84,25 @@ class StimLimits {
   /// assessed (`session_scale.omitted_tsv`).
   final String sessionScaleOmittedTsv;
 
-  /// Quick-pick values from `stimulation_presets`; empty when absent.
-  final List<num> frequencyPresets;
-  final List<num> amplitudePresets;
-  final List<num> pulseWidthPresets;
+  /// Starting frequency, amplitude and pulse width per DBS indication.
+  final Map<String, List<num>> defaults;
 
-  /// Copy with the preset lists replaced by user overrides; null keeps the
-  /// contract default.
-  StimLimits withPresets({
-    List<num>? frequencies,
-    List<num>? amplitudes,
-    List<num>? pulseWidths,
-  }) {
-    return StimLimits(
-      frequency: frequency,
-      amplitude: amplitude,
-      pulseWidth: pulseWidth,
-      sessionScale: sessionScale,
-      frequencyStep: frequencyStep,
-      amplitudeStep: amplitudeStep,
-      pulseWidthStep: pulseWidthStep,
-      frequencyFineStep: frequencyFineStep,
-      amplitudeFineStep: amplitudeFineStep,
-      pulseWidthFineStep: pulseWidthFineStep,
-      amplitudeDecimals: amplitudeDecimals,
-      sessionScaleOmittedTsv: sessionScaleOmittedTsv,
-      frequencyPresets: frequencies ?? frequencyPresets,
-      amplitudePresets: amplitudes ?? amplitudePresets,
-      pulseWidthPresets: pulseWidths ?? pulseWidthPresets,
-    );
-  }
+  /// Copy with [defaults] replaced by the user's, when there are any.
+  StimLimits withDefaults(Map<String, List<num>>? defaults) => StimLimits(
+    frequency: frequency,
+    amplitude: amplitude,
+    pulseWidth: pulseWidth,
+    sessionScale: sessionScale,
+    frequencyStep: frequencyStep,
+    amplitudeStep: amplitudeStep,
+    pulseWidthStep: pulseWidthStep,
+    frequencyFineStep: frequencyFineStep,
+    amplitudeFineStep: amplitudeFineStep,
+    pulseWidthFineStep: pulseWidthFineStep,
+    amplitudeDecimals: amplitudeDecimals,
+    sessionScaleOmittedTsv: sessionScaleOmittedTsv,
+    defaults: defaults ?? this.defaults,
+  );
 }
 
 /// Loads the limits contract from the bundled asset, which the build copies
@@ -139,7 +127,7 @@ String? rangeError(String text, LimitRange range) {
 
 String _fmt(double v) => v == v.truncateToDouble() ? '${v.truncate()}' : '$v';
 
-/// Chip label for a quick-pick value, without a trailing `.0`.
+/// A value as typed in a field, without a trailing `.0`.
 String presetLabel(num v) => _fmt(v.toDouble());
 
 /// Text for a stepped value, fixed to [decimals] places with trailing zeros
@@ -246,75 +234,49 @@ class StimParamsForm extends StatelessWidget {
     required double step,
     required double fineStep,
     required int decimals,
-    required List<num> presets,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: controller,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                validator: (text) => rangeError(text ?? '', range),
-                decoration: InputDecoration(
-                  labelText: label,
-                  suffixText: unit,
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear, size: 18),
-                    tooltip: 'Clear $label',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: controller.clear,
-                  ),
-                  helperText: '${_fmt(range.min)}-${_fmt(range.max)}',
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                ),
+        Expanded(
+          child: TextFormField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            validator: (text) => rangeError(text ?? '', range),
+            decoration: InputDecoration(
+              labelText: label,
+              suffixText: unit,
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.clear, size: 18),
+                tooltip: 'Clear $label',
+                visualDensity: VisualDensity.compact,
+                onPressed: controller.clear,
               ),
-            ),
-            const SizedBox(width: 4),
-            // Fine then coarse, matching the desktop IncrementWidget's order.
-            _arrowColumn(
-              controller: controller,
-              range: range,
-              step: fineStep,
-              decimals: decimals,
-              label: label,
-              coarse: false,
-            ),
-            _arrowColumn(
-              controller: controller,
-              range: range,
-              step: step,
-              decimals: decimals,
-              label: label,
-              coarse: true,
-            ),
-          ],
-        ),
-        if (presets.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            // Touch-first counterpart of the desktop's preset combo.
-            child: Wrap(
-              spacing: 4,
-              runSpacing: 4,
-              children: [
-                for (final value in presets)
-                  ActionChip(
-                    label: Text(presetLabel(value)),
-                    visualDensity: VisualDensity.compact,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    onPressed: () => controller.text = presetLabel(value),
-                  ),
-              ],
+              helperText: '${_fmt(range.min)}-${_fmt(range.max)}',
+              border: const OutlineInputBorder(),
+              isDense: true,
             ),
           ),
+        ),
+        const SizedBox(width: 4),
+        // Fine then coarse, matching the desktop IncrementWidget's order.
+        _arrowColumn(
+          controller: controller,
+          range: range,
+          step: fineStep,
+          decimals: decimals,
+          label: label,
+          coarse: false,
+        ),
+        _arrowColumn(
+          controller: controller,
+          range: range,
+          step: step,
+          decimals: decimals,
+          label: label,
+          coarse: true,
+        ),
       ],
     );
   }
@@ -333,7 +295,6 @@ class StimParamsForm extends StatelessWidget {
             step: limits.frequencyStep,
             fineStep: limits.frequencyFineStep,
             decimals: 0,
-            presets: limits.frequencyPresets,
           ),
         ),
         const SizedBox(width: 8),
@@ -346,7 +307,6 @@ class StimParamsForm extends StatelessWidget {
             step: limits.amplitudeStep,
             fineStep: limits.amplitudeFineStep,
             decimals: limits.amplitudeDecimals,
-            presets: limits.amplitudePresets,
           ),
         ),
         const SizedBox(width: 8),
@@ -359,7 +319,6 @@ class StimParamsForm extends StatelessWidget {
             step: limits.pulseWidthStep,
             fineStep: limits.pulseWidthFineStep,
             decimals: 0,
-            presets: limits.pulseWidthPresets,
           ),
         ),
       ],

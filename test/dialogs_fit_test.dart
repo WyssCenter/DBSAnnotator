@@ -13,8 +13,8 @@ import 'package:dbs_annotator/report/report_sections.dart';
 import 'package:dbs_annotator/report/upload_actions.dart';
 import 'package:dbs_annotator/ui/bids_merge_ui.dart';
 import 'package:dbs_annotator/ui/close_guard.dart';
+import 'package:dbs_annotator/ui/import_export_panel.dart';
 import 'package:dbs_annotator/ui/report_sections_dialog.dart';
-import 'package:dbs_annotator/ui/reports_screen.dart';
 import 'package:dbs_annotator/ui/scale_targets_dialog.dart';
 import 'package:dbs_annotator/ui/theme.dart';
 import 'package:flutter/material.dart';
@@ -31,11 +31,6 @@ const _name = BidsName(
   task: 'programming',
   run: '01',
 );
-
-/// The dialog's note when the name is taken, worded as `askNewTarget` words it.
-String _taken(String session) =>
-    '${_name.filename} is already in this dataset, so this recording is filed '
-    'as run-02.';
 
 final _manyPaths = [
   for (var i = 0; i < 15; i++)
@@ -58,31 +53,6 @@ final List<_Case> _cases = [
     name: 'dataset folder check, not a dataset',
     open: (c) =>
         checkDatasetFolder(c, _root, const [(path: 'notes.txt', content: 'x')]),
-    then: null,
-  ),
-  (
-    name: 'where to save',
-    open: (c) => askNewTarget(c, _name, what: 'this visit'),
-    then: null,
-  ),
-  (
-    name: 'session label, name already taken',
-    open: (c) => askSessionLabel(c, '20261005', note: _taken),
-    then: null,
-  ),
-  (
-    name: 'session label, sanitised and taken',
-    open: (c) => askSessionLabel(c, '20261005', note: _taken),
-    then: (t) => t.enterText(find.byType(TextField), '3-mo follow up'),
-  ),
-  (
-    name: 'session label, invalid',
-    open: (c) => askSessionLabel(c, '20261005', note: _taken),
-    then: (t) => t.enterText(find.byType(TextField), '---'),
-  ),
-  (
-    name: 'record into this dataset',
-    open: (c) => confirmRecordInto(c, _root, _name, what: 'this visit'),
     then: null,
   ),
   (
@@ -333,7 +303,6 @@ void main() {
       await tester.runAsync(() => saved);
     });
 
-    // Opened from the reports page, which is laid out for a tablet or wider.
     if (size.width < 600) continue;
     testWidgets('every export info dialog fits at ${_label(size, scale)}', (
       tester,
@@ -350,7 +319,9 @@ void main() {
                 .copyWith(textScaler: TextScaler.linear(scale)),
             child: child!,
           ),
-          home: const ReportsScreen(),
+          home: const Scaffold(
+            body: SingleChildScrollView(child: ImportExportPanel()),
+          ),
         ),
       );
       await tester.pumpAndSettle();

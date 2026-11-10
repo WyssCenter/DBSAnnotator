@@ -195,7 +195,7 @@ Future<ReportBytes> buildLongitudinalPdf({
         pw.SizedBox(height: 12),
 
         if (data.isEmpty) ...[
-          pw.Text('No session TSV was uploaded.'),
+          pw.Text('No session file was imported.'),
           ...datedNotesPdf('Notes', data.notesWithoutVisit, t),
         ] else ...[
           // (a) Clinical scales by visit.
@@ -347,7 +347,7 @@ Uint8List buildLongitudinalDocx({
 
   if (data.isEmpty) {
     body
-      ..write(docxPara('No session TSV was uploaded.'))
+      ..write(docxPara('No session file was imported.'))
       ..write(
         datedNotesDocx(
           'Notes',

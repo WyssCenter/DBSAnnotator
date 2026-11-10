@@ -12,6 +12,7 @@ class BidsName {
     required this.session,
     required this.task,
     required this.run,
+    this.acquisition = '',
     this.suffix = behSuffix,
     this.extension = 'tsv',
   });
@@ -27,6 +28,9 @@ class BidsName {
   final String session;
   final String task; // "programming" or "notes" unless the user names another
   final String run;
+
+  /// Optional `acq-` label, left out of the name when empty.
+  final String acquisition;
   final String suffix;
   final String extension;
 
@@ -48,7 +52,9 @@ class BidsName {
   /// The entity chain without suffix or extension; a safe path segment.
   String get stem =>
       'sub-${label(subject)}_ses-${label(session)}'
-      '_task-${label(task)}_run-${index(run)}';
+      '_task-${label(task)}'
+      '${label(acquisition).isEmpty ? '' : '_acq-${label(acquisition)}'}'
+      '_run-${index(run)}';
 
   String get filename => '${stem}_$suffix.$extension';
 
@@ -59,6 +65,7 @@ class BidsName {
     session: session,
     task: task,
     run: run,
+    acquisition: acquisition,
     suffix: suffix,
     extension: extension,
   );
@@ -78,6 +85,7 @@ class BidsName {
       session: _group(r'ses-([^_]+)', filename) ?? '',
       task: _group(r'task-([^_]+)', filename) ?? '',
       run: _group(r'run-([0-9]+)', filename) ?? '01',
+      acquisition: _group(r'acq-([^_]+)', filename) ?? '',
       suffix: filename.contains('_$legacySuffix.') ? legacySuffix : behSuffix,
     );
   }

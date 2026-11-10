@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:file_selector/file_selector.dart'
@@ -96,28 +95,11 @@ Future<void> discardWork(String? path) async {
   }
 }
 
-/// Where a newly created TSV ended up.
-typedef NewTsvTarget = ({
-  /// Path for autosave to write back to, or null when the picker gave back
-  /// something `dart:io` cannot write, as Android's `content://` URIs are.
-  /// Recording does not depend on it: see [workingPath].
-  String? path,
-
-  String location,
-
-  /// True when no save dialog could be shown and a default directory was used.
-  bool fellBack,
-});
-
 /// Whether Save-As goes through `file_selector`, which returns the chosen path
 /// without writing anything. `FilePicker.saveFile` writes its bytes to the path
 /// before returning, so it cannot be used where a path must be checked first.
 bool get hasDesktopSaveDialog =>
     Platform.isWindows || Platform.isMacOS || Platform.isLinux;
-
-/// Refusal wording for the file a session or notes screen is saved in.
-const String sessionFileReason =
-    'that is the file this session is already saved in. Choose another name.';
 
 /// A file a save dialog must not end on, and the refusal to show when it is
 /// chosen.
@@ -236,73 +218,6 @@ Future<String?> chooseSavePath({
     if (!await confirmReplace(pickedBasename(path))) return null;
   }
   return path;
-}
-
-/// Ask the user where to create a new TSV, seed it with [header], and report
-/// where it went. Returns null if they cancelled. Creating and seeding are
-/// one step, so the file cannot be left without its header.
-///
-/// Throws [SameFileException] when the choice is [avoid], before anything is
-/// written to it. On desktop the path is only chosen by the dialog, and this
-/// function writes the header once the path is known to be another file.
-Future<NewTsvTarget?> createNewTsv({
-  required String dialogTitle,
-  required String fileName,
-  required String header,
-  required ConfirmReplace confirmReplace,
-  AvoidFile? avoid,
-}) async {
-  final headerBytes = Uint8List.fromList(utf8.encode(header));
-  if (debugSaveDir case final dir?) {
-    final path = '${dir.path}/$fileName';
-    refuseIfAvoided(path, avoid);
-    await File(path).writeAsBytes(headerBytes);
-    return (path: path, location: path, fellBack: false);
-  }
-  if (hasDesktopSaveDialog) {
-    final String? path;
-    try {
-      path = await chooseSavePath(
-        suggestedName: fileName,
-        extension: 'tsv',
-        confirmReplace: confirmReplace,
-        avoid: avoid,
-      );
-    } on SaveDialogUnavailable {
-      return _newTsvInDocuments(fileName, header);
-    }
-    if (path == null) return null;
-    await File(path).writeAsBytes(headerBytes);
-    return (path: path, location: path, fellBack: false);
-  }
-  final Uri? uri;
-  try {
-    uri = await FilePicker.saveFile(
-      dialogTitle: dialogTitle,
-      fileName: fileName,
-      bytes: headerBytes,
-      mimeType: 'text/tab-separated-values',
-      type: FileType.custom,
-      allowedExtensions: const ['tsv'],
-      windowsOptions: const WindowsOptions(lockParentWindow: true),
-      linuxOptions: const LinuxOptions(lockParentWindow: true),
-    );
-  } catch (_) {
-    return _newTsvInDocuments(fileName, header);
-  }
-  if (uri == null) return null; // cancelled
-  final path = pickerUriToPath(uri);
-  if (path != null) refuseIfAvoided(path, avoid);
-  return (path: path, location: path ?? uri.toString(), fellBack: false);
-}
-
-/// The fallback when no save dialog could be shown.
-Future<NewTsvTarget> _newTsvInDocuments(String fileName, String header) async {
-  final dir = await getApplicationDocumentsDirectory();
-  await Directory(dir.path).create(recursive: true);
-  final path = unusedPath(dir.path, fileName);
-  await File(path).writeAsString(header);
-  return (path: path, location: path, fellBack: true);
 }
 
 /// `<dir>/<fileName>`, suffixed `-2`, `-3`, ... if that name is taken.

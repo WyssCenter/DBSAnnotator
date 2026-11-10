@@ -38,16 +38,34 @@ void main() {
     expect(clinicalRows(p, 'MDD'), ['MADRS', 'HAM-D', 'BDI-II']);
   });
 
-  test('sessionRows returns the desktop (name, min, max, mode) rows', () {
+  test('PD rates MDS-UPDRS III items 0 to 4 in whole steps', () {
     final p = loadPresets();
     final pd = sessionRows(p, 'PD');
-    expect(pd, contains((name: 'Tremor', min: '0', max: '10', mode: 'min')));
-    expect(pd.first, (name: 'Tremor', min: '0', max: '10', mode: 'min'));
-    expect(pd.map((r) => r.name), contains('Bradykinesia'));
+    final items = pd.where((r) => r.name.startsWith('MDS-UPDRS 3.'));
+    expect(pd.first, (
+      name: 'MDS-UPDRS 3.3 Rigidity RUE',
+      min: '0',
+      max: '4',
+      mode: 'min',
+      step: '1',
+    ));
+    expect(items, hasLength(10));
+    for (final row in items) {
+      expect((row.min, row.max, row.step), ('0', '4', '1'));
+    }
+    final others = pd.where((r) => !items.contains(r));
+    expect(others.map((r) => r.name), ['Dyskinesia', 'Paresthesia']);
     for (final row in pd) {
-      expect(row.min, '0');
-      expect(row.max, '10');
       expect(scaleOptimizationModes, contains(row.mode));
+    }
+  });
+
+  test('other presets keep continuous 0 to 10 rows', () {
+    final p = loadPresets();
+    for (final group in ['OCD', 'MDD', 'ET', 'Dystonia', 'TS']) {
+      for (final row in sessionRows(p, group)) {
+        expect((row.min, row.max, row.step), ('0', '10', ''));
+      }
     }
   });
 
@@ -67,6 +85,7 @@ void main() {
       min: '0',
       max: '7',
       mode: defaultScaleOptimizationMode,
+      step: '',
     ));
   });
 

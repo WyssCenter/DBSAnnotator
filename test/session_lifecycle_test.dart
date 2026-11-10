@@ -3,42 +3,132 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:dbs_annotator/core/prefs/user_prefs.dart';
 import 'package:dbs_annotator/core/safe_file.dart';
 import 'package:dbs_annotator/core/session/authoring.dart';
+import 'package:dbs_annotator/core/session/bids_session.dart';
 import 'package:dbs_annotator/ui/session_screen.dart';
+import 'package:dbs_annotator/ui/wizard_parts.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'screen_test_helpers.dart';
 
 const _guardTitle = 'Keep a recovery copy of this session?';
+const _newSnack = 'New session in Cohort.';
 
-String _basename(String path) => path.replaceAll('\\', '/').split('/').last;
-
-Future<void> _startNew(WidgetTester tester) async {
-  if (find.text('New').hitTestable().evaluate().isEmpty) {
-    await tester.tap(find.text('File'));
-    await tester.pumpAndSettle();
-  }
-  await tester.tap(find.text('New'));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('Loose TSV'));
+/// Saves user prefs naming a new empty folder as the only BIDS folder,
+/// `Cohort`, and returns that folder.
+Directory _useFolder() {
+  final prefs = Directory.systemTemp.createTempSync('dbs_prefs');
+  final bids = Directory.systemTemp.createTempSync('dbs_bids');
+  File('${prefs.path}/dbs_user_prefs.json').writeAsStringSync(
+    jsonEncode({
+      'bids_folders': [
+        {'name': 'Cohort', 'path': bids.path},
+      ],
+    }),
+  );
+  debugPrefsDir = prefs;
+  addTearDown(() {
+    debugPrefsDir = null;
+    removeQuietly(prefs);
+    removeQuietly(bids);
+  });
+  return bids;
 }
 
-List<File> _tsvIn(Directory dir) => dir
-    .listSync()
+List<File> _behIn(Directory bids) => bids
+    .listSync(recursive: true)
     .whereType<File>()
-    .where((f) => f.path.endsWith('.tsv'))
+    .where(
+      (f) => f.path.endsWith('_beh.tsv') && !f.path.contains('derivatives'),
+    )
     .toList();
 
-Future<(Directory, Directory)> _show(WidgetTester tester) async {
+/// The screen with a session already open and no file behind it, so the
+/// recovery copy is the only copy.
+Future<(Directory, Directory, Directory)> _show(WidgetTester tester) async {
   final dirs = useTempDirs();
+  final bids = _useFolder();
+  await pumpScreen(
+    tester,
+    SessionScreen(
+      catalog: sessionScreen().catalog,
+      limits: sessionScreen().limits,
+      scalePresets: sessionScreen().scalePresets,
+      authoring: SessionAuthoring(),
+    ),
+  );
+  await awaitRecoveryCheck(tester);
+  await pumpUntilFound(tester, find.text(bids.path));
+  return (dirs.working, dirs.saved, bids);
+}
+
+/// The screen with nothing open, a visit of patient 01 started into the BIDS
+/// folder with New.
+Future<(Directory, Directory)> _showNew(WidgetTester tester) async {
+  final dirs = useTempDirs();
+  final bids = _useFolder();
   await pumpScreen(tester, sessionScreen());
   await awaitRecoveryCheck(tester);
-  return (dirs.working, dirs.saved);
+  await pumpUntilFound(tester, find.text(bids.path));
+  await tester.enterText(find.widgetWithText(TextField, 'Patient ID'), '01');
+  await tester.tap(find.text('New session'));
+  await pumpUntilFound(tester, find.textContaining(_newSnack));
+  await tester.pumpAndSettle();
+  return (dirs.working, bids);
+}
+
+Future<void> _toSetup(WidgetTester tester) async {
+  final strip = find.byType(SessionStrip);
+  if (strip.evaluate().isEmpty) return;
+  await tester.tap(strip);
+  await tester.pumpAndSettle();
+}
+
+/// Presses New session on Setup with patient 01, confirming an earlier run of
+/// the same visit.
+Future<void> _pressNew(WidgetTester tester) async {
+  await _toSetup(tester);
+  await tester.enterText(find.widgetWithText(TextField, 'Patient ID'), '01');
+  await tester.tap(find.text('New session'));
+  await pumpUntilFound(
+    tester,
+    find.byWidgetPredicate(
+      (w) => w is Text && (w.data == 'Continue' || w.data == _guardTitle),
+    ),
+  );
+  if (find.text('Continue').evaluate().isNotEmpty) {
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+  }
+}
+
+/// Types [text] as the notes of a Programming configuration and saves it.
+Future<void> _save(WidgetTester tester, String text) async {
+  if (find.text('Save configuration').evaluate().isEmpty) {
+    await tester.tap(find.text('Programming'));
+    await tester.pumpAndSettle();
+  }
+  await tester.enterText(find.widgetWithText(TextField, 'Notes'), text);
+  final save = find.text('Save configuration');
+  await tester.ensureVisible(save);
+  await tester.tap(save);
+}
+
+/// [_save], then waits until the working copy holds [text].
+Future<void> _add(WidgetTester tester, Directory working, String text) async {
+  await _save(tester, text);
+  await settleUntil(
+    tester,
+    working,
+    () => workingText(working).contains(text),
+    cap: const Duration(seconds: 40),
+  );
 }
 
 void main() {
@@ -50,8 +140,8 @@ void main() {
     testWidgets('with only the working copy says it is the only copy', (
       tester,
     ) async {
-      final (working, _) = await _show(tester);
-      await addSessionEntry(tester, working, 'first visit');
+      final (working, _, _) = await _show(tester);
+      await _add(tester, working, 'first visit');
 
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
@@ -72,8 +162,8 @@ void main() {
     testWidgets('Delete the only copy leaves and removes the working copy', (
       tester,
     ) async {
-      final (working, _) = await _show(tester);
-      await addSessionEntry(tester, working, 'first visit');
+      final (working, _, _) = await _show(tester);
+      await _add(tester, working, 'first visit');
       final copy = Directory('${working.path}/work')
           .listSync()
           .whereType<File>()
@@ -89,8 +179,8 @@ void main() {
     });
 
     testWidgets('Keep copy leaves and keeps the working copy', (tester) async {
-      final (working, _) = await _show(tester);
-      await addSessionEntry(tester, working, 'first visit');
+      final (working, _, _) = await _show(tester);
+      await _add(tester, working, 'first visit');
 
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
@@ -106,31 +196,27 @@ void main() {
     testWidgets('after an entry asks, and Delete the only copy replaces it', (
       tester,
     ) async {
-      final (working, saved) = await _show(tester);
-      await addSessionEntry(tester, working, 'first visit');
+      final (working, _, bids) = await _show(tester);
+      await _add(tester, working, 'first visit');
       final oldCopy = Directory('${working.path}/work')
           .listSync()
           .whereType<File>()
           .single;
 
-      await _startNew(tester);
-      await pumpUntilFound(tester, guard);
+      await _pressNew(tester);
       await tester.pumpAndSettle();
       expect(find.text('Delete the only copy'), findsOneWidget);
       await tester.tap(find.text('Delete the only copy'));
-      await pumpUntilFound(tester, find.textContaining('New session: '));
+      await pumpUntilFound(tester, find.textContaining(_newSnack));
       await settleUntil(tester, working, () => !oldCopy.existsSync());
 
-      final created = _tsvIn(saved).single;
-      expect(
-        find.text('New session: ${saved.path}/${_basename(created.path)}'),
-        findsOneWidget,
-      );
-      expect(created.readAsStringSync(), SessionAuthoring().serialize());
       expect(oldCopy.existsSync(), isFalse);
       expect(workingText(working), isNot(contains('first visit')));
+      expect(_behIn(bids), isEmpty);
 
-      await addSessionEntry(tester, working, 'second visit');
+      await _add(tester, working, 'second visit');
+      await settleUntil(tester, working, () => _behIn(bids).isNotEmpty);
+      final created = _behIn(bids).single;
       await settleUntil(
         tester,
         working,
@@ -138,121 +224,83 @@ void main() {
       );
       final text = created.readAsStringSync();
       expect(text, isNot(contains('first visit')));
-      final authoring = SessionAuthoring()..loadExisting(text);
-      expect(authoring.rows.map((r) => r.blockId).toSet(), {'0'});
-      expect(authoring.blockId, 1);
+      expect({
+        for (final r in parseAnySessionTsv(text)) r.blockId,
+      }, hasLength(1));
     });
 
     testWidgets('Cancel keeps the entries and creates nothing', (tester) async {
-      final (working, saved) = await _show(tester);
-      await addSessionEntry(tester, working, 'first visit');
+      final (working, _, bids) = await _show(tester);
+      await _add(tester, working, 'first visit');
 
-      await _startNew(tester);
-      await pumpUntilFound(tester, guard);
+      await _pressNew(tester);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       await awaitRecoveryCheck(tester);
 
-      expect(find.textContaining('New session: '), findsNothing);
-      expect(saved.listSync(), isEmpty);
+      expect(find.textContaining(_newSnack), findsNothing);
+      expect(bids.listSync(recursive: true), isEmpty);
       expect(workingText(working), contains('first visit'));
     });
 
-    testWidgets('onto the file already in use is refused and rewrites it', (
+    testWidgets('for the same visit takes the next run and leaves the first', (
       tester,
     ) async {
-      final (working, saved) = await _show(tester);
-      await _startNew(tester);
-      await pumpUntilFound(tester, find.textContaining('New session: '));
-      await tester.pumpAndSettle();
-      await addSessionEntry(tester, working, 'first visit');
-      final file = _tsvIn(saved).single;
+      final (working, bids) = await _showNew(tester);
+      await _add(tester, working, 'first visit');
+      await settleUntil(tester, working, () => _behIn(bids).isNotEmpty);
+      final first = _behIn(bids).single;
+      expect(first.path, endsWith('_run-01_beh.tsv'));
       await settleUntil(
         tester,
         working,
-        () => file.readAsStringSync().contains('first visit'),
+        () => first.readAsStringSync().contains('first visit'),
       );
+      await awaitRecoveryCheck(tester);
 
-      await _startNew(tester);
+      await _pressNew(tester);
       await pumpUntilFound(tester, guard);
       await tester.pumpAndSettle();
       expect(find.text('Discard copy'), findsOneWidget);
       await tester.tap(find.text('Keep copy'));
-      await pumpUntilFound(tester, find.textContaining('already saved in'));
-
-      expect(
-        find.text(
-          'Could not start a new file: that is the file this session is '
-          'already saved in. Choose another name.',
-        ),
-        findsOneWidget,
-      );
-      await settleUntil(
-        tester,
-        working,
-        () => file.readAsStringSync().contains('first visit'),
-      );
-      final authoring = SessionAuthoring()
-        ..loadExisting(file.readAsStringSync());
-      expect(authoring.rows, isNotEmpty);
-      expect(_tsvIn(saved), hasLength(1));
-    });
-
-    testWidgets('Discard copy of a refused New keeps the working copy', (
-      tester,
-    ) async {
-      final (working, saved) = await _show(tester);
-      await _startNew(tester);
-      await pumpUntilFound(tester, find.textContaining('New session: '));
+      await pumpUntilFound(tester, find.textContaining('run-02_beh.tsv'));
       await tester.pumpAndSettle();
-      await addSessionEntry(tester, working, 'first visit');
-      final file = _tsvIn(saved).single;
+
+      await _add(tester, working, 'second visit');
+      await settleUntil(tester, working, () => _behIn(bids).length == 2);
+      final second = _behIn(bids).singleWhere((f) => f.path != first.path);
+      expect(second.path, endsWith('_run-02_beh.tsv'));
       await settleUntil(
         tester,
         working,
-        () => file.readAsStringSync().contains('first visit'),
+        () => second.readAsStringSync().contains('second visit'),
       );
-
-      await _startNew(tester);
-      await pumpUntilFound(tester, guard);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Discard copy'));
-      await pumpUntilFound(tester, find.textContaining('already saved in'));
-
-      expect(workingText(working), contains('first visit'));
-      await settleUntil(
-        tester,
-        working,
-        () => file.readAsStringSync().contains('first visit'),
-      );
+      expect(first.readAsStringSync(), contains('first visit'));
+      expect(first.readAsStringSync(), isNot(contains('second visit')));
     });
 
     testWidgets('is refused while a save is running, and nothing is lost', (
       tester,
     ) async {
-      final (working, saved) = await _show(tester);
-      await _startNew(tester);
-      await pumpUntilFound(tester, find.textContaining('New session: '));
-      await tester.pumpAndSettle();
-      await addSessionEntry(tester, working, 'first entry');
-      final file = _tsvIn(saved).single;
+      final (working, bids) = await _showNew(tester);
+      await _add(tester, working, 'first entry');
+      await settleUntil(tester, working, () => _behIn(bids).isNotEmpty);
+      final file = _behIn(bids).single;
       await settleUntil(
         tester,
         working,
         () => file.readAsStringSync().contains('first entry'),
       );
+      await awaitRecoveryCheck(tester);
 
       final gate = Completer<void>();
       debugWriteGate = gate.future;
       addTearDown(() => debugWriteGate = null);
-      await tester.enterText(find.widgetWithText(TextField, 'Notes'), 'held');
-      final insert = find.text('Insert baseline');
-      await tester.ensureVisible(insert);
-      await tester.tap(insert);
+      await _save(tester, 'held');
       await tester.pump();
 
-      await _startNew(tester);
+      await _pressNew(tester);
       await tester.pump(const Duration(seconds: 11));
       await tester.pumpAndSettle();
       expect(
@@ -273,19 +321,17 @@ void main() {
       }
 
       expect(refused, findsOneWidget);
-      expect(_tsvIn(saved), hasLength(1));
+      expect(_behIn(bids), hasLength(1));
 
-      final sizeBefore = file.statSync().size;
       gate.complete();
       await settleUntil(
         tester,
         working,
-        () => file.statSync().size > sizeBefore,
+        () => file.readAsStringSync().contains('held'),
         step: const Duration(milliseconds: 100),
       );
       final text = file.readAsStringSync();
       expect(text, contains('first entry'));
-      expect(text, contains('held'));
       expect(text.indexOf('first entry'), lessThan(text.indexOf('held')));
     });
   });
@@ -300,7 +346,7 @@ void main() {
       await pumpScreen(tester, sessionScreen());
       await awaitRecoveryCheck(tester);
 
-      await tester.tap(find.text('Open existing TSV'));
+      await tester.tap(find.text('Open saved session'));
       await pumpUntilFound(tester, find.textContaining('Opened '));
       await tester.pump(const Duration(milliseconds: 500));
 
@@ -359,39 +405,23 @@ void main() {
 
   group('Export', () {
     testWidgets('lifts the warning until the next entry', (tester) async {
-      final dirs = useTempDirs();
-      final cache = Directory.systemTemp.createTempSync('dbs_cache');
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        const MethodChannel('plugins.flutter.io/path_provider'),
-        (call) async => cache.path,
-      );
-      addTearDown(() {
-        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-          const MethodChannel('plugins.flutter.io/path_provider'),
-          null,
-        );
-        removeQuietly(cache);
-      });
-      await pumpScreen(tester, sessionScreen());
-      await awaitRecoveryCheck(tester);
-      await addSessionEntry(tester, dirs.working, 'first visit');
+      final cache = useExportCache(tester);
+      final (working, saved, _) = await _show(tester);
+      await _add(tester, working, 'first visit');
 
-      await tester.tap(find.text('Recording'));
+      await tester.tap(find.text('Setup'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Export'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Export TSV'));
+      await tester.tap(find.text('BIDS folder (zip)').first);
       await settleUntil(
         tester,
-        dirs.working,
+        working,
         () =>
-            dirs.saved.listSync().whereType<File>().isNotEmpty &&
+            saved.listSync().whereType<File>().isNotEmpty &&
             !cache
                 .listSync(recursive: true)
                 .any((e) => e is Directory && e.path.contains('export-')),
       );
-      final exported = dirs.saved.listSync().whereType<File>().single;
-      expect(exported.readAsStringSync(), contains('first visit'));
+      expect(saved.listSync().whereType<File>().single.path, endsWith('.zip'));
 
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
@@ -400,7 +430,7 @@ void main() {
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
 
-      await addSessionEntry(tester, dirs.working, 'second visit');
+      await _add(tester, working, 'second visit');
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(find.textContaining('not saved anywhere else'), findsOneWidget);

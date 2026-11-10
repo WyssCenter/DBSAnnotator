@@ -58,7 +58,13 @@ Future<Map<String, List<List<String>>>?> showSessionPresetsDialog(
     for (final e in presets.entries)
       _Group(e.key, [
         for (final r in e.value)
-          _ScaleRow(name: r.name, min: r.min, max: r.max, mode: r.mode),
+          _ScaleRow(
+            name: r.name,
+            min: r.min,
+            max: r.max,
+            mode: r.mode,
+            step: r.step,
+          ),
       ]),
   ];
   return showDialog<Map<String, List<List<String>>>>(
@@ -79,6 +85,7 @@ class _ScaleRow {
     String min = '0',
     String max = '10',
     this.mode = defaultScaleOptimizationMode,
+    this.step = '',
   }) {
     this.name.text = name;
     this.min.text = min;
@@ -89,6 +96,7 @@ class _ScaleRow {
   final min = TextEditingController();
   final max = TextEditingController();
   String mode;
+  String step;
 
   void dispose() {
     name.dispose();
@@ -186,7 +194,13 @@ class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
         if (n.isEmpty) continue;
         rows.add(
           widget.isSession
-              ? [n, r.min.text.trim(), r.max.text.trim(), r.mode]
+              ? [
+                  n,
+                  r.min.text.trim(),
+                  r.max.text.trim(),
+                  r.mode,
+                  if (r.step.isNotEmpty) r.step,
+                ]
               : [n, r.min.text.trim(), r.max.text.trim()],
         );
       }

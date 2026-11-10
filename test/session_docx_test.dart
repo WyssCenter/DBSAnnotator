@@ -124,7 +124,7 @@ void main() {
 
     // Section headings + data made it into the document.
     expect(doc, contains('Session report'));
-    expect(doc, contains('Baseline assessment (pre-session)'));
+    expect(doc, contains('Initial assessment (before programming)'));
     expect(doc, contains('UPDRS-III'));
     expect(doc, contains('Session data'));
     expect(doc, contains('Programming summary'));
@@ -425,7 +425,7 @@ void main() {
     );
     // Two named headings per section, so a section's absence is greppable.
     const headings = {
-      ReportSection.baseline: 'Baseline assessment (pre-session)',
+      ReportSection.baseline: 'Initial assessment (before programming)',
       ReportSection.chart: 'Session data',
       ReportSection.electrodes: 'Electrode configuration',
       ReportSection.summary: 'Programming summary',

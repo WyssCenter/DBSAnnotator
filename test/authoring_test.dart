@@ -58,6 +58,34 @@ void main() {
     expect(rows.single.programId, 'A');
   });
 
+  test('replacing rewrites a block in place and keeps the numbering', () {
+    final a = SessionAuthoring();
+    a.addInsert(
+      isInitial: true,
+      stim: stim,
+      scales: const [(name: 'UPDRS-III', value: '32')],
+      at: stamp,
+    );
+    a.addInsert(isInitial: false, stim: stim, at: stamp);
+    final rewritten = a.addInsert(
+      isInitial: true,
+      stim: stim,
+      scales: const [
+        (name: 'UPDRS-III', value: '30'),
+        (name: 'PDQ-39', value: '41'),
+      ],
+      at: stamp,
+      replacing: 0,
+    );
+    expect(rewritten.map((r) => r.blockId), ['0', '0']);
+    expect(a.rows.map((r) => (r.blockId, r.scaleValue)), [
+      ('0', '30'),
+      ('0', '41'),
+      ('1', ''),
+    ]);
+    expect(a.blockId, 2);
+  });
+
   test('baseline drops unnamed scales, recording keeps them '
       '(is_valid vs has_value)', () {
     const scales = [(name: '   ', value: '5'), (name: 'Tremor', value: '2')];
@@ -86,7 +114,7 @@ void main() {
       ...buildInsertRows(blockId: 4, appendId: 2, at: stamp),
     ]);
 
-    final a = SessionAuthoring()..loadExisting(existing);
+    final a = SessionAuthoring()..loadExisting(parseSessionTsv(existing));
     expect(a.rows.length, 2);
     expect(a.blockId, 5);
     expect(a.appendId, 3);
@@ -118,7 +146,7 @@ void main() {
     }
 
     // Reloading the serialized document continues numbering correctly.
-    final b = SessionAuthoring()..loadExisting(a.serialize());
+    final b = SessionAuthoring()..loadExisting(parseSessionTsv(a.serialize()));
     expect(b.blockId, 2);
     expect(b.appendId, 2);
   });

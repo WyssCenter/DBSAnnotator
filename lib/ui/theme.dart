@@ -62,6 +62,10 @@ class DbsColors {
   /// with `surfaceTintColor: Colors.transparent`.
   static Color cardFill(bool dark) =>
       greenLighter.withValues(alpha: dark ? 0.12 : 0.22);
+
+  /// Background of the initial assessment, so it never reads as programming.
+  static Color assessmentFill(bool dark) =>
+      const Color(0xFF64748B).withValues(alpha: dark ? 0.18 : 0.10);
 }
 
 /// Non-state colours for the electrode canvas: the lead's insulating polymer
@@ -105,30 +109,11 @@ class ElectrodePalette {
       b == Brightness.dark ? dark : light;
 }
 
-/// App-wide light/dark selection, defaulting to light. Not persisted, which
-/// matches the desktop app.
+/// App-wide light/dark selection, restored from the user's preferences.
 final ValueNotifier<ThemeMode> themeMode = ValueNotifier(ThemeMode.light);
 
-/// AppBar action that flips light/dark, showing the icon of the theme it
-/// switches to.
-class ThemeToggleButton extends StatelessWidget {
-  const ThemeToggleButton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return IconButton(
-      icon: Icon(dark ? Icons.light_mode : Icons.dark_mode),
-      iconSize: 28,
-      tooltip: 'Switch light/dark',
-      onPressed: () =>
-          themeMode.value = dark ? ThemeMode.light : ThemeMode.dark,
-    );
-  }
-}
-
-/// App-wide text-scale factor, applied in [main] via MediaQuery's textScaler.
-/// Session-only, like [themeMode].
+/// App-wide text-scale factor, applied in [main] via MediaQuery's textScaler
+/// and restored from the user's preferences.
 final ValueNotifier<double> textScale = ValueNotifier(1.0);
 
 const double _kMinTextScale = 0.8;
@@ -220,10 +205,18 @@ ThemeData dbsTheme(Brightness brightness) {
 
 /// A titled card, matching the desktop `QGroupBox`.
 class GroupCard extends StatelessWidget {
-  const GroupCard({super.key, required this.title, required this.child});
+  const GroupCard({
+    super.key,
+    required this.title,
+    required this.child,
+    this.action,
+  });
 
   final String title;
   final Widget child;
+
+  /// Shown at the end of the title row, such as a settings button.
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -250,12 +243,19 @@ class GroupCard extends StatelessWidget {
               // The card's green wash carries the brand; the title carries the
               // text, so it takes the scheme's ink rather than the green, which
               // would be 1.64:1 here.
-              child: Text(
-                title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  ?action,
+                ],
               ),
             ),
             child,
