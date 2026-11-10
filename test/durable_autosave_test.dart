@@ -9,6 +9,7 @@ library;
 import 'dart:io';
 
 import 'package:dbs_annotator/core/session/authoring.dart';
+import 'package:dbs_annotator/core/session/session_file.dart';
 import 'package:dbs_annotator/core/session/tsv_kind.dart';
 import 'package:dbs_annotator/ui/save_target.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -65,7 +66,10 @@ void main() {
 
     final content = File(path).readAsStringSync();
     expect(sniffTsvKind(content), TsvKind.programming);
-    expect(SessionAuthoring()..loadExisting(content), isNotNull);
+    expect(
+      SessionAuthoring()..loadExisting(parseSessionTsv(content)),
+      isNotNull,
+    );
   });
 
   test('discarding removes the copy and any interrupted write', () async {

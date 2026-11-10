@@ -1,5 +1,5 @@
 Reports
-=======
+========
 
 Every workflow can produce a report in **PDF** and in **Word** (``.docx``). Both
 are built from the same computed values, so the two documents cannot disagree
@@ -129,7 +129,7 @@ Longitudinal report
 
 Two or more uploaded files of one patient, compared across visits; a notes
 file counts as one of them. See
-:doc:`screens/reports` for the screen that produces it. However the files were
+:doc:`screens/import_export` for the screen that produces it. However the files were
 picked, visits are ordered by patient and then from the earliest to the most
 recent, here, in the combined table and in the BIDS export.
 
@@ -214,16 +214,6 @@ For each visit, the same tables as the session report's programming summary:
 how many configurations were tested, and the amplitude, frequency and pulse
 width used on each side. *Source files* lists the uploaded files the report was
 built from: the session files with their block counts, then the notes files.
-
-Annotations report
-------------------
-
-A patient header, the notes in a time-and-text table oldest-first, the span they
-cover, and an attestation block. See :doc:`screens/annotations`.
-
-.. figure:: _static/reports/annotations_report_notes.png
-   :alt: An annotations report: patient header and three timestamped notes
-   :width: 100%
 
 .. _scale-targets:
 

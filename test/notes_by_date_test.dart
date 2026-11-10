@@ -114,7 +114,7 @@ void main() {
           .findFile('word/document.xml')!
           .readBytes()!,
     );
-    expect(doc, contains('No session TSV was uploaded.'));
+    expect(doc, contains('No session file was imported.'));
     expect(doc, contains('second'));
   });
 

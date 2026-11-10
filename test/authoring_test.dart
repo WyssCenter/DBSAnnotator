@@ -114,7 +114,7 @@ void main() {
       ...buildInsertRows(blockId: 4, appendId: 2, at: stamp),
     ]);
 
-    final a = SessionAuthoring()..loadExisting(existing);
+    final a = SessionAuthoring()..loadExisting(parseSessionTsv(existing));
     expect(a.rows.length, 2);
     expect(a.blockId, 5);
     expect(a.appendId, 3);
@@ -146,7 +146,7 @@ void main() {
     }
 
     // Reloading the serialized document continues numbering correctly.
-    final b = SessionAuthoring()..loadExisting(a.serialize());
+    final b = SessionAuthoring()..loadExisting(parseSessionTsv(a.serialize()));
     expect(b.blockId, 2);
     expect(b.appendId, 2);
   });

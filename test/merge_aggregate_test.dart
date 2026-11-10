@@ -13,6 +13,8 @@ import 'package:dbs_annotator/app_info.dart';
 import 'package:dbs_annotator/core/bids.dart';
 import 'package:dbs_annotator/core/bids_dataset.dart';
 import 'package:dbs_annotator/core/bids_merge.dart';
+import 'package:dbs_annotator/core/session/session_file.dart';
+import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:dbs_annotator/core/tsv.dart';
 import 'package:dbs_annotator/ui/bids_export.dart';
 import 'package:dbs_annotator/ui/bids_merge_ui.dart';
@@ -57,17 +59,16 @@ void main() {
     File('schema/tsv_schema.json').readAsStringSync(),
   ) as Map<String, dynamic>;
 
-  List<DatasetFile> incomingVisit(BidsName name, {String? tsv}) =>
+  List<DatasetFile> incomingVisit(BidsName name, {List<SessionRow>? rows}) =>
       buildBidsDataset(
         [
-          datasetEntry(
+          sessionEntry(
             name: name,
-            tsv: tsv ?? _session,
+            rows: rows ?? parseSessionTsv(_session),
             contract: contract,
-            kind: 'session_tsv',
-            acqTime: '2026-03-10T10:00:00+00:00',
           ),
         ],
+        contract: contract,
         appName: appName,
         appVersion: appVersion,
         repoUrl: repoUrl,
@@ -229,7 +230,12 @@ void main() {
 
     test('raw recordings are never overwritten', () async {
       final raw = _path(_name('01', 'a'));
-      final plan = await merge(incomingVisit(_name('01', 'a'), tsv: 'other'));
+      final plan = await merge(
+        incomingVisit(
+          _name('01', 'a'),
+          rows: const [SessionRow(blockId: '1', notes: 'other')],
+        ),
+      );
 
       expect(plan.refused, contains(raw));
       expect(read(raw), _session);
@@ -746,10 +752,11 @@ void main() {
     ) {
       return fileIntoDataset(
         root: root.path,
-        name: _name(subject, session),
-        tsv: _session,
-        kind: 'session_tsv',
-        acqTime: '2026-02-03T09:00:00+00:00',
+        entry: sessionEntry(
+          name: _name(subject, session),
+          rows: parseSessionTsv(_session),
+          contract: contract,
+        ),
       );
     }
 

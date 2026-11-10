@@ -20,11 +20,11 @@ class SessionAuthoring {
   /// Append ID every insert of this app session uses; see [nextAppendId].
   int get appendId => _appendId;
 
-  /// Load an existing TSV and continue its numbering.
-  void loadExisting(String tsv) {
+  /// Load an existing session's rows and continue its numbering.
+  void loadExisting(List<SessionRow> existing) {
     rows
       ..clear()
-      ..addAll(parseSessionTsv(tsv));
+      ..addAll(existing);
     _blockId = nextBlockId(rows);
     _appendId = nextAppendId(rows);
   }
@@ -106,6 +106,6 @@ class SessionAuthoring {
     }
   }
 
-  /// The full TSV document, with the canonical column header.
+  /// The long-form document of the app's working copy.
   String serialize() => serializeSessionTsv(rows);
 }

@@ -37,7 +37,7 @@ void main() {
   test('nothing uploaded leaves every action off', () {
     expect(availableActions(const []), isEmpty);
     for (final action in ReportAction.values) {
-      expect(unavailableReason(action, const []), 'Upload a TSV first.');
+      expect(unavailableReason(action, const []), 'Import a session first.');
     }
   });
 
@@ -49,16 +49,12 @@ void main() {
     });
   });
 
-  test('one notes file: the annotations report and a dataset', () {
+  test('one older notes file: no report of its own, a BIDS folder', () {
     expect(
       availableActions([
         notes('sub-01_ses-20260203_task-notes_run-01_beh.tsv'),
       ]),
-      {
-        ReportAction.sessionReport,
-        ReportAction.bidsDataset,
-        ReportAction.addToDataset,
-      },
+      {ReportAction.bidsDataset, ReportAction.addToDataset},
     );
   });
 
@@ -97,7 +93,7 @@ void main() {
     expect(availableActions(files), contains(ReportAction.aggregateTsv));
     expect(
       unavailableReason(ReportAction.sessionReport, files),
-      'Upload one TSV; several give a longitudinal report.',
+      'Import one session; several give a report across visits.',
     );
   });
 
@@ -120,7 +116,7 @@ void main() {
     final note = sources.last.rows.single;
     expect(note.acqTime, '2026-02-03T09:00:00');
     expect(note.notes, 'n');
-    expect(note.blockId, isEmpty, reason: 'written as n/a');
+    expect(note.blockId, '0', reason: 'each note is a row of its own');
   });
 
   test('every action explains itself', () {
@@ -134,7 +130,7 @@ void main() {
   test('several sessions turn the single report off, with a reason', () {
     expect(
       unavailableReason(ReportAction.sessionReport, [session(a), session(b)]),
-      'Upload one TSV; several give a longitudinal report.',
+      'Import one session; several give a report across visits.',
     );
   });
 
@@ -157,7 +153,7 @@ void main() {
     final files = [session('my notes export.tsv')];
     expect(
       unavailableReason(ReportAction.bidsDataset, files),
-      'No uploaded filename carries a sub- entity.',
+      'No imported file name carries a sub- entity.',
     );
     expect(
       unavailableReason(ReportAction.sessionReport, files),
@@ -167,7 +163,7 @@ void main() {
   });
 
   test('the summary names what was uploaded', () {
-    expect(uploadSummary(const []), 'No files uploaded.');
+    expect(uploadSummary(const []), 'No files imported.');
     expect(uploadSummary([session(a)]), '1 session');
     expect(uploadSummary([session(a), session(b)]), '2 sessions');
     expect(

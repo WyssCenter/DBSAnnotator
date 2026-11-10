@@ -26,7 +26,30 @@ void main() {
     expect(back.clinical!['OCD'], ['Y-BOCS', 'MADRS']);
     expect(back.session!['PD']!.first, ['Tremor', '0', '10']);
     // Unset fields stay null (fall back to bundled defaults).
-    expect(back.saveFolder, isNull);
+    expect(back.bidsFolders, isNull);
+  });
+
+  test('BIDS folders, the default and the appearance survive a restart', () {
+    final back = UserPrefs.fromJson(
+      UserPrefs(
+        bidsFolders: [
+          (name: 'OCD cohort', path: '/data/ocd'),
+          (name: 'PD cohort', path: '/data/pd'),
+        ],
+        defaultBidsFolder: 'PD cohort',
+        darkTheme: true,
+        textScale: 1.2,
+      ).toJson(),
+    );
+    expect(back.startFolder, (name: 'PD cohort', path: '/data/pd'));
+    expect(back.bidsFolders, hasLength(2));
+    expect(back.darkTheme, isTrue);
+    expect(back.textScale, 1.2);
+  });
+
+  test('an older save folder becomes the default BIDS folder', () {
+    final back = UserPrefs.fromJson({'save_folder': '/data/sessions'});
+    expect(back.startFolder, (name: 'Default', path: '/data/sessions'));
   });
 
   test('the session report remembers its sections', () {

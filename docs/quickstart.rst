@@ -4,47 +4,25 @@ Quick start
 Opening the app
 ---------------
 
-Launch Wyss DBS Annotator as you would any other app on the device. The home screen
-offers three entries, in two groups: **Record** is for a session happening now;
-**Read** is for files that already exist.
+Launch Wyss DBS Annotator as you would any other app on the device. It opens on
+:doc:`Annotate programming session <screens/programming_session>`, where a
+session is recorded in four steps. Its first step, Setup, is also where you
+import earlier sessions and export reports and BIDS folders.
 
-.. image:: _static/screenshots/home.png
-   :alt: Home screen with three entries grouped under Record and Read
-   :width: 100%
+New to the vocabulary (configuration, initial assessment, clinical and session
+scales, BIDS)? See :doc:`glossary`.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 26 74
-
-   * - Entry
-     - Use it when
-   * - :doc:`Complete workflow <screens/complete_workflow>`
-     - You are running a programming session: stimulation parameters, electrode
-       contacts, scale ratings and notes.
-   * - :doc:`Annotations only <screens/annotations>`
-     - You only want timestamped notes, with no stimulation data.
-   * - :doc:`Reports and datasets <screens/reports>`
-     - You have one or more TSVs and want reports, a combined table or a BIDS
-       dataset, with no authoring.
-
-The first two *create* data. The last only *reads* it, so it is safe to open
-against a file you care about.
-
-New to the vocabulary (block, baseline, clinical and session scales, BIDS)? See
-:doc:`glossary`.
-
-The theme and text-size controls in the top bar are on every screen; see
-:doc:`screens/home`.
+The theme, text size and other settings are in the menu at the top left.
 
 Your first session
 ------------------
 
 The shortest useful path through
-:doc:`Complete workflow <screens/complete_workflow>`:
+:doc:`Annotate programming session <screens/programming_session>`:
 
-1. **File.** Enter the patient ID and run number, then choose where to save.
-   The app builds the BIDS filename for you and writes the file immediately, so
-   there is somewhere for entries to land from the first insert onward.
+1. **Setup.** Choose the BIDS folder, pick or type the patient, and press
+   **New session**. The app builds the BIDS filename for you and saves every
+   entry into the folder from the first one onward.
 
 2. **Initial configuration.** Record the state the patient arrived in: the
    electrode model, the settings currently programmed, and the baseline clinical
@@ -75,12 +53,12 @@ best-scoring configurations, you must first say what "better" means for each
 scale: lower, higher, or closest to a value. Until you do, no configuration is
 ranked. This is deliberate; see :ref:`what-the-reports-do-not-say`.
 
-**Text size and theme** are adjustable from the top bar of every screen.
+**Text size and theme** are in the settings menu at the top left.
 
 Getting the report
 ------------------
 
 From the Recording step choose **Export** and pick PDF or Word. For a file
-recorded earlier, upload it in :doc:`Reports and datasets <screens/reports>`
+recorded earlier, import it on the Setup step (see :doc:`screens/import_export`)
 and choose *Single session report*. You will be asked which sections to
 include and can set the scale targets at that point. See :doc:`reports`.

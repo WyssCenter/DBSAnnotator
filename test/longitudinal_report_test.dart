@@ -275,7 +275,7 @@ void main() {
     expect(pdf.bytes.sublist(0, 4), '%PDF'.codeUnits);
     expect(
       _part(buildLongitudinalDocx(data: empty), 'word/document.xml'),
-      contains('No session TSV was uploaded.'),
+      contains('No session file was imported.'),
     );
   });
 

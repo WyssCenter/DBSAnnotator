@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:dbs_annotator/core/electrode/electrode_model.dart';
 import 'package:dbs_annotator/core/electrode/geometry.dart';
 import 'package:dbs_annotator/core/electrode/stimulation_rule.dart';
+import 'package:dbs_annotator/core/prefs/user_prefs.dart';
 import 'package:dbs_annotator/ui/electrode_view.dart';
-import 'package:dbs_annotator/ui/home_screen.dart';
 import 'package:dbs_annotator/ui/scale_slider.dart';
+import 'package:dbs_annotator/ui/session_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -53,13 +56,25 @@ void main() {
 
   testWidgets('recording a session', (tester) async {
     final model = (await loadElectrodeCatalog()).models[_model]!;
-    await startVideo(tester, const HomeScreen());
-    await tapText(tester, 'Complete workflow');
+    final study = Directory.systemTemp.createTempSync('dbs_video_bids');
+    await startVideo(
+      tester,
+      FutureBuilder<void>(
+        future: Future(
+          () => saveUserPrefs(
+            UserPrefs(bidsFolders: [(name: 'Study', path: study.path)]),
+          ),
+        ),
+        builder: (context, saved) =>
+            saved.connectionState == ConnectionState.done
+            ? const SessionScreen()
+            : const SizedBox.shrink(),
+      ),
+    );
     await typeInto(tester, 'Patient ID', '01');
     await tapText(tester, 'DBS indication');
     await tap(tester, find.text('OCD').last);
     await tapText(tester, 'New session');
-    await tapText(tester, 'Loose TSV');
     await tapText(tester, 'Next');
 
     // Stimulation first: OCD defaults on the left, typed on the right.

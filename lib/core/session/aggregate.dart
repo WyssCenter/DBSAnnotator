@@ -1,8 +1,10 @@
-/// Combine several session TSVs into one long table, for pooled analysis.
+/// Combine several sessions into one table, for pooled analysis: one row per
+/// configuration and one per visit for its initial assessment, with the union
+/// of every file's `scale_<name>` columns.
 ///
-/// `participant_id`, `session_id`, `run_id` and `source_file` are prepended to
-/// the session columns, which carry through unchanged; `participant_id` keeps
-/// the BIDS spelling so the table joins onto `participants.tsv` untransformed.
+/// `participant_id`, `session_id`, `run_id` and `source_file` lead each row;
+/// `participant_id` keeps the BIDS spelling so the table joins onto
+/// `participants.tsv` untransformed.
 /// `source_file` is a key column, not a convenience: `run` defaults to `01`
 /// and does not auto-increment, so two visits on one day can share all three
 /// entities. The table belongs under `derivatives/`, never the raw tree.
@@ -11,7 +13,6 @@ library;
 import '../bids.dart';
 import '../schema_columns.dart';
 import '../tsv.dart';
-import 'session_file.dart';
 import 'session_row.dart';
 
 typedef AggregateSource = ({String filename, List<SessionRow> rows});
@@ -27,20 +28,38 @@ typedef AggregateResult = ({
   /// Distinct `participant_id` values, sorted.
   List<String> subjects,
   int fileCount,
+
+  /// Each `scale_<name>` column of the table, to its scale's name.
+  Map<String, String> scaleNames,
 });
 
-/// The identity columns prepended to every row, in order.
+/// The columns the combined table adds to the session tables, in order.
 const List<String> aggregateKeyColumns = <String>[
   'participant_id',
   'session_id',
   'run_id',
   'source_file',
+  'is_initial',
 ];
 
-/// The full header: the four keys, then the session columns unchanged.
-List<String> aggregateColumns() => <String>[
+/// The visit and participant cells repeated on every row of a session.
+const List<String> _visitCells = <String>[
+  'dbs_indication',
+  'target',
+  'left_electrode_model',
+  'right_electrode_model',
+  'left_ipg_model',
+  'right_ipg_model',
+  'medications',
+];
+
+/// The full header, with [scales] columns before `notes`.
+List<String> aggregateColumns([Iterable<String> scales = const []]) => <String>[
   ...aggregateKeyColumns,
-  ...sessionColumns,
+  ..._visitCells,
+  ...sessionColumns.take(sessionColumns.length - 1),
+  ...scales,
+  sessionColumns.last,
 ];
 
 /// What [out] holds, in words: rows, files and subjects.
@@ -60,10 +79,22 @@ AggregateResult buildAggregate(List<AggregateSource> sources) {
   final skipped = <AggregateSkip>[];
   final seen = <String>{};
   final subjects = <String>{};
-  // Index-tagged because Dart's List.sort is not stable, and rows within a
-  // block must keep their written order for the output to be reproducible.
-  final keyed = <({List<String> key, int seq, Map<String, String> record})>[];
+  // Index-tagged because Dart's List.sort is not stable, and rows must keep
+  // their written order for the output to be reproducible.
+  final keyed =
+      <({List<String> key, int seq, int block, Map<String, String> record})>[];
   var fileCount = 0;
+  final scaleNames = <String, String>{};
+  final columnOf = <String, String>{};
+  String column(String name) => columnOf.putIfAbsent(name, () {
+    final base = scaleColumnSlug(name);
+    var candidate = base;
+    for (var n = 2; scaleNames.containsKey(candidate); n++) {
+      candidate = '${base}_$n';
+    }
+    scaleNames[candidate] = name;
+    return candidate;
+  });
 
   for (final source in sources) {
     final name = BidsName.parse(source.filename);
@@ -97,16 +128,31 @@ AggregateResult buildAggregate(List<AggregateSource> sources) {
     subjects.add(participant);
     fileCount++;
 
+    final fixed = {
+      for (final c in _visitCells)
+        c: sessionValueIn(source.rows, (r) => r.toMap()[c] ?? ''),
+    };
+    final blocks = <String, List<SessionRow>>{};
     for (final row in source.rows) {
+      (blocks[row.blockId] ??= []).add(row);
+    }
+    for (final block in blocks.values) {
+      final first = block.first.toMap();
       keyed.add((
         key: [participant, started, session, run],
         seq: keyed.length,
+        block: _asInt(block.first.blockId),
         record: <String, String>{
           'participant_id': participant,
           'session_id': session,
           'run_id': run,
           'source_file': source.filename,
-          ...row.toMap(),
+          'is_initial': initialCell(isInitialValue(block.first.isInitial)),
+          ...fixed,
+          for (final c in sessionColumns) c: first[c] ?? '',
+          for (final r in block)
+            if (r.scaleName.trim().isNotEmpty)
+              column(r.scaleName.trim()): r.scaleValue,
         },
       ));
     }
@@ -122,19 +168,21 @@ AggregateResult buildAggregate(List<AggregateSource> sources) {
     }
     final byFile = a.record['source_file']!.compareTo(b.record['source_file']!);
     if (byFile != 0) return byFile;
-    final byBlock = _asInt(a.record['block_id'] ?? '')
-        .compareTo(_asInt(b.record['block_id'] ?? ''));
+    final byBlock = a.block.compareTo(b.block);
     if (byBlock != 0) return byBlock;
     return a.seq.compareTo(b.seq);
   });
 
   final records = [for (final k in keyed) k.record];
   return (
-    tsv: records.isEmpty ? '' : writeTsvRecords(aggregateColumns(), records),
+    tsv: records.isEmpty
+        ? ''
+        : writeTsvRecords(aggregateColumns(scaleNames.keys), records),
     skipped: skipped,
     rowCount: records.length,
     subjects: subjects.toList()..sort(),
     fileCount: fileCount,
+    scaleNames: scaleNames,
   );
 }
 

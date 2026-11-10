@@ -87,7 +87,7 @@ class SessionRow {
   final String medications;
   final String notes;
 
-  /// Build from a TSV record keyed by `sessionColumns`; missing columns become
+  /// Build from a TSV record keyed by `workingColumns`; missing columns become
   /// ''. Reads through [readColumn], so superseded spellings open without a
   /// conversion step, and this is where a legacy row gains its instant: doing
   /// the [backfillAcqTime] composition at the single parse boundary means no
@@ -101,7 +101,7 @@ class SessionRow {
     isStarred: readColumn(m, 'is_starred'),
     scaleName: readColumn(m, 'scale_name'),
     scaleValue: readColumn(m, 'scale_value'),
-    pathology: readColumn(m, 'pathology'),
+    pathology: readColumn(m, 'dbs_indication'),
     target: readColumn(m, 'target'),
     leftElectrodeModel: readColumn(m, 'left_electrode_model'),
     rightElectrodeModel: readColumn(m, 'right_electrode_model'),
@@ -152,7 +152,7 @@ class SessionRow {
     'is_starred': isStarred,
     'scale_name': scaleName,
     'scale_value': scaleValue,
-    'pathology': pathology,
+    'dbs_indication': pathology,
     'target': target,
     'left_electrode_model': leftElectrodeModel,
     'right_electrode_model': rightElectrodeModel,

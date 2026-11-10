@@ -10,7 +10,7 @@ import '../core/annotation.dart';
 import '../core/bids.dart';
 import '../core/session/aggregate.dart' show AggregateSource;
 import '../core/session/longitudinal.dart' show patientIdsMatch;
-import '../core/session/session_file.dart';
+import '../core/session/bids_session.dart';
 import '../core/session/session_row.dart';
 import '../core/session/tsv_kind.dart';
 
@@ -34,7 +34,7 @@ typedef Uploaded = ({
       file: (
         name: name,
         kind: kind,
-        rows: parseSessionTsv(content),
+        rows: parseAnySessionTsv(content),
         notes: const <Annotation>[],
       ),
       rejected: null,
@@ -94,24 +94,26 @@ enum ReportAction {
     'Single session report',
     'One visit, as PDF or Word.',
     how:
-        'The one uploaded file is rendered as a report, with the sections you '
-        'choose. Add to dataset files the TSV, the report, or both, into a '
-        'BIDS dataset you already have.',
-    needs: 'Exactly one TSV: a session, or a notes file on its own.',
+        'The imported session is rendered as a report, with the sections you '
+        'choose. Add to a BIDS folder saves the session, the report, or both, '
+        'into a BIDS folder you already have.',
+    needs: 'Exactly one imported session.',
     creates:
-        'One PDF or Word file named after the TSV. Added to a dataset, the TSV '
-        'goes under sub-<participant>/ses-<session>/beh/ and the report under '
-        'derivatives/dbs-annotator-reports/.',
+        'One PDF or Word file named after the session. Added to a BIDS folder, '
+        'the session goes under sub-<participant>/ses-<session>/beh/ and the '
+        'report under derivatives/dbs-annotator-reports/.',
   ),
   longitudinalReport(
-    'Longitudinal report',
+    'Report across visits',
     'Change across visits.',
     how:
-        'Every uploaded file is aggregated into one report, one visit per '
-        'session TSV in date order. A note goes to the visit of its day; a day '
-        'with notes and no session gets its own Visits row and table.',
+        'Every imported file is brought into one report, one visit per session '
+        'in date order. A note from an older notes file goes to the visit of '
+        'its day; a day with notes and no session gets its own Visits row and '
+        'table.',
     needs:
-        'Two or more TSVs of one patient. A notes file counts as one of them.',
+        'Two or more files of one patient. A notes file from an earlier '
+        'version counts as one of them.',
     creates:
         'One PDF or Word file, '
         'sub-<participant>_desc-longitudinal<yyyymmdd>_report, dated the day '
@@ -121,42 +123,43 @@ enum ReportAction {
     'Combined table (TSV)',
     'Every visit in one analysis table.',
     how:
-        'Every row of every uploaded file in one table, with the participant, '
-        'session and run of each row added as columns. A note becomes a row '
-        'of its own, with its time and text and n/a in the stimulation '
-        'columns.',
+        'One row per configuration of every imported session, and one per '
+        'visit for its initial assessment, with the participant, session and '
+        'run added as columns and one column per scale. A note from an older '
+        'notes file becomes a row of its own, with its time and text.',
     needs:
-        'Two or more TSVs, of any patients, whose names carry sub- and ses- '
-        'entities. Notes files count.',
+        'Two or more files, of any patients, whose names carry sub- and ses- '
+        'entities.',
     creates:
         'A zip holding the table and the JSON sidecar describing its columns. '
-        'Loaded from a dataset, both can be saved back into it.',
+        'Imported from a BIDS folder, both can be saved back into it.',
   ),
   bidsDataset(
-    'Create a BIDS dataset (zip)',
-    'The files laid out as a dataset.',
+    'BIDS folder (zip)',
+    'The files laid out as a BIDS folder.',
     how:
-        'Each file is placed at its BIDS path, with a sidecar, and the dataset '
-        'index files are written around them.',
+        'Each session is placed at its BIDS path, with a sidecar, and the '
+        'folder index files are written around them.',
     needs: 'At least one file whose name carries a sub- entity.',
     creates:
-        'A dataset zip: dataset_description.json, README, participants.tsv, '
-        'and sub-<participant>/ses-<session>/beh/ per visit.',
+        'A zip of a BIDS folder: dataset_description.json, README, '
+        'participants.tsv, a sessions.tsv per patient, and '
+        'sub-<participant>/ses-<session>/beh/ per visit.',
   ),
   addToDataset(
-    'Add to an existing dataset',
-    'File these into a dataset you already have.',
+    'Add to a BIDS folder',
+    'Save these into a BIDS folder you already have.',
     how:
-        'The files are planned into the dataset and the plan is shown for you '
-        'to confirm before anything is written. Nothing already there is '
+        'The files are planned into the BIDS folder and the plan is shown for '
+        'you to confirm before anything is written. Nothing already there is '
         'overwritten; a taken name moves to the next free run.',
     needs:
-        'A BIDS dataset folder, or its zip on a tablet, and files whose names '
-        'carry a sub- entity.',
+        'A BIDS folder, or its zip on a tablet, and files whose names carry a '
+        'sub- entity.',
     creates:
-        'The new visits in that dataset, with their sidecars and rows in '
-        'participants.tsv and the scans files. Export gives a merged copy as '
-        'a zip and leaves the original untouched.',
+        'The new visits in that BIDS folder, with their sidecars and rows in '
+        'participants.tsv, sessions.tsv and the scans files. Export gives a '
+        'merged copy as a zip and leaves the original untouched.',
   );
 
   const ReportAction(
@@ -202,32 +205,33 @@ String? unavailableReason(
   List<Uploaded> files, {
   bool canWriteFolder = true,
 }) {
-  if (files.isEmpty) return 'Upload a TSV first.';
+  if (files.isEmpty) return 'Import a session first.';
 
   switch (action) {
-    // One file of either kind is one visit; any second file, notes included,
-    // makes it a series.
     case ReportAction.sessionReport:
       if (files.length > 1) {
-        return 'Upload one TSV; several give a longitudinal report.';
+        return 'Import one session; several give a report across visits.';
+      }
+      if (files.single.kind != TsvKind.programming) {
+        return 'A notes file from an earlier version has no report of its own.';
       }
       return null;
 
     case ReportAction.longitudinalReport:
-      if (files.length < 2) return 'Needs two or more TSVs.';
+      if (files.length < 2) return 'Needs two or more files.';
       if (!patientIdsMatch(files.map((f) => f.name).toList())) {
         return 'These files name different patients.';
       }
       return null;
 
     case ReportAction.aggregateTsv:
-      if (files.length < 2) return 'Needs two or more TSVs.';
+      if (files.length < 2) return 'Needs two or more files.';
       return null;
 
     case ReportAction.bidsDataset:
     case ReportAction.addToDataset:
       if (withBidsEntities(files).isEmpty) {
-        return 'No uploaded filename carries a sub- entity.';
+        return 'No imported file name carries a sub- entity.';
       }
       return null;
   }
@@ -251,15 +255,15 @@ List<AggregateSource> aggregateSources(List<Uploaded> files) => [
       rows: f.kind == TsvKind.programming
           ? f.rows
           : [
-              for (final n in f.notes)
-                SessionRow(acqTime: n.acqTime, notes: n.notes),
+              for (final (i, n) in f.notes.indexed)
+                SessionRow(blockId: '$i', acqTime: n.acqTime, notes: n.notes),
             ],
     ),
 ];
 
 /// One line describing what was uploaded, for the header.
 String uploadSummary(List<Uploaded> files) {
-  if (files.isEmpty) return 'No files uploaded.';
+  if (files.isEmpty) return 'No files imported.';
   final sessions = _programming(files).length;
   final notes = _notes(files).length;
   final parts = <String>[

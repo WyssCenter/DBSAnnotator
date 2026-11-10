@@ -1,12 +1,10 @@
-Complete workflow
-=================
+Annotate programming session
+============================
 
-The full session: stimulation parameters, electrode configuration, scale ratings
-and notes, recorded configuration by configuration.
-
-The screen is a four-step wizard. Steps 2 and 4 share a two-row layout that
-follows the order the work is actually done in: what was *delivered* on top
-(parameters and electrodes), what was *observed* below (scales and notes).
+The app opens on this screen. A programming session is recorded in four steps,
+Setup, Initial assessment, Programming and Finish, with **Back** and **Next** at
+the bottom of the screen. The menu button at the top left opens the
+:ref:`settings menu <settings-menu>`.
 
 .. raw:: html
 
@@ -15,91 +13,53 @@ follows the order the work is actually done in: what was *delivered* on top
      <source src="../_static/videos/record_block.mp4" type="video/mp4">
    </video>
 
-A visit from the home screen: a new file, the stimulation parameters, the
+A visit: a new file, the stimulation parameters, the
 lead, the clinical scales, then three configurations rated and inserted, with
 the charts and table below.
 
-Step 1: File
-------------
+.. _setup-step:
 
-.. figure:: ../_static/screenshots/session_step0_file.png
-   :alt: The File step with a patient ID and run entered, and an opened file
-         reporting 39 rows loaded
-   :width: 100%
+Step 1: Setup
+-------------
 
-   The File step, with an existing session opened.
+Setup is where a visit starts and where every file goes in or out.
 
-Enter the **patient ID**, the **task** and the **run number**, then choose where
-to save. The task is ``programming`` unless you name another; whatever you type
-becomes the ``task-`` part of the :doc:`BIDS filename <../output_format>` and
-the ``TaskName`` in its sidecar, so a study that labels its tasks differently can
-keep its own scheme. Like every BIDS label it keeps letters and digits only.
+**BIDS folder.** Every visit is saved inside a BIDS folder, chosen at the top
+of the step. You can keep several, for example one per cohort, and pick the
+default in the settings menu. The folder must be a BIDS folder this app or
+another tool wrote, or an empty folder to start one in (see
+:ref:`what counts as a BIDS folder <bids-folder-requirements>`).
 
-**New** asks whether this visit is a loose TSV or goes straight into a BIDS
-dataset.
+**Patient.** Pick a patient already in that folder, or type a new patient ID.
+For a known patient the app fills in the DBS indication, the anatomical target,
+the leads and the IPGs from the patient's last visit, and says so. Check each
+value: a reimplantation changes the target, the leads or the IPG, and every
+field stays editable.
 
-.. figure:: ../_static/screenshots/dialog_save_location.png
-   :alt: The dialog asking whether to save the visit as a loose TSV or into a dataset
-   :width: 42%
-   :align: center
+Enter the **session** label, the **task** and the **run number**. The session is
+the visit date unless you type another label such as ``preop`` or ``3mo``. The
+task is ``programming`` unless you name another; whatever you type becomes the
+``task-`` part of the :doc:`BIDS filename <../output_format>`. Like every BIDS
+label they keep letters and digits only.
 
-**A loose TSV** goes wherever you choose. The app composes the
-:doc:`BIDS filename <../output_format>` and creates the file straight away,
-along with its ``.json`` sidecar, so every later insert has somewhere to go.
+**New session** starts the visit in the chosen folder. When that name is
+already taken, the visit is saved under the next free run (``run-02``,
+``run-03``) and the **Run** field changes to match. Nothing is overwritten. The
+visit is written into the folder at the first entry and kept up to date at
+every entry after that: its ``beh/`` file, its row in the patient's
+``sessions.tsv``, the patient's row in ``participants.tsv`` and the session's
+``scans.tsv`` (see :ref:`where-values-live`).
 
-**Into a dataset** asks for the dataset folder, which must be a BIDS dataset or
-an empty folder to start one in (see
-:ref:`what counts as a BIDS dataset <bids-folder-requirements>`). If the folder
-you picked is neither, **Choose another folder** opens the picker again. It then
-asks for the session label, proposed as today's date but editable:
-``ses-YYYYMMDD`` is this app's convention, and plenty of studies use
-``ses-preop`` or ``ses-3mo``. As you type, the dialog shows the label as it will
-be filed (``3-mo`` becomes ``3mo``).
+**Open saved session** continues a visit already in a BIDS folder, or opens a
+session file from an earlier version, which is saved in the current form from
+the next entry.
 
-A dataset can hold any number of recordings per participant and session:
-several ``ses-preop`` visits, programming and notes side by side. The one thing
-two files cannot share is the whole name, participant, session, task and run
-together, because the second would replace the first on disk. So when the name
-this visit would get is already in the dataset, the dialog says so and the visit
-is filed under the next free run instead (``run-02``, ``run-03``), and the
-**Run** field changes to match. Nothing is refused and nothing is overwritten.
-The label you choose is also the one used when you export this visit. The visit is
-filed at its BIDS path when the **first block is inserted**, not when the file
-is created: a dataset holding a header-only TSV that no ``scans.tsv`` lists is
-one that does not validate, and before the first block there is nothing to file.
-From then on every insert rewrites it in place, and the dataset index files stay
-consistent. It goes through the same rules as
-:ref:`adding to a dataset <dataset-merge-rules>`, so your
-``dataset_description.json`` and ``participants.tsv`` columns (the dataset's
-own description and participant list) are safe. This option is
-available on Windows, macOS and Linux. On iPadOS and Android, which do not let an
-app write into a folder you pick, the choice still appears with **Into a
-dataset** greyed out and the reason beneath it: record a loose TSV, then add it
-to a dataset later from :doc:`Reports <reports>`.
+**Import and export other sessions** reads session files or a whole BIDS
+folder and produces reports across visits, the combined table and BIDS
+folders; see :doc:`import_export`. Once this visit has entries, its own report
+and its BIDS folder (zip) can be exported from Setup as well as from Finish.
 
-.. figure:: ../_static/screenshots/dialog_session_label.png
-   :alt: The session label prompt, proposing the date and editable
-   :width: 27%
-   :align: center
-
-Before recording starts, a dialog shows the dataset folder and the exact path
-the visit will be filed under, such as
-``sub-01/ses-20260203/beh/sub-01_ses-20260203_task-programming_run-01_beh.tsv``,
-with the rule for what is added: the file and its sidecar, a row in
-``participants.tsv`` and one in that session's ``scans.tsv``. Recording does not
-update the dataset's combined table under
-``derivatives/dbs-annotator-aggregate/`` entry by entry. It is refreshed once
-when the recording ends: when you leave the screen, close the window, or start
-or open another file. If the recording is interrupted, the table leaves out this
-visit until the next merge from :doc:`Reports <reports>` or the next visit
-recorded into the dataset refreshes it.
-
-.. figure:: ../_static/screenshots/dialog_record_into.png
-   :alt: The confirmation showing the path the visit will be filed under in the dataset
-   :width: 42%
-   :align: center
-
-Whichever you choose, **every entry is also written to a working copy inside the
+**Every entry is also written to a working copy inside the
 app** as you record, so a crash or a closed window loses nothing. When you leave
 the workflow, or close the app window on Windows, macOS or Linux, the app asks
 whether to **keep** that copy or **discard** it. Kept, it is offered back the next
@@ -153,6 +113,18 @@ or reopening a session, ends this mode. Older files that spell a column the way
 earlier versions did, such as ``block_ID`` or a separate ``date``, ``time`` and
 ``timezone``, are read as before and do not count as unkept.
 
+.. _settings-menu:
+
+Settings menu
+-------------
+
+The menu button at the top left opens the settings that apply to every
+session: the BIDS folders, the DBS indications and anatomical targets offered
+in Setup, the leads and IPGs, the stimulation defaults and programs, the
+clinical scales and session ratings presets, the scale targets, the report
+sections, the theme and text size, and help. The theme and text size are kept
+for the next time the app opens.
+
 Step 2: Initial configuration
 -----------------------------
 
@@ -185,7 +157,7 @@ Y-BOCS or UPDRS-III. Disease presets fill the list in with a tap.
 **Notes.** Free text. Unlike the recording step, these persist after inserting,
 so you can keep refining the baseline description.
 
-Inserting records this as the **baseline block** (``is_initial = 1``).
+It is saved as the visit's row in ``sessions.tsv`` when you move on.
 
 Several cards have a gear that edits the choices they offer. These are
 **presets**: they apply to every future session and live in the app's own
@@ -413,8 +385,8 @@ Scale targets
    :width: 47%
    :align: center
 
-Opened by **Scale targets** in step 4, on the Reports and datasets screen, or from
-the report sections dialog.
+Opened by **Scale targets** in step 3, from the settings menu, or from the
+report sections dialog.
 
 Says what "better" means for each scale, which is the input the ranking needs and
 the one thing only you can supply. **Set all: Min / Max** fills the column in one

@@ -183,16 +183,3 @@ void showAppAbout(BuildContext context) {
     ],
   );
 }
-
-/// Shared AppBar action opening [showAppAbout].
-class HelpButton extends StatelessWidget {
-  const HelpButton({super.key});
-
-  @override
-  Widget build(BuildContext context) => IconButton(
-    icon: const Icon(Icons.help_outline),
-    iconSize: 28,
-    tooltip: 'Help / about',
-    onPressed: () => showAppAbout(context),
-  );
-}

@@ -64,7 +64,11 @@ void main() {
       );
 
       final defaulted = rankedReportData(rows);
-      expect(defaulted.chart.yMax, 4, reason: 'the items are scored 0..4');
+      expect(
+        defaulted.chart.yMax,
+        80,
+        reason: 'the 0..10 fallback widens to include the recorded 80',
+      );
     },
   );
 

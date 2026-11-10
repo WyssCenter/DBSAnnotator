@@ -36,10 +36,6 @@ store by the Wyss Center for Bio and Neuroengineering. See :doc:`installation`.
 At a glance
 -----------
 
-.. image:: _static/screenshots/home.png
-   :alt: The Wyss DBS Annotator home screen, with its Record and Read sections
-   :width: 100%
-
 
 .. list-table::
    :header-rows: 1
@@ -71,10 +67,8 @@ At a glance
    :maxdepth: 2
    :caption: Screens
 
-   screens/home
-   screens/complete_workflow
-   screens/annotations
-   screens/reports
+   screens/programming_session
+   screens/import_export
 
 .. toctree::
    :maxdepth: 2

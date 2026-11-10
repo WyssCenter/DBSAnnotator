@@ -9,7 +9,6 @@ import 'dart:typed_data';
 import 'package:dbs_annotator/core/annotation.dart';
 import 'package:dbs_annotator/core/session/session_file.dart';
 import 'package:dbs_annotator/core/session/session_row.dart';
-import 'package:dbs_annotator/report/annotations_report.dart';
 import 'package:dbs_annotator/report/longitudinal_data.dart';
 import 'package:dbs_annotator/report/longitudinal_pdf.dart';
 import 'package:dbs_annotator/report/report_data.dart';
@@ -179,30 +178,6 @@ void main() {
           Annotation(acqTime: '2026-03-10T09:06:00+00:00', notes: 'short'),
         ],
         noteFilenames: const ['sub-07_ses-20260203_task-notes_run-01_beh.tsv'],
-      ),
-    );
-    _expectFullNoteAdded(shortPdf.bytes, pdf.bytes);
-  });
-
-  test('annotations report builds with a 400-line note', () async {
-    final data = buildAnnotationsReportData(
-      entries: [
-        Annotation(
-          acqTime: '2026-06-26T09:15:00+02:00',
-          notes: _longNote('ANNEND'),
-        ),
-        const Annotation(acqTime: '2026-06-26T10:40:00+02:00', notes: 'short'),
-      ],
-      subjectId: '01',
-    );
-    final pdf = await buildAnnotationsPdf(data);
-    final shortPdf = await buildAnnotationsPdf(
-      buildAnnotationsReportData(
-        entries: const [
-          Annotation(acqTime: '2026-06-26T09:15:00+02:00', notes: 'short'),
-          Annotation(acqTime: '2026-06-26T10:40:00+02:00', notes: 'short'),
-        ],
-        subjectId: '01',
       ),
     );
     _expectFullNoteAdded(shortPdf.bytes, pdf.bytes);

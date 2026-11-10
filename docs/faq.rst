@@ -49,9 +49,10 @@ Files and data
    truncated file. Reopen the workflow and the app offers the unfinished session
    back. You lose at most the entry you were typing.
 
-**Why is there a row per scale instead of a row per configuration?**
-   So that data pools across sites that rate different scales. See
-   :ref:`why-long-not-wide`.
+**Why do two session files have different columns?**
+   Each rated scale is a ``scale_<name>`` column, and the scales depend on the
+   indication. ``pandas.concat`` lines files up by column name. See
+   :ref:`where-values-live`.
 
 Reports
 -------
@@ -84,10 +85,9 @@ Troubleshooting
    used.
 
 **Opening a file says it is the wrong kind.**
-   The app checks a file's columns before loading it, so an annotations file
-   cannot be opened as a session. Use the workflow that matches the file, or
-   upload it in *Reports and datasets*, which detects the kind and offers the
-   matching report.
+   The app checks a file's columns before opening it, so a notes file from an
+   earlier version cannot be opened as a session. Import it on the Setup step
+   instead, where it joins the report across visits and the combined table.
 
 **The lead diagram does not match the patient's implant.**
    Check the electrode model of each side. When a file is opened, the app

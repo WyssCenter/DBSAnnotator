@@ -20,7 +20,7 @@ List<SessionRow> parseSessionTsv(String content) =>
 
 /// Serialize rows to a full TSV document with the canonical column header.
 String serializeSessionTsv(List<SessionRow> rows) =>
-    writeTsvRecords(sessionColumns, rows.map((r) => r.toMap()).toList());
+    writeTsvRecords(workingColumns, rows.map((r) => r.toMap()).toList());
 
 /// A TSV integer cell as Python's `int(float(val))`; null when unparsable.
 int? _asInt(String raw) {

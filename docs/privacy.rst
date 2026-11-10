@@ -1,5 +1,5 @@
 Privacy
-=======
+========
 
 Wyss DBS Annotator collects nothing, transmits nothing, and requires no account.
 

@@ -12,6 +12,9 @@ import '../session/scale_presets.dart';
 ///
 /// Any field left null means "use the bundled default"; the UI merges with
 /// `?? <default>`.
+/// A BIDS folder sessions are saved in, under the name shown in Setup.
+typedef BidsFolder = ({String name, String path});
+
 class UserPrefs {
   UserPrefs({
     this.stimDefaults,
@@ -25,7 +28,10 @@ class UserPrefs {
     this.entryTableExpanded,
     this.entryChartsExpanded,
     this.reportSections,
-    this.saveFolder,
+    this.bidsFolders,
+    this.defaultBidsFolder,
+    this.darkTheme,
+    this.textScale,
     this.pathologies,
     this.targets,
     this.devices,
@@ -64,8 +70,22 @@ class UserPrefs {
   /// Whether the comparison charts in Programming are expanded.
   bool? entryChartsExpanded;
 
-  /// Folder new session files are created in, on platforms that can write one.
-  String? saveFolder;
+  /// The BIDS folders sessions are saved in, for example one per cohort.
+  List<BidsFolder>? bidsFolders;
+
+  /// The [bidsFolders] name Setup starts on.
+  String? defaultBidsFolder;
+
+  /// The appearance chosen in the side menu; null means light and 1.0.
+  bool? darkTheme;
+  double? textScale;
+
+  /// The folder Setup starts on: the default one, else the first.
+  BidsFolder? get startFolder {
+    final all = bidsFolders ?? const <BidsFolder>[];
+    return all.where((f) => f.name == defaultBidsFolder).firstOrNull ??
+        all.firstOrNull;
+  }
 
   /// The Setup indication and target lists as edited; null means the
   /// defaults.
@@ -108,7 +128,19 @@ class UserPrefs {
       entryVisibleConfigs: (j['entry_visible_configs'] as num?)?.toInt(),
       entryTableExpanded: j['entry_table_expanded'] as bool?,
       entryChartsExpanded: j['entry_charts_expanded'] as bool?,
-      saveFolder: j['save_folder'] as String?,
+      bidsFolders: switch (j['bids_folders']) {
+        final List<dynamic> list => [
+          for (final f in list.cast<Map<String, dynamic>>())
+            (name: f['name'] as String, path: f['path'] as String),
+        ],
+        _ => switch (j['save_folder']) {
+          final String path => [(name: 'Default', path: path)],
+          _ => null,
+        },
+      },
+      defaultBidsFolder: j['default_bids_folder'] as String?,
+      darkTheme: j['dark_theme'] as bool?,
+      textScale: (j['text_scale'] as num?)?.toDouble(),
       pathologies: (j['pathologies'] as List?)?.cast<String>(),
       targets: (j['targets'] as List?)?.cast<String>(),
       devices: (j['devices'] as Map?)?.map(
@@ -142,7 +174,13 @@ class UserPrefs {
     if (entryChartsExpanded != null)
       'entry_charts_expanded': entryChartsExpanded,
     if (reportSections != null) 'report_sections': reportSections,
-    if (saveFolder != null) 'save_folder': saveFolder,
+    if (bidsFolders case final folders?)
+      'bids_folders': [
+        for (final f in folders) {'name': f.name, 'path': f.path},
+      ],
+    if (defaultBidsFolder != null) 'default_bids_folder': defaultBidsFolder,
+    if (darkTheme != null) 'dark_theme': darkTheme,
+    if (textScale != null) 'text_scale': textScale,
     if (pathologies != null) 'pathologies': pathologies,
     if (targets != null) 'targets': targets,
     if (devices case final d?)

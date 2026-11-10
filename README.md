@@ -67,20 +67,21 @@ clone builds and tests immediately.
 
 ## What it does
 
-| Home screen entry | What it is for |
-|---|---|
-| **Complete workflow** | Record a programming visit: stimulation parameters, electrode contacts, clinical and session scales, notes |
-| **Annotations only** | Timestamped free-text notes and nothing else |
-| **Reports and datasets** | Upload TSVs and get a session report, a longitudinal report across visits, a combined table or a BIDS dataset |
+The app opens on **Annotate programming session**: record a programming visit,
+with stimulation parameters, electrode contacts, clinical and session scales and
+notes, into a BIDS folder. Its Setup step also imports earlier sessions and
+exports a session report, a report across visits, a combined table or a BIDS
+folder. A side menu holds the settings.
 
 ## Output
 
-Data is written as BIDS `_beh.tsv` with a JSON sidecar documenting every column,
-one row per (block, scale), so it pivots directly:
+Every session is saved in a BIDS folder: a `_beh.tsv` with one row per
+configuration and one `scale_<name>` column per scale, the visit's details and
+initial assessment in `sessions.tsv`, and the DBS indication in
+`participants.tsv`, each with a JSON sidecar documenting every column:
 
 ```python
 df = pd.read_csv(path, sep="\t", na_values=["n/a"])
-df.pivot_table(index=["append_id", "block_id"], columns="scale_name", values="scale_value")
 ```
 
 **Export → BIDS dataset** lays a set of sessions out as a validator-ready

@@ -1,13 +1,13 @@
-Reports and datasets
-====================
+Import and export
+=================
 
-Upload the TSVs you have, or load them from a BIDS dataset, then take whatever
-they support. This screen never changes the files you give it: it reads them,
-shows what is in them, and produces documents and datasets from them. Into a
-dataset you choose it writes only what you ask it to add, and only after you
-have confirmed the list of files.
+On the :ref:`Setup step <setup-step>`, import the session files you have, or a
+whole BIDS folder, then take whatever they support. This never changes the
+files you give it: it reads them, shows what is in them, and produces documents
+and BIDS folders from them. Into a BIDS folder you choose it writes only what
+you ask it to add, and only after you have confirmed the list of files.
 
-The whole screen scrolls as one page, from the upload buttons down through the
+The whole screen scrolls as one page, from the import buttons down through the
 actions to the preview, so a long session table never squeezes the rest.
 
 .. raw:: html
@@ -17,27 +17,27 @@ actions to the preview, so a long session table never squeezes the rest.
      <source src="../_static/videos/reports.mp4" type="video/mp4">
    </video>
 
-From the home screen: two visits uploaded, the longitudinal report's sections
+Two visits imported, the report across visits's sections
 chosen, the scale targets it ranks by, then the export.
 
 .. figure:: ../_static/screenshots/reports_empty.png
-   :alt: The Reports and datasets screen before anything is uploaded, with
+   :alt: The Import and export screen before anything is imported, with
          every action listed and disabled
    :width: 100%
 
-   Before anything is uploaded. Every action is listed, disabled, with the
+   Before anything is imported. Every action is listed, disabled, with the
    reason underneath rather than hidden until you tap it.
 
-Uploading
+Importing
 ---------
 
-**Upload TSVs** takes several files at once. Each is classified by its
+**Import TSVs** takes several files at once. Each is classified by its
 **columns**, not its name, so a file renamed by hand still opens as what it is,
 and a file that is neither a programming session nor a notes file is rejected by
 name rather than loaded as a screen of blank rows.
 
 A file already in the list is refused by name. Two files with the same basename
-would collide in a BIDS dataset and would be double-counted in a combined table,
+would collide in a BIDS folder and would be double-counted in a combined table,
 so the duplicate is dropped rather than silently merged.
 
 .. _load-from-dataset:
@@ -45,8 +45,8 @@ so the duplicate is dropped rather than silently merged.
 Loading from a dataset
 ----------------------
 
-When your visits are already filed in a BIDS dataset, **Load from dataset** reads
-them from there instead of one upload at a time. On Windows, macOS and Linux you
+When your visits are already filed in a BIDS folder, **Import from a BIDS folder** reads
+them from there instead of one import at a time. On Windows, macOS and Linux you
 choose the dataset folder; on iPadOS and Android you choose the dataset as a
 ``.zip``, because those systems do not let an app read a folder you pick.
 
@@ -59,7 +59,7 @@ skipped. A ``.zip`` may wrap the dataset in one or more folders, and the
 dataset is the folder holding its ``dataset_description.json``; a ``.zip``
 without one is read for recordings in any folder. A checklist then shows each
 participant with the number of files found, all ticked: untick the ones you do
-not want, for example to keep a longitudinal report to one patient.
+not want, for example to keep a report across visits to one patient.
 
 .. figure:: ../_static/screenshots/dialog_load_participants.png
    :alt: The checklist of participants found in the dataset, all ticked, with
@@ -68,10 +68,10 @@ not want, for example to keep a longitudinal report to one patient.
    :align: center
 
 The chosen
-files join the list exactly as if you had uploaded them, so every action below
+files join the list exactly as if you had imported them, so every action below
 works the same way, and a single file can still be removed.
 
-What each upload enables
+What each import enables
 ------------------------
 
 .. list-table::
@@ -81,13 +81,13 @@ What each upload enables
    * - Action
      - Available when
    * - Single session report
-     - Exactly **one** uploaded TSV: a session, or a notes file on its own
-   * - Longitudinal report
+     - Exactly **one** imported TSV: a session, or a notes file on its own
+   * - Report across visits
      - Two or more TSVs **naming the same patient**. A notes file counts, so a
-       session and its notes file give a longitudinal report
+       session and its notes file give a report across visits
    * - Combined table (TSV)
      - Two or more TSVs, of any patients. Notes files count
-   * - Create a BIDS dataset (zip)
+   * - Create a BIDS folder (zip)
      - At least one file whose name carries a ``sub-`` entity
    * - Add to an existing dataset
      - As above
@@ -98,14 +98,14 @@ description.
 Every action has an info button beside its name. It opens a short explanation
 in three parts: how the export is made, which data it needs, and which files it
 creates. The button works on a greyed-out action too, so you can see what that
-action would need before uploading anything.
+action would need before importing anything.
 
 .. figure:: ../_static/screenshots/reports_one_session.png
-   :alt: One session uploaded: the single session report and BIDS dataset are
-         available, the longitudinal report and combined table are not
+   :alt: One session imported: the single session report and BIDS folder are
+         available, the report across visits and combined table are not
    :width: 100%
 
-   One session. The report and a dataset are available; the longitudinal report
+   One session. The report and a dataset are available; the report across visits
    and the combined table need more than one file.
 
 Filing a single session into a dataset
@@ -135,34 +135,34 @@ Several visits of one patient
 -----------------------------
 
 With two or more sessions naming the same patient, every action is available and
-the preview shows the longitudinal report's session-scales figure: every block
+the preview shows the report across visits's session-scales figure: every block
 of every visit, grouped under the visit's date, with the two best configurations
 across all visits banded, exactly as the report will draw it.
 
 .. figure:: ../_static/screenshots/reports_visits.png
-   :alt: Several visits uploaded, with the session-scales figure across all of them
+   :alt: Several visits imported, with the session-scales figure across all of them
    :width: 100%
 
 Different patients
 ------------------
 
-If the uploaded files name more than one patient, the screen says so and the
-longitudinal report stays off. Combining two people into one longitudinal report
-is a safety problem, not a formatting one. A combined table and a BIDS dataset
+If the imported files name more than one patient, the screen says so and the
+report across visits stays off. Combining two people into one report across visits
+is a safety problem, not a formatting one. A combined table and a BIDS folder
 across several patients are ordinary things to want, so those stay available. No
 preview chart is drawn: one line across two patients would read as one
 patient's trend.
 
 .. figure:: ../_static/screenshots/reports_mismatch.png
-   :alt: Two patients uploaded: a warning banner, and the longitudinal report
+   :alt: Two patients imported: a warning banner, and the report across visits
          disabled with its reason
    :width: 100%
 
 Notes alongside a session
 -------------------------
 
-A ``task-notes`` file uploaded together with a session makes two files, so it
-gives a **longitudinal report**, with the data aggregated as for any set of
+A ``task-notes`` file imported together with a session makes two files, so it
+gives a **report across visits**, with the data aggregated as for any set of
 visits. Each note joins the session table of the visit on its own day (when two
 sessions share a day, the one under way at the note's time), placed by its own
 clock time with only the Time and Notes cells filled. A note from **any other
@@ -172,14 +172,14 @@ happen in. Such a day gets its own numbered row in the Visits table, with only
 its date filled, and its own table in the session data, under its date and in
 the same columns as a visit's, with only Time and Notes filled. The session
 tables are the **Combined session data table** section, which is off by
-default and ticked for you when a notes file is uploaded.
+default and ticked for you when a notes file is imported.
 
-Two or more notes files with no session also give a longitudinal report. It has
-no visits, so it says that no session TSV was uploaded and lists every note by
+Two or more notes files with no session also give a report across visits. It has
+no visits, so it says that no session TSV was imported and lists every note by
 date.
 
 The notes must name the same patient as the sessions. If they do not, the
-longitudinal report is greyed out with the reason.
+report across visits is greyed out with the reason.
 
 It gets its own row rather than being written into a block's Notes cell,
 because a note carries no configuration: attaching it to one would assert it was
@@ -189,7 +189,7 @@ readable timestamp is left out, since there is nowhere on a time axis to put it.
 Adding to a dataset you already have
 ------------------------------------
 
-**Add to an existing dataset** folds the uploaded files into a BIDS dataset you
+**Add to an existing dataset** folds the imported files into a BIDS folder you
 already have, rather than producing a separate one to reconcile by hand. It
 offers both ways of doing that, so the choice is yours:
 
@@ -202,7 +202,7 @@ offers both ways of doing that, so the choice is yours:
 
 .. _bids-folder-requirements:
 
-**What counts as a BIDS dataset.** The folder (or the top level of the zip) must
+**What counts as a BIDS folder.** The folder (or the top level of the zip) must
 hold a ``dataset_description.json``, with one ``sub-<participant>`` folder per
 participant listed in ``participants.tsv``. If the folder you pick is empty, the
 app offers to start a new dataset there, writing its
@@ -212,14 +212,14 @@ refused, with this explanation, so BIDS files are never scattered through a
 folder that is not a dataset.
 
 .. figure:: ../_static/screenshots/dialog_bids_start.png
-   :alt: The offer to start a new BIDS dataset in an empty folder
+   :alt: The offer to start a new BIDS folder in an empty folder
    :width: 42%
    :align: center
 
    An empty folder: the app offers to start a dataset there.
 
 .. figure:: ../_static/screenshots/dialog_bids_not_dataset.png
-   :alt: The refusal for a folder that is not a BIDS dataset
+   :alt: The refusal for a folder that is not a BIDS folder
    :width: 42%
    :align: center
 
@@ -313,7 +313,7 @@ Reports offer **PDF** or **Word**. Both report kinds show the
 notes file every section applies, so the dialog is skipped.
 
 .. figure:: ../_static/screenshots/dialog_longitudinal_sections.png
-   :alt: The longitudinal report sections dialog, with its seven sections
+   :alt: The report across visits sections dialog, with its seven sections
    :width: 44%
    :align: center
 
@@ -341,13 +341,13 @@ over 0 to 10, and the preview on this screen uses the same. The report prints
 the targets it ranked by under the session-scales figure and the session
 tables; check them before filing it, and set any scale that should rise, such
 as mood or energy, before exporting.
-When a notes file is uploaded, **Combined session data table** starts ticked,
+When a notes file is imported, **Combined session data table** starts ticked,
 since that is where notes from a visit day are printed. The clinical figure's
 axis takes each scale's range from your :ref:`clinical scales settings
 <dialog-clinical-scales>`, because a TSV records scores but not ranges.
 
 Every report export ends by asking, optionally, who recorded the session and,
-for the session and longitudinal reports, who rated the scales, for the
+for the session and report across visitss, who rated the scales, for the
 attestation block. The names are not saved anywhere else.
 
 A report is named from its source file's own BIDS entities with the data suffix
@@ -362,7 +362,7 @@ A file whose name carries no ``sub-`` entity keeps its own stem rather than
 having one invented for it: a wrong subject label on a clinical document is
 worse than an unhelpful filename.
 
-The longitudinal report spans visits, so it carries no ``ses-`` and no
+The report across visits spans visits, so it carries no ``ses-`` and no
 ``task-``; ``desc-`` is the BIDS entity for naming what a computed file is. The
 label carries the date the report was made, so a report made at a later visit
 does not overwrite an earlier one:
@@ -377,7 +377,7 @@ See :doc:`../reports` for what each document contains, and
 The combined table
 ------------------
 
-Every uploaded file goes into the combined table. A notes file adds one row
+Every imported file goes into the combined table. A notes file adds one row
 per note, with its time and text; the stimulation and scale columns of those
 rows are ``n/a``.
 
@@ -419,6 +419,6 @@ table of the whole dataset. The ``.bak-`` copies that adding into a folder
 leaves are hidden from the validator through ``.bidsignore``; see
 :ref:`the merge rules <dataset-merge-rules>`.
 
-If the list mixes files from the dataset with files uploaded from elsewhere, or
+If the list mixes files from the dataset with files imported from elsewhere, or
 the dataset was loaded as a ``.zip``, nothing is written into the dataset and the
 table and sidecar are exported as a ``.zip`` as usual.

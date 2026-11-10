@@ -109,30 +109,11 @@ class ElectrodePalette {
       b == Brightness.dark ? dark : light;
 }
 
-/// App-wide light/dark selection, defaulting to light. Not persisted, which
-/// matches the desktop app.
+/// App-wide light/dark selection, restored from the user's preferences.
 final ValueNotifier<ThemeMode> themeMode = ValueNotifier(ThemeMode.light);
 
-/// AppBar action that flips light/dark, showing the icon of the theme it
-/// switches to.
-class ThemeToggleButton extends StatelessWidget {
-  const ThemeToggleButton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return IconButton(
-      icon: Icon(dark ? Icons.light_mode : Icons.dark_mode),
-      iconSize: 28,
-      tooltip: 'Switch light/dark',
-      onPressed: () =>
-          themeMode.value = dark ? ThemeMode.light : ThemeMode.dark,
-    );
-  }
-}
-
-/// App-wide text-scale factor, applied in [main] via MediaQuery's textScaler.
-/// Session-only, like [themeMode].
+/// App-wide text-scale factor, applied in [main] via MediaQuery's textScaler
+/// and restored from the user's preferences.
 final ValueNotifier<double> textScale = ValueNotifier(1.0);
 
 const double _kMinTextScale = 0.8;

@@ -4,7 +4,11 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart' show PdfPageFormat;
 
+import 'dart:io';
+
 import '../core/bids.dart';
+import '../core/bids_dataset.dart' show DatasetEntry;
+import '../core/bids_merge.dart' show nextFreeRun;
 import '../core/bids_sidecar.dart';
 import '../core/electrode/amplitude.dart';
 import '../core/electrode/contact_state.dart';
@@ -14,6 +18,8 @@ import '../core/electrode/tokens.dart';
 import '../core/prefs/user_prefs.dart';
 import '../core/schema_columns.dart' show isInitialValue;
 import '../core/session/authoring.dart';
+import '../core/session/bids_folder.dart';
+import '../core/session/bids_session.dart';
 import '../core/session/scale_presets.dart';
 import '../core/session/tsv_kind.dart';
 import '../core/session/scale_scoring.dart'
@@ -39,7 +45,9 @@ import 'scale_targets_dialog.dart';
 import 'save_target.dart';
 import 'scale_slider.dart';
 import 'share_util.dart';
+import 'bids_folders.dart';
 import 'devices_dialog.dart';
+import 'import_export_panel.dart';
 import 'recording_file.dart';
 import 'stim_defaults_dialog.dart';
 import 'wizard_parts.dart';
@@ -133,10 +141,21 @@ class _SessionScaleEdit {
   ScaleMode mode;
   double? custom;
 
-  double minOr(double fallback) =>
-      double.tryParse(minCtrl.text.trim()) ?? fallback;
-  double maxOr(double fallback) =>
-      double.tryParse(maxCtrl.text.trim()) ?? fallback;
+  static double? _number(String text) {
+    final parsed = double.tryParse(text.trim().replaceAll(',', '.'));
+    return parsed != null && parsed.isFinite ? parsed : null;
+  }
+
+  double minOr(double fallback) => _number(minCtrl.text) ?? fallback;
+  double maxOr(double fallback) => _number(maxCtrl.text) ?? fallback;
+
+  /// The slider range, and [value] held inside it.
+  ({double min, double max, double value}) bounds(StimLimits limits) {
+    final min = minOr(limits.sessionScale.min);
+    var max = maxOr(limits.sessionScale.max);
+    if (max <= min) max = min + 1;
+    return (min: min, max: max, value: value.clamp(min, max).toDouble());
+  }
 
   void dispose() {
     name.dispose();
@@ -180,7 +199,7 @@ const RecordingWords _words = (
   savedInApp: 'The visit is saved in the app.',
   filedOnFirstEntry:
       'The visit is filed there as soon as the first block is inserted.',
-  newDialogTitle: 'Create new session TSV',
+  newDialogTitle: 'Create new session file',
   newFileSaid: 'New session',
   recoveryTitle: 'Unfinished session found',
   pickerFailed: 'Could not open the file picker.',
@@ -240,12 +259,26 @@ class _SessionScreenState extends State<SessionScreen>
   UserPrefs _prefs = UserPrefs();
   late final Future<(ElectrodeCatalog, StimLimits, ScalePresets)> _contracts;
 
+  /// The BIDS folder new sessions are saved in, and the patients it holds.
+  BidsFolder? _folder;
+  List<String> _patients = const [];
+
+  /// Whether the clinical details were filled from the patient's last visit.
+  bool _fromLastVisit = false;
+
   @override
   void initState() {
     super.initState();
     _contracts = _loadContracts();
     loadUserPrefs().then((p) {
-      if (mounted) setState(() => _prefs = p);
+      if (!mounted) return;
+      setState(() {
+        _prefs = p;
+        _folder = p.startFolder;
+      });
+      _loadPatients();
+      themeMode.addListener(_rememberAppearance);
+      textScale.addListener(_rememberAppearance);
     });
     if (widget.authoring case final a?) {
       _fillSessionDetails(a.rows);
@@ -354,6 +387,8 @@ class _SessionScreenState extends State<SessionScreen>
 
   @override
   void dispose() {
+    themeMode.removeListener(_rememberAppearance);
+    textScale.removeListener(_rememberAppearance);
     _ids.dispose();
     _notesInitCtrl.dispose();
     _notesRecCtrl.dispose();
@@ -626,7 +661,7 @@ class _SessionScreenState extends State<SessionScreen>
             name: s.name.text.trim(),
             value: s.omitted
                 ? limits.sessionScaleOmittedTsv
-                : _fmtValue(s.value),
+                : _fmtValue(s.bounds(limits).value),
           ),
       ],
       programId: _selectedProgram ?? '',
@@ -679,7 +714,16 @@ class _SessionScreenState extends State<SessionScreen>
 
   @override
   SessionAuthoring readTsv(String content) =>
-      SessionAuthoring()..loadExisting(content);
+      SessionAuthoring()..loadExisting(parseAnySessionTsv(content));
+
+  @override
+  Future<SessionAuthoring> readFile(String content, String? path) async =>
+      SessionAuthoring()
+        ..loadExisting(await readSessionFile(content, path: path));
+
+  @override
+  DatasetEntry datasetEntry(BidsName name, Map<String, dynamic> contract) =>
+      sessionEntry(name: name, rows: _authoring.rows, contract: contract);
 
   @override
   bool isBlank(SessionAuthoring content) => content.rows.isEmpty;
@@ -721,25 +765,266 @@ class _SessionScreenState extends State<SessionScreen>
     }
   }
 
-  Future<void> _newSession() {
-    if (_ids.subject.text.trim().isEmpty) {
+  /// Keep the theme and text size chosen in the side menu for the next start.
+  void _rememberAppearance() {
+    _prefs
+      ..darkTheme = themeMode.value == ThemeMode.dark
+      ..textScale = textScale.value;
+    saveUserPrefs(_prefs);
+  }
+
+  /// The side menu: the settings that apply to every session.
+  Widget _drawer((ElectrodeCatalog, StimLimits, ScalePresets)? contracts) {
+    final theme = Theme.of(context);
+    Widget item(IconData icon, String label, Future<void> Function()? run) =>
+        ListTile(
+          leading: Icon(icon),
+          title: Text(label),
+          enabled: run != null,
+          onTap: run == null
+              ? null
+              : () {
+                  Navigator.pop(context);
+                  run();
+                },
+        );
+    Widget heading(String text) => Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Text(text, style: theme.textTheme.titleSmall),
+    );
+    final catalog = contracts?.$1.withDevices(_prefs.devices);
+    final limits = contracts?.$2.withDefaults(_prefs.stimDefaults);
+    final presets = contracts == null
+        ? null
+        : mergeScalePresets(contracts.$3, _prefs);
+    return Drawer(
+      child: SafeArea(
+        child: ListView(
+          children: [
+            heading('Saving'),
+            item(Icons.folder_outlined, 'BIDS folders', () async {
+              await showBidsFoldersDialog(context, _prefs);
+              if (!mounted) return;
+              final kept = _prefs.bidsFolders ?? const <BidsFolder>[];
+              setState(() {
+                if (!kept.contains(_folder)) _folder = _prefs.startFolder;
+              });
+              _loadPatients();
+            }),
+            heading('Lists offered in Setup'),
+            item(
+              Icons.medical_information_outlined,
+              'DBS indications',
+              presets == null
+                  ? null
+                  : () => _editList(
+                      'DBS indications',
+                      _prefs.pathologies ?? presets.pathologies,
+                      (l) => _prefs.pathologies = l,
+                    ),
+            ),
+            item(
+              Icons.my_location_outlined,
+              'Anatomical targets',
+              presets == null
+                  ? null
+                  : () => _editList(
+                      'Anatomical targets',
+                      _prefs.targets ?? presets.targets,
+                      (l) => _prefs.targets = l,
+                    ),
+            ),
+            item(
+              Icons.memory_outlined,
+              'Leads and IPGs',
+              catalog == null ? null : () => _editDevices(catalog),
+            ),
+            heading('Stimulation and scales'),
+            item(
+              Icons.tune,
+              'Stimulation defaults',
+              limits == null ? null : () => _editStimDefaults(limits),
+            ),
+            item(
+              Icons.list_alt,
+              'Programs',
+              () => _editList('Programs', _programs, (l) {
+                _prefs.programs = l;
+                if (!l.contains(_selectedProgram)) _selectedProgram = null;
+              }),
+            ),
+            item(
+              Icons.assignment_outlined,
+              'Clinical scales',
+              presets == null ? null : () => _editClinicalPresets(presets),
+            ),
+            item(
+              Icons.star_rate_outlined,
+              'Session ratings',
+              presets == null ? null : () => _editSessionPresets(presets),
+            ),
+            item(Icons.flag_outlined, 'Scale targets', _editScaleTargets),
+            heading('Reports'),
+            item(Icons.description_outlined, 'Report sections', () async {
+              await _askSections();
+            }),
+            heading('Appearance'),
+            ValueListenableBuilder<ThemeMode>(
+              valueListenable: themeMode,
+              builder: (context, mode, _) => SwitchListTile(
+                secondary: const Icon(Icons.dark_mode_outlined),
+                title: const Text('Dark theme'),
+                value: mode == ThemeMode.dark,
+                onChanged: (dark) =>
+                    themeMode.value = dark ? ThemeMode.dark : ThemeMode.light,
+              ),
+            ),
+            const ListTile(
+              leading: Icon(Icons.format_size),
+              title: Text('Text size'),
+              trailing: TextSizeButtons(),
+            ),
+            const Divider(),
+            item(Icons.help_outline, 'Help and about', () async {
+              showAppAbout(context);
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Reload the patients of the chosen BIDS folder.
+  Future<void> _loadPatients() async {
+    final root = _folder?.path;
+    final found = root == null ? const <String>[] : await participantsIn(root);
+    if (mounted) setState(() => _patients = found);
+  }
+
+  /// Fill the DBS indication, target, leads and IPGs from [subject]'s last
+  /// visit in the chosen folder. Each stays editable: a lead can be replaced.
+  Future<void> _prefillFromHistory(String subject) async {
+    final root = _folder?.path;
+    if (root == null || subject.isEmpty || _started) return;
+    final history = await patientHistory(root, subject);
+    final last = history.lastVisit;
+    if (!mounted || (history.indication.isEmpty && last.isEmpty)) return;
+    final catalog = (await _contracts).$1.withDevices(_prefs.devices);
+    if (!mounted) return;
+    String cell(String c) => last[c] ?? '';
+    setState(() {
+      _pathologyCtrl.text = history.indication;
+      _targetCtrl.text = cell('target');
+      _leftIpgCtrl.text = cell('left_ipg_model');
+      _rightIpgCtrl.text = cell('right_ipg_model');
+      _sameIpg =
+          _rightIpgCtrl.text.isEmpty || _rightIpgCtrl.text == _leftIpgCtrl.text;
+      final left = cell('left_electrode_model');
+      final right = cell('right_electrode_model');
+      if (catalog.models.containsKey(left)) {
+        _modelName = left;
+        _rightModelName = right.isEmpty || right == left ? null : right;
+      }
+      _fromLastVisit = true;
+    });
+    _loadPathologyScales();
+  }
+
+  /// Start a new visit saved into the chosen BIDS folder.
+  Future<void> _newSession() async {
+    final subject = _ids.subject.text.trim();
+    if (subject.isEmpty) {
       _snack('Enter the patient ID first.');
-      return Future.value();
+      return;
     }
-    final authoring = SessionAuthoring();
-    return newFile(
-      proposed: _ids.name,
-      header: authoring.serialize(),
-      prefs: _prefs,
-      start: (filedAs) {
+    final folder = _folder ?? await addBidsFolder(context, _prefs);
+    if (folder == null || !mounted) return;
+    if (_folder == null) setState(() => _folder = folder);
+    final root = folder.path;
+    final dir = Directory(root);
+    await dir.create(recursive: true);
+    final taken = <String>{
+      for (final e in dir.listSync(recursive: true, followLinks: false))
+        e.path
+            .substring(root.length)
+            .replaceAll(r'\', '/')
+            .replaceAll(RegExp('^/+'), ''),
+    };
+    final hidden = RegExp(r'(^|/)\.');
+    if (!taken.contains('dataset_description.json') &&
+        taken.any((p) => !hidden.hasMatch(p))) {
+      _snack(
+        '$root has other content and is not a BIDS folder. Choose an empty '
+        'folder or one this app saved into.',
+      );
+      return;
+    }
+    final name = nextFreeRun(_ids.name, taken);
+    final history = await patientHistory(root, subject);
+    final indication = _pathologyCtrl.text.trim();
+    if (!mounted) return;
+    if (history.indication.isNotEmpty &&
+        indication.isNotEmpty &&
+        history.indication != indication &&
+        !await _confirm(
+          'Change the DBS indication?',
+          'This BIDS folder records ${history.indication} for $subject. '
+              'Saving this visit changes it to $indication.',
+          'Change it',
+        )) {
+      return;
+    }
+    final visit = await visitRow(root, name);
+    if (!mounted) return;
+    if (visit.isNotEmpty &&
+        !await _confirm(
+          'This visit is already in the folder',
+          'Session ${name.session} of $subject has an earlier run. This run '
+              'is saved as run ${name.run}; an initial assessment recorded '
+              "here replaces the visit's values in its sessions.tsv.",
+          'Continue',
+        )) {
+      return;
+    }
+    if (!mounted) return;
+    final started = await newInFolder(
+      root: root,
+      name: name,
+      start: () {
         _invalidateEntryCharts();
-        _authoring = authoring;
-        if (filedAs != null) _ids.run.text = filedAs.run;
+        _authoring = SessionAuthoring();
+        _ids.run.text = name.run;
         _initialBlock = null;
         _initialSaved = null;
       },
     );
+    if (started) {
+      _snack(
+        'New session in ${folder.name}. It is saved there from the first '
+        'entry.',
+      );
+    }
   }
+
+  Future<bool> _confirm(String title, String message, String yes) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(yes),
+            ),
+          ],
+        ),
+      ) ??
+      false;
 
   /// The file names its own electrode model, so the dropdown follows it. A
   /// mismatch is not cosmetic: it labels one lead's contacts with another
@@ -790,14 +1075,6 @@ class _SessionScreenState extends State<SessionScreen>
     return chosen;
   }
 
-  Future<void> _export() async {
-    if (_authoring.rows.isEmpty) {
-      _snack('Insert at least one block before exporting.');
-      return;
-    }
-    await exportTsv();
-  }
-
   /// Export this session as a one-subject BIDS dataset (zipped).
   ///
   /// The TSV on its own carries BIDS entities in its *name*; this is the tree
@@ -818,19 +1095,16 @@ class _SessionScreenState extends State<SessionScreen>
       return;
     }
     if (!mounted) return;
-    final rows = _authoring.rows;
     await countExport(
       () => exportBidsDataset(
         context,
         anchor: exportKey,
         avoid: exportAvoid,
         entries: [
-          datasetEntry(
+          sessionEntry(
             name: _ids.name,
-            tsv: _authoring.serialize(),
+            rows: _authoring.rows,
             contract: contract,
-            kind: 'session_tsv',
-            acqTime: rows.isEmpty ? '' : rows.first.acqTime,
           ),
         ],
       ),
@@ -944,6 +1218,11 @@ class _SessionScreenState extends State<SessionScreen>
             ],
           ),
         ),
+        if (unkeptNotice case final notice?)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Text(notice, style: Theme.of(context).textTheme.bodySmall),
+          ),
         const SizedBox(height: 12),
         GroupCard(
           title: 'For the patient record',
@@ -987,10 +1266,9 @@ class _SessionScreenState extends State<SessionScreen>
             spacing: 12,
             runSpacing: 8,
             children: [
-              action(Icons.table_chart_outlined, 'Raw data file', _export),
               action(
                 Icons.folder_zip_outlined,
-                'Research dataset (BIDS, zip)',
+                'BIDS folder (zip)',
                 _exportBids,
               ),
             ],
@@ -1587,6 +1865,69 @@ class _SessionScreenState extends State<SessionScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownMenu<String>(
+                    key: ValueKey(_folder?.name),
+                    expandedInsets: EdgeInsets.zero,
+                    label: const Text('BIDS folder'),
+                    enabled: !started,
+                    initialSelection: _folder?.name,
+                    dropdownMenuEntries: [
+                      for (final f
+                          in _prefs.bidsFolders ?? const <BidsFolder>[])
+                        DropdownMenuEntry(value: f.name, label: f.name),
+                    ],
+                    onSelected: (name) {
+                      setState(
+                        () => _folder = _prefs.bidsFolders
+                            ?.where((f) => f.name == name)
+                            .firstOrNull,
+                      );
+                      _loadPatients();
+                    },
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.create_new_folder_outlined),
+                  tooltip: 'Add a BIDS folder',
+                  onPressed: started
+                      ? null
+                      : () async {
+                          final added = await addBidsFolder(context, _prefs);
+                          if (added == null || !mounted) return;
+                          setState(() => _folder = added);
+                          _loadPatients();
+                        },
+                ),
+              ],
+            ),
+            if (_folder case final f?)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 8),
+                child: Text(
+                  f.path,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            if (_patients.isNotEmpty && !started) ...[
+              const SizedBox(height: 8),
+              DropdownMenu<String>(
+                expandedInsets: EdgeInsets.zero,
+                label: const Text('Patient already in this folder'),
+                dropdownMenuEntries: [
+                  for (final p in _patients)
+                    DropdownMenuEntry(value: p, label: p),
+                ],
+                onSelected: (p) {
+                  if (p == null) return;
+                  setState(() => _ids.subject.text = p);
+                  _prefillFromHistory(p);
+                },
+              ),
+            ],
+            const SizedBox(height: 12),
             BidsNameFields(entries: _ids, decoration: field),
             const SizedBox(height: 16),
             Wrap(
@@ -1605,6 +1946,32 @@ class _SessionScreenState extends State<SessionScreen>
                 ),
               ],
             ),
+            if (_authoring.rows.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                key: exportKey,
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        _exportReport(_leads(catalog), docx: false),
+                    icon: const Icon(Icons.picture_as_pdf_outlined),
+                    label: const Text('Report (PDF)'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _exportReport(_leads(catalog), docx: true),
+                    icon: const Icon(Icons.description_outlined),
+                    label: const Text('Report (Word)'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _exportBids,
+                    icon: const Icon(Icons.folder_zip_outlined),
+                    label: const Text('BIDS folder (zip)'),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             Row(
               children: [
@@ -1624,6 +1991,14 @@ class _SessionScreenState extends State<SessionScreen>
                 ),
               ],
             ),
+            if (unkeptNotice case final notice?)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  notice,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
           ],
         ),
       ),
@@ -1636,6 +2011,15 @@ class _SessionScreenState extends State<SessionScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_fromLastVisit)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  "Filled from this patient's last visit. Check each value: "
+                  'a reimplantation changes the target, leads or IPG.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             Row(
               children: [
                 Expanded(
@@ -1693,6 +2077,13 @@ class _SessionScreenState extends State<SessionScreen>
       ),
     );
 
+    final importExport = GroupCard(
+      title: 'Import and export other sessions',
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: ImportExportPanel(catalog: catalog),
+      ),
+    );
     return LayoutBuilder(
       builder: (context, c) {
         if (c.maxWidth < 900) {
@@ -1704,24 +2095,33 @@ class _SessionScreenState extends State<SessionScreen>
               clinical,
               const SizedBox(height: 16),
               _modelCard(catalog),
+              const SizedBox(height: 16),
+              importExport,
             ],
           );
         }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(child: session),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  clinical,
-                  const SizedBox(height: 16),
-                  _modelCard(catalog),
-                ],
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: session),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      clinical,
+                      const SizedBox(height: 16),
+                      _modelCard(catalog),
+                    ],
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 16),
+            importExport,
           ],
         );
       },
@@ -2047,8 +2447,8 @@ class _SessionScreenState extends State<SessionScreen>
 
   _SessionScaleEdit _sessionScaleFrom(SessionScaleRow row, StimLimits limits) =>
       _SessionScaleEdit(
-        min: double.tryParse(row.min) ?? limits.sessionScale.min,
-        max: double.tryParse(row.max) ?? limits.sessionScale.max,
+        min: _SessionScaleEdit._number(row.min) ?? limits.sessionScale.min,
+        max: _SessionScaleEdit._number(row.max) ?? limits.sessionScale.max,
         name: row.name,
         mode: scaleModeFromString(row.mode),
         step: double.tryParse(row.step),
@@ -2057,9 +2457,7 @@ class _SessionScreenState extends State<SessionScreen>
   /// One rating row: name, a bar bounded by the scale's min/max, and the
   /// not-assessed switch, written as the contract's omitted literal.
   Widget _ratingRow(_SessionScaleEdit scale, StimLimits limits) {
-    final min = scale.minOr(limits.sessionScale.min);
-    var max = scale.maxOr(limits.sessionScale.max);
-    if (max <= min) max = min + 1;
+    final bounds = scale.bounds(limits);
     final name = scale.name.text.trim();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -2072,9 +2470,9 @@ class _SessionScreenState extends State<SessionScreen>
           Expanded(
             flex: 5,
             child: ScaleSlider(
-              value: scale.value.clamp(min, max).toDouble(),
-              min: min,
-              max: max,
+              value: bounds.value,
+              min: bounds.min,
+              max: bounds.max,
               step: scale.step ?? 0.25,
               omitted: scale.omitted,
               onChanged: (v) => setState(() {
@@ -2298,9 +2696,10 @@ class _SessionScreenState extends State<SessionScreen>
 
   Widget _page(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Complete workflow'),
-        actions: const [TextSizeButtons(), HelpButton(), ThemeToggleButton()],
+      appBar: AppBar(title: const Text('Annotate programming session')),
+      drawer: FutureBuilder<(ElectrodeCatalog, StimLimits, ScalePresets)>(
+        future: _contracts,
+        builder: (context, snapshot) => _drawer(snapshot.data),
       ),
       body: FutureBuilder<(ElectrodeCatalog, StimLimits, ScalePresets)>(
         future: _contracts,

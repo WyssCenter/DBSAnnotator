@@ -13,13 +13,11 @@ import 'package:dbs_annotator/core/session/scale_presets.dart';
 import 'package:dbs_annotator/core/session/session_file.dart';
 import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:dbs_annotator/core/session/tsv_kind.dart';
-import 'package:dbs_annotator/report/annotations_report.dart';
-import 'package:dbs_annotator/report/attestation.dart';
 import 'package:dbs_annotator/report/longitudinal_data.dart';
 import 'package:dbs_annotator/report/report_data.dart';
 import 'package:dbs_annotator/report/session_docx.dart';
 import 'package:dbs_annotator/report/upload_actions.dart';
-import 'package:dbs_annotator/ui/reports_screen.dart';
+import 'package:dbs_annotator/ui/import_export_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -185,25 +183,9 @@ void main() {
       expect(named, isNot(contains('Reviewed by')));
       expect(named, isNot(contains('Date: _')));
     });
-
-    test('the notes report asks only who recorded it', () {
-      final notes = _docx(
-        buildAnnotationsDocx(
-          buildAnnotationsReportData(
-            entries: const [
-              Annotation(acqTime: '2026-02-03T09:00:00+00:00', notes: 'n'),
-            ],
-            subjectId: '01',
-          ),
-          attestation: kNoAttestation,
-        ),
-      );
-      expect(notes, contains('Recorded by'));
-      expect(notes, isNot(contains('Rated by')));
-    });
   });
 
-  testWidgets('with a notes file uploaded, the per-visit tables start ticked', (
+  testWidgets('with a notes file imported, the per-visit tables start ticked', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1600));
@@ -226,10 +208,15 @@ void main() {
       ),
     ];
     await tester.pumpWidget(
-      MaterialApp(home: ReportsScreen(initialFiles: files)),
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: ImportExportPanel(initialFiles: files),
+          ),
+        ),
+      ),
     );
     await tester.pump();
-    // The longitudinal report is the second row offering PDF.
     await tester.tap(find.text('PDF').at(1));
     await tester.pumpAndSettle();
     final tile = tester.widget<CheckboxListTile>(

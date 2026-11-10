@@ -66,9 +66,10 @@ and makes no outbound connections.
 pandas, in R, in a text editor. There is no proprietary container and no export
 step that can silently lose a field.
 
-**Analysis-ready shape.** Data is written in long form, one row per (block,
-scale). That is the shape that pivots and groups without reshaping, and it lets
-a site using a different scale set add rows rather than columns.
+**Analysis-ready shape.** Each visit is saved in a BIDS folder: one row per
+configuration tried, one column per scale, and the values that belong to the
+visit or the patient in BIDS' own ``sessions.tsv`` and ``participants.tsv``.
+Files pool with a plain concatenation.
 
 **Say only what the data supports.** Reports call a configuration the one the
 patient was left on only when the clinician marked it so; otherwise they state

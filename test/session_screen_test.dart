@@ -123,6 +123,50 @@ void main() {
     expect(find.text('Frequency'), findsNothing);
   });
 
+  testWidgets('Setup is where a visit starts and where files come in and go '
+      'out', (tester) async {
+    await pumpWizard(tester, open: false);
+    expect(find.text('Annotate programming session'), findsOneWidget);
+    expect(find.text('BIDS folder'), findsWidgets);
+    expect(find.byTooltip('Add a BIDS folder'), findsOneWidget);
+    expect(find.text('Import and export other sessions'), findsOneWidget);
+    expect(find.text('Import session files'), findsOneWidget);
+    expect(find.text('Import from a BIDS folder'), findsOneWidget);
+  });
+
+  testWidgets('the side menu holds the settings for every session', (
+    tester,
+  ) async {
+    await pumpWizard(tester, open: false);
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    for (final entry in [
+      'BIDS folders',
+      'DBS indications',
+      'Anatomical targets',
+      'Leads and IPGs',
+      'Stimulation defaults',
+      'Programs',
+      'Clinical scales',
+      'Session ratings',
+      'Scale targets',
+      'Report sections',
+      'Dark theme',
+      'Text size',
+      'Help and about',
+    ]) {
+      await tester.scrollUntilVisible(
+        find.text(entry),
+        100,
+        scrollable: find.descendant(
+          of: find.byType(Drawer),
+          matching: find.byType(Scrollable),
+        ),
+      );
+      expect(find.text(entry), findsOneWidget, reason: entry);
+    }
+  });
+
   testWidgets('New asks for the patient ID before anything else', (
     tester,
   ) async {
@@ -138,7 +182,7 @@ void main() {
     final authoring = SessionAuthoring();
     await pumpWizard(tester, authoring: authoring);
 
-    expect(find.text('Complete workflow'), findsOneWidget);
+    expect(find.text('Annotate programming session'), findsOneWidget);
     for (final step in [
       'Setup',
       'Initial assessment',
@@ -212,8 +256,7 @@ void main() {
     expect(find.text('Report (Word)'), findsOneWidget);
     expect(find.text('A4'), findsOneWidget);
     expect(find.text('For research'), findsOneWidget);
-    expect(find.text('Raw data file'), findsOneWidget);
-    expect(find.text('Research dataset (BIDS, zip)'), findsOneWidget);
+    expect(find.text('BIDS folder (zip)'), findsOneWidget);
     expect(find.text('Next'), findsOneWidget);
     expect(
       tester

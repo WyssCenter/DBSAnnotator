@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import textwrap
 from pathlib import Path
 
@@ -59,24 +60,36 @@ def _rst_table(columns: list[dict], title: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _example_table(path: Path, max_rows: int = 6) -> str:
-    """The first few rows of the worked example, as a literal block.
+def _slug(name: str) -> str:
+    """The ``scale_<name>`` column of a scale, as ``scaleColumnSlug`` builds it."""
+    slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+    return "scale_" + (slug or "unnamed")
 
-    Only a handful of columns are shown: all 19 in one table is unreadable at
-    any page width, and the point here is the *row shape*, that one block
-    contributes one row per scale, repeating its stimulation values.
+
+def _example_table(path: Path, max_rows: int = 4) -> str:
+    """The first configurations of the worked example, as the ``beh/`` file holds them.
+
+    The fixture is in the app's long working form, so its rows are folded into
+    one row per configuration here. Only a few columns are shown: the point is
+    the *row shape*, one row per configuration with one column per scale.
     """
-    show = [
-        "acq_time",
-        "block_id",
-        "is_initial",
-        "scale_name",
-        "scale_value",
-        "left_amplitude",
-        "left_cathode",
-    ]
     with path.open(encoding="utf-8", newline="") as fh:
-        rows = list(csv.DictReader(fh, delimiter="\t"))[:max_rows]
+        long = list(csv.DictReader(fh, delimiter="\t"))
+    blocks: dict[str, dict[str, str]] = {}
+    scales: list[str] = []
+    for r in long:
+        if r["is_initial"].strip() in ("1", "1.0"):
+            continue
+        row = blocks.setdefault(
+            r["block_id"],
+            {c: r[c] for c in ("acq_time", "left_amplitude", "left_cathode")},
+        )
+        col = _slug(r["scale_name"])
+        if col not in scales:
+            scales.append(col)
+        row[col] = r["scale_value"]
+    rows = list(blocks.values())[:max_rows]
+    show = ["acq_time", "left_amplitude", "left_cathode", *scales[:2]]
 
     widths = [max(len(c), *(len(r.get(c, "")) for r in rows)) for c in show]
 
@@ -128,13 +141,25 @@ def _write(app, *_args) -> None:
         _rst_table(contract["session_tsv"]["columns"], "Programming session columns"),
         encoding="utf-8",
     )
+    (_OUT / "sessions_columns.inc.rst").write_text(
+        _rst_table(contract["sessions_tsv"]["columns"], "Visit columns (sessions.tsv)"),
+        encoding="utf-8",
+    )
+    (_OUT / "participants_columns.inc.rst").write_text(
+        _rst_table(contract["participants_tsv"]["columns"], "Participant columns"),
+        encoding="utf-8",
+    )
+    (_OUT / "scale_columns.inc.rst").write_text(
+        contract["session_tsv"]["scale_columns"]["description"] + "\n",
+        encoding="utf-8",
+    )
     (_OUT / "annotation_columns.inc.rst").write_text(
-        _rst_table(contract["annotation_tsv"]["columns"], "Annotations columns"),
+        _rst_table(contract["annotation_tsv"]["columns"], "Notes file columns"),
         encoding="utf-8",
     )
 
     (_OUT / "sidecar_example.inc.rst").write_text(
-        _sidecar_excerpt(contract, ("block_id", "left_stim_freq")),
+        _sidecar_excerpt(contract, ("is_final", "left_stim_freq")),
         encoding="utf-8",
     )
 
