@@ -10,11 +10,15 @@ class StepControls extends StatelessWidget {
     super.key,
     this.onBack,
     this.onNext,
+    this.onClose,
     required this.label,
   });
 
   final VoidCallback? onBack;
   final VoidCallback? onNext;
+
+  /// Shown in place of Next on the last step.
+  final VoidCallback? onClose;
   final String label;
 
   @override
@@ -55,11 +59,22 @@ class StepControls extends StatelessWidget {
                   ],
                 ),
               ),
-              FilledButton(
-                onPressed: onNext,
-                style: FilledButton.styleFrom(minimumSize: size),
-                child: const Text('Next'),
-              ),
+              if (onClose case final close?)
+                FilledButton.icon(
+                  onPressed: close,
+                  icon: const Icon(Icons.power_settings_new),
+                  label: const Text('Close'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(180, 56),
+                    textStyle: Theme.of(context).textTheme.titleMedium,
+                  ),
+                )
+              else
+                FilledButton(
+                  onPressed: onNext,
+                  style: FilledButton.styleFrom(minimumSize: size),
+                  child: const Text('Next'),
+                ),
             ],
           ),
         ),
@@ -113,55 +128,96 @@ class BidsEntries {
   }
 }
 
-/// The [BidsEntries] fields, and how they make the file name.
+/// The patient and visit, with the rest of the BIDS file name folded away.
 class BidsNameFields extends StatelessWidget {
-  const BidsNameFields({
-    super.key,
-    required this.entries,
-    required this.decoration,
-  });
+  const BidsNameFields({super.key, required this.entries, this.subjectError});
 
   final BidsEntries entries;
-  final InputDecoration decoration;
+
+  /// Shown on the Patient ID field, such as when Next finds it empty.
+  final String? subjectError;
 
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      TextField(
-        controller: entries.subject,
-        decoration: decoration.copyWith(labelText: 'Patient ID'),
-      ),
-      const SizedBox(height: 12),
       Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final (i, (ctrl, label, flex)) in [
-            (entries.session, 'Session', 3),
-            (entries.task, 'Task', 3),
-            (entries.acquisition, 'Acquisition', 3),
-            (entries.run, 'Run', 2),
-          ].indexed) ...[
-            if (i > 0) const SizedBox(width: 12),
-            Expanded(
-              flex: flex,
-              child: TextField(
-                controller: ctrl,
-                keyboardType: ctrl == entries.run ? TextInputType.number : null,
-                decoration: decoration.copyWith(
-                  labelText: label,
-                  hintText: ctrl == entries.acquisition ? 'Optional' : null,
-                ),
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: entries.subject,
+              decoration: InputDecoration(
+                labelText: 'Patient ID',
+                helperText: 'Required',
+                errorText: subjectError,
               ),
             ),
-          ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: TextField(
+              controller: entries.session,
+              decoration: const InputDecoration(
+                labelText: 'Visit',
+                helperText: 'The date, or a label such as 3mo',
+                helperMaxLines: 2,
+              ),
+            ),
+          ),
         ],
       ),
-      const SizedBox(height: 8),
-      Text(
-        'The entry names follow the BIDS naming convention: '
-        'sub-<Patient ID>_ses-<Session>_task-<Task>_acq-<Acquisition>'
-        '_run-<Run>. Acquisition is added only when filled in.',
-        style: Theme.of(context).textTheme.bodySmall,
+      ExpansionTile(
+        title: const Text('Research file naming'),
+        maintainState: true,
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(bottom: 8),
+        shape: const Border(),
+        collapsedShape: const Border(),
+        children: [
+          Row(
+            children: [
+              for (final (i, (ctrl, label, flex)) in [
+                (entries.task, 'Task', 3),
+                (entries.acquisition, 'Acquisition', 3),
+                (entries.run, 'Run', 2),
+              ].indexed) ...[
+                if (i > 0) const SizedBox(width: 12),
+                Expanded(
+                  flex: flex,
+                  child: TextField(
+                    controller: ctrl,
+                    keyboardType: ctrl == entries.run
+                        ? TextInputType.number
+                        : null,
+                    decoration: InputDecoration(
+                      labelText: label,
+                      hintText: ctrl == entries.acquisition ? 'Optional' : null,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          ListenableBuilder(
+            listenable: Listenable.merge([
+              entries.subject,
+              entries.session,
+              entries.task,
+              entries.acquisition,
+              entries.run,
+            ]),
+            builder: (context, _) => Text(
+              'File name: ${entries.name.filename}. The parts follow the '
+              'BIDS naming convention; Acquisition is added only when filled '
+              'in.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
       ),
     ],
   );

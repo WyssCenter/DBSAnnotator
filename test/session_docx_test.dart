@@ -145,7 +145,7 @@ void main() {
     );
     expect(bytes.sublist(0, 4), [0x50, 0x4B, 0x03, 0x04]);
     final doc = _part(bytes, 'word/document.xml');
-    expect(doc, contains('No recording blocks in this session.'));
+    expect(doc, contains('No configurations tested in this session.'));
   });
 
   group('embedded graphics (OOXML drawing parts)', () {

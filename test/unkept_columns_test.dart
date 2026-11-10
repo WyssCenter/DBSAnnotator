@@ -352,7 +352,7 @@ void main() {
   });
 }
 
-const _summary = '1 rows, next block 1, append 2';
+const _summary = '0 configurations tested so far';
 
 /// Saves user prefs naming a new empty folder as the only BIDS folder.
 Directory _useFolder() {

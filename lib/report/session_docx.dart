@@ -107,9 +107,9 @@ String? _ratedNote(SessionReportData data) {
   if (counts.length < 2) return null;
   final lo = counts.reduce((a, b) => a < b ? a : b);
   final hi = counts.reduce((a, b) => a > b ? a : b);
-  return 'Scales rated per block: $lo-$hi. The index averages only the scales '
-      'rated at each block, so blocks with different rated sets are not '
-      'directly comparable.';
+  return 'Ratings per configuration: $lo-$hi. The index averages only the '
+      'scales rated at each configuration, so configurations with different '
+      'rated sets are not directly comparable.';
 }
 
 /// Legend + scale targets + disclaimer under the session-data table, mirroring
@@ -260,7 +260,7 @@ Uint8List buildSessionDocx({
       body.write(docxPara(data.figureCaption, size: 16));
     }
     if (wantsTable && !data.hasRecording) {
-      body.write(docxPara('No recording blocks in this session.'));
+      body.write(docxPara('No configurations tested in this session.'));
     } else if (wantsTable) {
       // Green shading for the best / second-best blocks, and a 3 pt rule on
       // the first row of each block (tableData holds L then R per block).

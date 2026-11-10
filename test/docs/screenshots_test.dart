@@ -117,9 +117,9 @@ const _frequency = '125';
 const _amplitude = '5.5';
 const _pulseWidth = '90';
 const _initialNotes =
-    'Baseline on admission settings. Medication unchanged since last visit.';
+    'Settings on arrival. Medication unchanged since the last visit.';
 const _recordingNotes =
-    'Noticeably less checking behaviour; patient reports a lighter mood.';
+    'Tremor much reduced at rest; mild tingling in the right hand, fading.';
 
 /// Ratings as a fraction of each scale's range, cycled across the rows.
 const _ratings = <double>[0.62, 0.35, 0.48, 0.7, 0.25];
@@ -559,6 +559,7 @@ Future<void> _selectProgram(WidgetTester tester, {String program = 'B'}) async {
 /// Step 0: a patient and a run, so the BIDS filename the app composes is real.
 Future<void> _seedFileStep(WidgetTester tester) async {
   await _type(tester, 'Patient ID', _subjectId);
+  await _tapText(tester, 'Research file naming');
   await _type(tester, 'Run', _runId);
 }
 
@@ -823,8 +824,8 @@ void main() {
     await _shootRegion(
       tester,
       'session_electrodes_invalid',
-      from: find.text('Electrodes'),
-      to: find.text('Cathodic (-)'),
+      from: find.text('Contacts'),
+      to: find.text('Cathode (-)'),
     );
 
     // Completing the circuit with the case turns the pane green.
@@ -837,8 +838,8 @@ void main() {
     await _shootRegion(
       tester,
       'session_electrodes',
-      from: find.text('Electrodes'),
-      to: find.text('Cathodic (-)'),
+      from: find.text('Contacts'),
+      to: find.text('Cathode (-)'),
     );
   });
 
@@ -866,14 +867,14 @@ void main() {
     await _shootRegion(
       tester,
       'session_step3_recording',
-      from: find.text('Program'),
-      to: find.text('Save configuration'),
+      from: find.text('Active program (group)'),
+      to: find.textContaining('Configurations tested'),
     );
     await _tapText(tester, 'Comparison charts');
     await _shootRegion(
       tester,
       'session_step3_charts',
-      from: find.textContaining('Inserted entries'),
+      from: find.textContaining('Configurations tested'),
       to: find.byType(EntryChartsView),
     );
   });
@@ -898,8 +899,8 @@ void main() {
     await _shootRegion(
       tester,
       'session_step3_recording_dark',
-      from: find.text('Program'),
-      to: find.text('Save configuration'),
+      from: find.text('Active program (group)'),
+      to: find.textContaining('Configurations tested'),
     );
   });
 

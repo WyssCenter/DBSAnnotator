@@ -17,16 +17,16 @@ import '../core/session/scale_scoring.dart';
 
 /// Human label per mode, matching the desktop's radio labels.
 const Map<ScaleMode, String> _modeLabels = {
-  ScaleMode.min: 'Min (lower is better)',
-  ScaleMode.max: 'Max (higher is better)',
+  ScaleMode.min: 'Lower is better',
+  ScaleMode.max: 'Higher is better',
   ScaleMode.custom: 'Custom target',
   ScaleMode.ignore: 'Ignore',
 };
 
 /// Short label for the compact dropdown.
 const Map<ScaleMode, String> _modeShort = {
-  ScaleMode.min: 'Min',
-  ScaleMode.max: 'Max',
+  ScaleMode.min: 'Lower is better',
+  ScaleMode.max: 'Higher is better',
   ScaleMode.custom: 'Custom',
   ScaleMode.ignore: 'Ignore',
 };
@@ -115,28 +115,29 @@ class _ScaleTargetsDialogState extends State<_ScaleTargetsDialog> {
       content: SizedBox(
         width: 520,
         child: _rows.isEmpty
-            ? const Text('No session scales have been rated yet.')
+            ? const Text('No symptom and side effect ratings yet.')
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'How each scale should be scored when ranking the '
-                    'configurations. The best and second-best blocks are '
-                    'highlighted in green on the charts and in the report.',
+                    'How each rating is scored when ranking the '
+                    'configurations. The two configurations with the most '
+                    'favourable scores are shaded. This is a score ranking '
+                    'only; it ignores side effects and notes.',
                     style: theme.textTheme.bodySmall,
                   ),
                   const SizedBox(height: 8),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text('Set all:', style: theme.textTheme.labelMedium),
                       for (final m in [ScaleMode.min, ScaleMode.max])
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8),
-                          child: OutlinedButton(
-                            onPressed: () => _setAll(m),
-                            child: Text(_modeShort[m]!),
-                          ),
+                        OutlinedButton(
+                          onPressed: () => _setAll(m),
+                          child: Text(_modeShort[m]!),
                         ),
                     ],
                   ),
@@ -180,14 +181,11 @@ class _ScaleTargetsDialogState extends State<_ScaleTargetsDialog> {
             _numField(row.min, 'Min'),
             _numField(row.max, 'Max'),
             SizedBox(
-              width: _scaled(160),
+              width: _scaled(210),
               child: DropdownButtonFormField<ScaleMode>(
                 initialValue: row.mode,
                 isDense: true,
-                decoration: const InputDecoration(
-                  labelText: 'Target',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Target'),
                 items: [
                   for (final m in ScaleMode.values)
                     DropdownMenuItem(
@@ -220,11 +218,7 @@ class _ScaleTargetsDialogState extends State<_ScaleTargetsDialog> {
         signed: true,
       ),
       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[-0-9.]'))],
-      decoration: InputDecoration(
-        labelText: label,
-        isDense: true,
-        border: const OutlineInputBorder(),
-      ),
+      decoration: InputDecoration(labelText: label, isDense: true),
     ),
   );
 }

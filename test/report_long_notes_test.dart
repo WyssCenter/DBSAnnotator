@@ -199,7 +199,7 @@ void main() {
     expect(rows.single.last, endsWith('(full note below)'));
     expect(
       _texts(long.section(ReportTextSanitiser())),
-      contains('Block 2, 2026-07-30 00:30:00'),
+      contains('Configuration 2, 2026-07-30 00:30:00'),
     );
   });
 }

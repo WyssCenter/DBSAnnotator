@@ -181,7 +181,9 @@ void main() {
       // Visits sits between the two figures' headings.
       final clinical = doc.indexOf('Clinical scales by visit');
       final visits = doc.indexOf('Visits</w:t>');
-      final session = doc.indexOf('Session scales by visit and block');
+      final session = doc.indexOf(
+        'Symptom and side effect ratings by visit and configuration',
+      );
       expect(clinical < visits && visits < session, isTrue);
     });
 

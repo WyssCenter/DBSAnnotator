@@ -40,7 +40,7 @@ void main() {
     test('produces exactly the four panels, in the default order', () {
       expect(data.panels.map((p) => p.id), kEntryPanelIds);
       expect(data.panels.map((p) => p.title), [
-        'Session scales',
+        'Symptom and side effect ratings',
         'Amplitude (mA)',
         'Pulse width (µs)',
         'Frequency (Hz)',

@@ -111,9 +111,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byTooltip('Close lead design'), findsOneWidget);
     await tester.enterText(find.widgetWithText(TextField, 'Lead model'), 'A');
+    await tester.ensureVisible(find.byTooltip('More levels'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('More levels'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.widgetWithText(FilterChip, 'E4'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilterChip, 'E4'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byTooltip('Close lead design'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Close lead design'));
     await tester.pumpAndSettle();
@@ -181,15 +187,19 @@ void main() {
       );
     });
 
-    expect(find.text('Session scales settings'), findsOneWidget);
+    expect(find.text('Symptom and side effect ratings'), findsOneWidget);
+    // Tremor is discrete; Mood is switched from continuous to discrete.
+    await tester.tap(find.text('Discrete').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Save & Close'));
     await tester.pumpAndSettle();
 
-    // The hidden optimization mode and rating step are carried through.
+    // The hidden optimization mode is carried through; the step follows the
+    // discrete or continuous choice.
     expect(result, {
       'PD': [
         ['Tremor', '0', '10', 'max', '1'],
-        ['Mood', '0', '10', 'min'],
+        ['Mood', '0', '10', 'min', '1'],
       ],
     });
   });
@@ -212,7 +222,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Not saved: A preset group has no name.'), findsOneWidget);
-    expect(find.text('Session scales settings'), findsOneWidget);
+    expect(find.text('Symptom and side effect ratings'), findsOneWidget);
     expect(result, isNull);
   });
 

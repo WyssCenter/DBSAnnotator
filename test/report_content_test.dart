@@ -108,8 +108,11 @@ void main() {
       () {
         // A "5.0 - 7.0 mA" range hides that the right side went 5.0 -> 6.0 ->
         // 7.0 -> 5.0 -> 7.0 -> 6.0, implying a titration that never happened.
-        expect(data.ampL, '5.0 mA (blocks 1-5), 4.0 mA (blocks 6-7)');
-        expect(data.ampR, contains('5.0 mA (blocks 2, 6-7)'));
+        expect(
+          data.ampL,
+          '5.0 mA (configurations 1-5), 4.0 mA (configurations 6-7)',
+        );
+        expect(data.ampR, contains('5.0 mA (configurations 2, 6-7)'));
       },
     );
 

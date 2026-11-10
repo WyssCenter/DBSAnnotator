@@ -31,26 +31,18 @@ class ScaleSlider extends StatelessWidget {
 
   void _bump(double delta) => onChanged(_snap(value + delta));
 
-  Widget _chevron(IconData icon, String tip, VoidCallback onTap) => Tooltip(
-    message: tip,
-    child: InkResponse(
-      onTap: onTap,
-      radius: 18,
-      child: SizedBox(width: 26, height: 24, child: Icon(icon, size: 18)),
-    ),
+  Widget _chevron(IconData icon, String tip, VoidCallback onTap) => IconButton(
+    icon: Icon(icon),
+    tooltip: tip,
+    constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+    onPressed: onTap,
   );
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
-        if (!_discrete)
-          _chevron(
-            Icons.keyboard_double_arrow_left,
-            '-${step * 2}',
-            () => _bump(-step * 2),
-          ),
         _chevron(Icons.keyboard_arrow_left, '-$step', () => _bump(-step)),
         Expanded(
           child: LayoutBuilder(
@@ -76,8 +68,7 @@ class ScaleSlider extends StatelessWidget {
                           ? ''
                           : value.toStringAsFixed(_discrete ? 0 : 2),
                       omitted: omitted,
-                      dark: dark,
-                      fill: Theme.of(context).colorScheme.primaryContainer,
+                      scheme: scheme,
                       segments: _discrete ? ((max - min) / step).round() : 0,
                     ),
                   ),
@@ -87,12 +78,6 @@ class ScaleSlider extends StatelessWidget {
           ),
         ),
         _chevron(Icons.keyboard_arrow_right, '+$step', () => _bump(step)),
-        if (!_discrete)
-          _chevron(
-            Icons.keyboard_double_arrow_right,
-            '+${step * 2}',
-            () => _bump(step * 2),
-          ),
         Tooltip(
           message: omitted ? 'Include (assessed)' : 'Omit (not assessed)',
           child: IconButton(
@@ -111,16 +96,14 @@ class _BarPainter extends CustomPainter {
     required this.fraction,
     required this.label,
     required this.omitted,
-    required this.dark,
-    required this.fill,
+    required this.scheme,
     required this.segments,
   });
 
   final double fraction;
   final String label;
   final bool omitted;
-  final bool dark;
-  final Color fill;
+  final ColorScheme scheme;
   final int segments;
 
   @override
@@ -130,13 +113,12 @@ class _BarPainter extends CustomPainter {
       const Radius.circular(8),
     );
 
-    // Track (flat gray when omitted, else the theme surface).
     canvas.drawRRect(
       rrect,
       Paint()
         ..color = omitted
-            ? const Color(0xFFF5F5F5)
-            : (dark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+            ? scheme.surfaceContainerLow
+            : scheme.surfaceContainerHighest,
     );
 
     if (!omitted && fraction > 0) {
@@ -144,38 +126,34 @@ class _BarPainter extends CustomPainter {
       canvas.clipRRect(rrect);
       canvas.drawRect(
         Rect.fromLTWH(0, 0, size.width * fraction, size.height),
-        Paint()..color = fill,
+        Paint()..color = scheme.primaryContainer,
       );
       canvas.restore();
     }
 
     final tick = Paint()
       ..strokeWidth = 1
-      ..color = dark ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
+      ..color = scheme.outlineVariant;
     for (var i = 1; i < segments; i++) {
       final x = size.width * i / segments;
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), tick);
     }
 
-    // Border.
     canvas.drawRRect(
       rrect,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2
-        ..color = omitted
-            ? const Color(0xFFCCCCCC)
-            : (dark ? const Color(0xFF475569) : const Color(0xFFCBD5E1)),
+        ..color = scheme.outlineVariant,
     );
 
-    // Value text centred on the bar.
     if (label.isNotEmpty) {
       final tp = TextPainter(
         text: TextSpan(
           text: label,
           style: TextStyle(
             fontFamily: debugPainterFontFamily,
-            color: dark ? Colors.white : const Color(0xFF0F172A),
+            color: scheme.onPrimaryContainer,
             fontWeight: FontWeight.bold,
             fontSize: 12,
           ),
@@ -194,7 +172,6 @@ class _BarPainter extends CustomPainter {
       o.fraction != fraction ||
       o.label != label ||
       o.omitted != omitted ||
-      o.dark != dark ||
-      o.fill != fill ||
+      o.scheme != scheme ||
       o.segments != segments;
 }

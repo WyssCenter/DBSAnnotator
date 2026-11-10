@@ -106,6 +106,13 @@ class SessionAuthoring {
     }
   }
 
+  /// Write [cells] into every row, such as a corrected lead or indication.
+  void setOnEveryRow(Map<String, String> cells) {
+    for (var i = 0; i < rows.length; i++) {
+      rows[i] = SessionRow.fromMap({...rows[i].toMap(), ...cells});
+    }
+  }
+
   /// The long-form document of the app's working copy.
   String serialize() => serializeSessionTsv(rows);
 }

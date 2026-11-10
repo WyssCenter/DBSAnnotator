@@ -204,7 +204,7 @@ const String kDefaultReportPageSize = 'a4';
 const List<String> kReportPageSizes = ['a4', 'letter'];
 
 /// Default program names (desktop `ProgramConfigManager.DEFAULT_PROGRAMS`).
-const List<String> kDefaultPrograms = ['None', 'A', 'B', 'C', 'D'];
+const List<String> kDefaultPrograms = ['Not specified', 'A', 'B', 'C', 'D'];
 
 /// Bundled [base] scale presets with the user's saved overrides layered on
 /// top: an edited or added disease group wins over the contract default, and a

@@ -85,7 +85,7 @@ void main() {
       // appears in the page-one header ("Visits: 2"), so it would pass with
       // the section switched off.
       for (final (section, heading) in const [
-        (LongitudinalSection.visits, 'Programme at visit end'),
+        (LongitudinalSection.visits, 'Program at visit end'),
         (LongitudinalSection.sessionTable, 'Session data'),
         (LongitudinalSection.summary, 'Programming summary'),
         (LongitudinalSection.sources, 'Source files'),

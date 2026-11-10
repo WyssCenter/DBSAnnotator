@@ -262,7 +262,10 @@ void main() {
     final doc = _part(bytes, 'word/document.xml');
     expect(doc, contains('Longitudinal report'));
     expect(doc, contains('Clinical scales by visit'));
-    expect(doc, contains('Session scales by visit and block'));
+    expect(
+      doc,
+      contains('Symptom and side effect ratings by visit and configuration'),
+    );
     expect(doc, contains('UPDRS-III: 28'));
     // Provenance is an appendix, not the content.
     expect(doc, contains('Source files'));

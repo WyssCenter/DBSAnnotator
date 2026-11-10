@@ -44,7 +44,6 @@ class DbsColors {
   //
   // Deliberately NOT brand colours: both are label text, and the brand has no
   // accessible green or red for text. Brand green would be 1.64:1 here.
-  static const valid = Color(0xFF1B7F3B);
   static const invalid = Color(0xFFCC0000);
 }
 
@@ -151,12 +150,22 @@ class TextSizeButtons extends StatelessWidget {
 
 /// App theme: Material's tonal scheme seeded with the brand green.
 ThemeData dbsTheme(Brightness brightness) {
+  const fields = InputDecorationTheme(
+    border: OutlineInputBorder(),
+    isDense: true,
+    floatingLabelBehavior: FloatingLabelBehavior.always,
+  );
   return ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(
       seedColor: DbsColors.green,
       brightness: brightness,
     ),
+    inputDecorationTheme: fields,
+    dropdownMenuTheme: const DropdownMenuThemeData(
+      inputDecorationTheme: fields,
+    ),
+    snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
     dialogTheme: const DialogThemeData(
       constraints: BoxConstraints(minWidth: 280, maxWidth: 600),
     ),
@@ -191,8 +200,7 @@ class TitledSection extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: Theme.of(context).textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
               ?action,

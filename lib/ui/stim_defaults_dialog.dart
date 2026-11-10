@@ -117,7 +117,6 @@ class _StimDefaultsDialogState extends State<_StimDefaultsDialog> {
                             labelText: _columns[i].$1,
                             suffixText: _columns[i].$2,
                             isDense: true,
-                            border: const OutlineInputBorder(),
                           ),
                         ),
                       ),

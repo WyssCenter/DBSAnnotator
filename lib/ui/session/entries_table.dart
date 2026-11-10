@@ -9,6 +9,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../core/brand_palette.dart' show kBestFill, kSecondFill;
+import '../../core/schema_columns.dart' show isInitialValue;
 import '../../core/timestamps.dart';
 import '../../core/session/session_row.dart';
 import '../../report/report_data.dart'
@@ -19,8 +20,11 @@ const double _blockRule = 2.4;
 
 /// Distinct blocks in [rows], which is what the user counts: one block writes
 /// one row per scale, so a TSV row count reads several times too high.
-int blockCount(List<SessionRow> rows) =>
-    rows.map((r) => coerceInt(r.blockId)).toSet().length;
+/// The configurations tested, the initial assessment not counted.
+int testedCount(List<SessionRow> rows) => {
+  for (final r in rows)
+    if (!isInitialValue(r.isInitial)) r.blockId,
+}.length;
 
 class SessionEntriesTable extends StatelessWidget {
   const SessionEntriesTable({
@@ -41,7 +45,7 @@ class SessionEntriesTable extends StatelessWidget {
   final ValueChanged<String>? onToggleStar;
 
   static const _headers = [
-    'Blk',
+    '#',
     'Type',
     'Time',
     'Prog',
@@ -60,7 +64,7 @@ class SessionEntriesTable extends StatelessWidget {
     if (rows.isEmpty) {
       return const Padding(
         padding: EdgeInsets.all(16),
-        child: Center(child: Text('No entries inserted yet.')),
+        child: Center(child: Text('No configurations saved yet.')),
       );
     }
     final theme = Theme.of(context);
@@ -152,7 +156,7 @@ class SessionEntriesTable extends StatelessWidget {
                     starred: starred.contains(r.blockId),
                   )
                 : _cell(''),
-            _cell(isNewBlock ? (isInitial ? 'Initial' : 'Rec') : ''),
+            _cell(isNewBlock ? (isInitial ? 'Initial' : 'Test') : ''),
             _cell(isNewBlock ? stamp(r, isInitial, blockIndex == 0) : ''),
             _cell(isNewBlock ? r.programId : ''),
             _cell(r.scaleName),

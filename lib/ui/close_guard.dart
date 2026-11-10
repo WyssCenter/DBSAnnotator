@@ -130,17 +130,17 @@ Future<bool?> askLeaveUnsaved(
   context: context,
   builder: (context) => AlertDialog(
     title: Text(
-      stillSaving ? 'Entries not saved yet' : 'Entries could not be saved',
+      stillSaving ? 'Changes not saved yet' : 'Changes could not be saved',
     ),
     scrollable: true,
     content: SizedBox(
       width: 480,
       child: Text(
         stillSaving
-            ? 'A save is still running, so the entries may not be on disk '
+            ? 'A save is still running, so the changes may not be on disk '
                   'yet. They may be lost if you leave, unless you exported or '
                   'shared them.'
-            : 'The entries in this session could not be saved to disk and '
+            : 'The changes in this session could not be saved to disk and '
                   'will be lost if you leave, unless you exported or shared '
                   'them.',
       ),
@@ -169,14 +169,14 @@ Future<bool?> askKeepRecoveryCopy(
   bool stillSaving = false,
 }) {
   final failed = entriesUnsaved
-      ? ' The last save failed. This copy is missing the latest entries, '
+      ? ' The last save failed. This copy is missing the latest changes, '
             'which will be lost if you leave.'
       : stillSaving
-      ? ' A save is still running, so the latest entries may not be on disk '
+      ? ' A save is still running, so the latest changes may not be on disk '
             'yet.'
       : copyMayBeStale
       ? ' The last save failed, so this copy may be missing the latest '
-            'entries.'
+            'changes.'
       : '';
   return showDialog<bool>(
     context: context,

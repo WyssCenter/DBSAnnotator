@@ -1,5 +1,3 @@
-import 'dart:math' show min;
-
 import 'package:flutter/gestures.dart' show TapGestureRecognizer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -162,37 +160,44 @@ class _LinkLineState extends State<_LinkLine> {
 /// Help/About dialog. The links open in the browser or mail client, and remain
 /// selectable so they can be copied on a machine with no handler.
 void showAppAbout(BuildContext context) {
-  showAboutDialog(
+  final screen = MediaQuery.sizeOf(context);
+  showDialog<void>(
     context: context,
-    applicationName: appName,
-    applicationVersion: 'v$appVersion',
-    applicationIcon: const AppLogo(size: 48),
-    children: [
-      SizedBox(
-        width: min(760, MediaQuery.sizeOf(context).width - 160),
-        height: 8,
+    builder: (context) => Theme(
+      data: Theme.of(context).copyWith(
+        dialogTheme: const DialogThemeData(constraints: BoxConstraints()),
       ),
-      const Text(kNotice, style: TextStyle(fontWeight: FontWeight.w600)),
-      const SizedBox(height: 12),
-      const Text(
-        'Annotate DBS programming visits, the appointments at which '
-        'stimulation configurations are tested and optimised. A programming '
-        'session runs in five steps: session, indication and devices, initial '
-        'assessment, programming and finish. Each visit is saved in a BIDS '
-        'folder with a JSON sidecar documenting every column, and PDF and '
-        'Word reports can be exported.',
-      ),
-      const SizedBox(height: 12),
-      const Text('Links:', style: TextStyle(fontWeight: FontWeight.w600)),
-      _LinkLine(label: 'User guide', text: docsUrl, uri: docsUri),
-      _LinkLine(label: 'Repository', text: repoUrl, uri: repoUri),
-      _LinkLine(label: 'Issues', text: issuesUrl, uri: issuesUri),
-      _LinkLine(label: 'Contact', text: contactEmail, uri: contactUri),
-      const SizedBox(height: 12),
-      const Text('© 2026 $copyrightHolders'),
-      const Text('MIT License. Publisher: $publisher.'),
-      const SizedBox(height: 12),
-      const WyssLockup(),
-    ],
+      child: _about(screen),
+    ),
   );
 }
+
+Widget _about(Size screen) => AboutDialog(
+  applicationName: appName,
+  applicationVersion: 'v$appVersion',
+  applicationIcon: const AppLogo(size: 48),
+  children: [
+    SizedBox(width: screen.width - 160, height: 8),
+    const Text(kNotice, style: TextStyle(fontWeight: FontWeight.w600)),
+    const SizedBox(height: 12),
+    const Text(
+      'Annotate DBS programming visits, the appointments at which '
+      'stimulation configurations are tested and optimised. A programming '
+      'session runs in five steps: session, indication and devices, initial '
+      'assessment, programming and finish. Each visit is saved in a BIDS '
+      'folder with a JSON sidecar documenting every column, and PDF and '
+      'Word reports can be exported.',
+    ),
+    const SizedBox(height: 12),
+    const Text('Links:', style: TextStyle(fontWeight: FontWeight.w600)),
+    _LinkLine(label: 'User guide', text: docsUrl, uri: docsUri),
+    _LinkLine(label: 'Repository', text: repoUrl, uri: repoUri),
+    _LinkLine(label: 'Issues', text: issuesUrl, uri: issuesUri),
+    _LinkLine(label: 'Contact', text: contactEmail, uri: contactUri),
+    const SizedBox(height: 12),
+    const Text('© 2026 $copyrightHolders'),
+    const Text('MIT License. Publisher: $publisher.'),
+    const SizedBox(height: 12),
+    const WyssLockup(),
+  ],
+);

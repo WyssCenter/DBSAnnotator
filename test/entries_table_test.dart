@@ -50,11 +50,13 @@ Future<void> _pump(WidgetTester tester, List<SessionRow> rows) =>
     );
 
 void main() {
-  test('blockCount counts blocks, not TSV rows', () {
-    // The label says "blocks" because one block writes one row per scale, so a
-    // row count reads several times too high.
-    expect(blockCount(_rows), 2);
-    expect(blockCount(const []), 0);
+  test('testedCount counts configurations, not rows or the initial one', () {
+    expect(testedCount(_rows), 2);
+    expect(
+      testedCount([..._rows, const SessionRow(blockId: '0', isInitial: '1')]),
+      2,
+    );
+    expect(testedCount(const []), 0);
   });
 
   testWidgets('block-level columns are printed once per block', (tester) async {
@@ -131,6 +133,6 @@ void main() {
     tester,
   ) async {
     await _pump(tester, const []);
-    expect(find.text('No entries inserted yet.'), findsOneWidget);
+    expect(find.text('No configurations saved yet.'), findsOneWidget);
   });
 }

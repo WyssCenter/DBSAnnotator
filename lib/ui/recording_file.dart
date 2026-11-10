@@ -467,8 +467,8 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
       context,
       title: words.recoveryTitle,
       message:
-          '$name was left open with ${recoveredCount(restored)} recorded. '
-          'They were saved as you went, and can be reopened here.',
+          '$name was left open, ${recoveredCount(restored)}. It was saved '
+          'as you went, and can be reopened here.',
     );
     if (!mounted || keep == null) return;
     if (!keep) {

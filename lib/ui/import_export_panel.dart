@@ -703,8 +703,19 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
         ),
         if (_files.isNotEmpty) ...[const SizedBox(height: 8), _fileList(theme)],
         const SizedBox(height: 12),
-        _actions(theme),
-        if (_files.isNotEmpty) ...[const Divider(height: 24), _preview(theme)],
+        if (_files.isEmpty)
+          Text(
+            'Reports, the combined table and the BIDS export appear once a '
+            'session is imported.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          )
+        else ...[
+          _actions(theme),
+          const Divider(height: 24),
+          _preview(theme),
+        ],
       ],
     );
   }
@@ -782,7 +793,7 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
             title: Text(f.name, style: theme.textTheme.bodyMedium),
             subtitle: Text(
               f.kind == TsvKind.programming
-                  ? '${blockCount(f.rows)} blocks'
+                  ? '${testedCount(f.rows)} configurations'
                   : '${f.notes.length} notes',
             ),
             trailing: IconButton(
@@ -858,7 +869,6 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
   static const _shown = ReportAction.values;
 
   Widget _preview(ThemeData theme) {
-    if (_files.isEmpty) return const SizedBox.shrink();
     if (_sessions.length == 1) {
       final rows = _sessions.single.rows;
       return Column(
@@ -868,7 +878,7 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
             children: [
               Expanded(
                 child: Text(
-                  '${blockCount(rows)} blocks, '
+                  '${testedCount(rows)} configurations, '
                   '${electrodeModelIn(rows).isEmpty ? 'no model named' : electrodeModelIn(rows)}',
                   style: theme.textTheme.titleSmall,
                 ),

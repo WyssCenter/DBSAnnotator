@@ -125,7 +125,7 @@ class LongNotes {
         .join(' ');
     return [
       if (prefix.isNotEmpty) prefix,
-      if (row.first.isNotEmpty) 'Block ${row.first}',
+      if (row.first.isNotEmpty) 'Configuration ${row.first}',
       if (time.isNotEmpty) time,
     ].join(', ');
   }
@@ -193,9 +193,9 @@ String? _ratedNote(SessionReportData data) {
   if (counts.length < 2) return null;
   final lo = counts.reduce((a, b) => a < b ? a : b);
   final hi = counts.reduce((a, b) => a > b ? a : b);
-  return 'Scales rated per block: $lo-$hi. The index averages only the scales '
-      'rated at each block, so blocks with different rated sets are not '
-      'directly comparable.';
+  return 'Ratings per configuration: $lo-$hi. The index averages only the '
+      'scales rated at each configuration, so configurations with different '
+      'rated sets are not directly comparable.';
 }
 
 /// One lead's configuration in words, for the caption under its drawing.
@@ -631,7 +631,7 @@ Future<ReportBytes> buildSessionPdf({
               style: const pw.TextStyle(fontSize: 8, color: pdfInk),
             ),
           if (wantsTable && !data.hasRecording)
-            pw.Text('No recording blocks in this session.')
+            pw.Text('No configurations tested in this session.')
           else if (wantsTable) ...[
             pw.TableHelper.fromTextArray(
               headerStyle: const pw.TextStyle(

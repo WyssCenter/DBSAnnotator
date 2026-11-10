@@ -2,7 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:pdf/pdf.dart' show PdfPageFormat;
+import 'package:window_manager/window_manager.dart';
 
 import 'dart:io';
 
@@ -34,6 +36,7 @@ import '../report/session_pdf.dart';
 import '../app_info.dart';
 import 'amplitude_split.dart';
 import 'bids_export.dart';
+import 'bids_merge_ui.dart' show canWriteChosenFolder;
 import 'electrode_view.dart';
 import 'list_editor_dialog.dart';
 import 'report_images.dart';
@@ -199,14 +202,13 @@ const _programmingStep = 3;
 const _finishStep = 4;
 
 const RecordingWords _words = (
-  entry: 'entry',
+  entry: 'change',
   what: 'this visit',
   thing: 'the session',
   staysInApp: 'This visit stays in the app.',
   exportUnderOtherRun: 'Export it under a different run.',
   savedInApp: 'The visit is saved in the app.',
-  filedOnFirstEntry:
-      'The visit is filed there as soon as the first block is inserted.',
+  filedOnFirstEntry: 'The visit is filed there from the first save.',
   newDialogTitle: 'Create new session file',
   newFileSaid: 'New session',
   recoveryTitle: 'Unfinished session found',
@@ -248,6 +250,9 @@ class _SessionScreenState extends State<SessionScreen>
   final _removedSession = <_SessionScaleEdit>[];
 
   int _currentStep = 0;
+
+  /// Shown on the Patient ID field when a session is started without one.
+  String? _subjectError;
   String? _modelName;
 
   /// The right lead's model when it differs from the left one; null while
@@ -278,6 +283,11 @@ class _SessionScreenState extends State<SessionScreen>
   void initState() {
     super.initState();
     _contracts = _loadContracts();
+    _ids.subject.addListener(() {
+      if (_subjectError != null && _ids.subject.text.trim().isNotEmpty) {
+        setState(() => _subjectError = null);
+      }
+    });
     loadUserPrefs().then((p) {
       if (!mounted) return;
       setState(() {
@@ -579,6 +589,29 @@ class _SessionScreenState extends State<SessionScreen>
     rightIpg: (_sameIpg ? _leftIpgCtrl : _rightIpgCtrl).text.trim(),
   );
 
+  /// Write the indication, target, leads and IPGs into every saved row when
+  /// they were changed after the first entry, and save.
+  void _syncVisitDetails() {
+    if (_authoring.rows.isEmpty) return;
+    final d = _sessionDetails;
+    final cells = {
+      'dbs_indication': d.pathology,
+      'target': d.target,
+      'left_ipg_model': d.leftIpg,
+      'right_ipg_model': d.rightIpg,
+      'left_electrode_model': _modelName ?? '',
+      'right_electrode_model': _rightModelName ?? _modelName ?? '',
+    };
+    final changed = _authoring.rows.any((r) {
+      final m = r.toMap();
+      return cells.entries.any((e) => m[e.key] != e.value);
+    });
+    if (!changed) return;
+    _authoring.setOnEveryRow(cells);
+    _invalidateEntryCharts();
+    autosave();
+  }
+
   /// Fill pathology, target and IPG from an opened or recovered file.
   void _fillSessionDetails(List<SessionRow> rows) {
     _pathologyCtrl.text = sessionValueIn(rows, (r) => r.pathology);
@@ -612,6 +645,7 @@ class _SessionScreenState extends State<SessionScreen>
     if (step == _currentStep) return;
     if (step > 0 && !_started) {
       if (_ids.subject.text.trim().isEmpty) {
+        setState(() => _subjectError = 'Enter or choose the patient ID');
         _snack(
           'Enter or choose the patient ID, or open a saved session, so the '
           'data has somewhere to be saved.',
@@ -692,10 +726,7 @@ class _SessionScreenState extends State<SessionScreen>
       _starNext = false;
     });
     autosave();
-    _snack(
-      'Inserted recording block ${inserted.first.blockId} '
-      '(${inserted.length} row${inserted.length == 1 ? '' : 's'}).',
-    );
+    _snack('Configuration ${inserted.first.blockId} saved.');
   }
 
   void _toggleStar(String blockId) {
@@ -741,12 +772,11 @@ class _SessionScreenState extends State<SessionScreen>
 
   @override
   String recoveredCount(SessionAuthoring content) =>
-      '${blockCount(content.rows)} blocks';
+      _configurations(testedCount(content.rows));
 
   @override
   String openedSummary(SessionAuthoring content) =>
-      '${content.rows.length} rows, next block ${content.blockId}, '
-      'append ${content.appendId}';
+      '${_configurations(testedCount(content.rows))} so far';
 
   @override
   void show(SessionAuthoring content, {required bool reopened}) {
@@ -813,7 +843,7 @@ class _SessionScreenState extends State<SessionScreen>
         child: ListView(
           children: [
             heading('Saving'),
-            item(Icons.folder_outlined, 'BIDS folders', () async {
+            item(Icons.folder_outlined, 'Storage folders (BIDS)', () async {
               await showBidsFoldersDialog(context, _prefs);
               if (!mounted) return;
               final kept = _prefs.bidsFolders ?? const <BidsFolder>[];
@@ -822,7 +852,7 @@ class _SessionScreenState extends State<SessionScreen>
               });
               _loadPatients();
             }),
-            heading('Lists to choose from'),
+            heading('Picklists'),
             item(
               Icons.medical_information_outlined,
               'DBS indications',
@@ -871,7 +901,7 @@ class _SessionScreenState extends State<SessionScreen>
             ),
             item(
               Icons.star_rate_outlined,
-              'Session ratings',
+              'Symptom and side effect ratings',
               presets == null ? null : () => _editSessionPresets(presets),
             ),
             item(Icons.flag_outlined, 'Scale targets', _editScaleTargets),
@@ -941,11 +971,11 @@ class _SessionScreenState extends State<SessionScreen>
     _loadPathologyScales();
   }
 
-  /// Start a new visit saved into the chosen BIDS folder.
   /// Start a new visit in the chosen BIDS folder; true when it started.
   Future<bool> _newSession() async {
     final subject = _ids.subject.text.trim();
     if (subject.isEmpty) {
+      setState(() => _subjectError = 'Enter or choose the patient ID');
       _snack('Enter the patient ID first.');
       return false;
     }
@@ -964,7 +994,7 @@ class _SessionScreenState extends State<SessionScreen>
     };
     final hidden = RegExp(r'(^|/)\.');
     if (!taken.contains('dataset_description.json') &&
-        taken.any((p) => !hidden.hasMatch(p))) {
+        taken.any((p) => !hidden.hasMatch(p) && !p.startsWith('derivatives'))) {
       _snack(
         '$root has other content and is not a BIDS folder. Choose an empty '
         'folder or one this app saved into.',
@@ -1011,9 +1041,16 @@ class _SessionScreenState extends State<SessionScreen>
       },
     );
     if (started) {
+      try {
+        await Directory('$root/derivatives/sub-${name.subject}')
+            .create(recursive: true);
+      } on FileSystemException catch (e) {
+        _snack('Could not create the derivatives folder: ${e.message}');
+      }
+      if (!mounted) return started;
       _snack(
         'New session in ${folder.name}. It is saved there from the first '
-        'entry.',
+        'save.',
       );
     }
     return started;
@@ -1097,7 +1134,7 @@ class _SessionScreenState extends State<SessionScreen>
   /// patients actually need.
   Future<void> _exportBids() async {
     if (_authoring.rows.isEmpty) {
-      _snack('Insert at least one block before exporting.');
+      _snack('Save the initial assessment or a configuration first.');
       return;
     }
     final Map<String, dynamic> contract;
@@ -1129,7 +1166,10 @@ class _SessionScreenState extends State<SessionScreen>
   /// section selection, so they cannot disagree about content.
   Future<void> _exportReport(_Leads leads, {required bool docx}) async {
     if (_authoring.rows.isEmpty) {
-      _snack('Insert at least one block before exporting a report.');
+      _snack(
+        'Save the initial assessment or a configuration before exporting a '
+        'report.',
+      );
       return;
     }
     final sections = await _askSections();
@@ -1196,10 +1236,7 @@ class _SessionScreenState extends State<SessionScreen>
 
   /// The last step: what was recorded, then the exports grouped by reader.
   Widget _finishView(_Leads leads) {
-    final configs = {
-      for (final r in _authoring.rows)
-        if (!isInitialValue(r.isInitial)) r.blockId,
-    }.length;
+    final configs = testedCount(_authoring.rows);
     final leftOn = finalBlockIn(_authoring.rows);
     final saved = savedLocation;
     Widget action(IconData icon, String label, VoidCallback onTap) =>
@@ -1219,8 +1256,8 @@ class _SessionScreenState extends State<SessionScreen>
             children: [
               Text('Configurations tested: $configs'),
               Text(
-                'Patient leaves on: '
-                '${leftOn == null ? 'not recorded' : 'block $leftOn'}',
+                'Final settings: '
+                '${leftOn == null ? 'not noted' : 'configuration $leftOn'}',
               ),
               if (saved != null) Text('Saved to: $saved'),
               if (savePathIsSandboxCopy)
@@ -1338,18 +1375,17 @@ class _SessionScreenState extends State<SessionScreen>
       Map<String, List<String>> groups, {
       String? value,
       TextEditingController? controller,
-      bool enabled = true,
       ValueChanged<String>? onSelected,
     }) => DropdownMenu<String>(
       key: controller == null ? ValueKey('$label $value') : null,
       controller: controller,
       initialSelection: value,
       label: Text(label),
-      enabled: enabled,
       expandedInsets: EdgeInsets.zero,
       requestFocusOnTap: false,
       onSelected: (name) {
         if (name != null) onSelected?.call(name);
+        _syncVisitDetails();
       },
       dropdownMenuEntries: [
         for (final group in groups.entries) ...[
@@ -1379,7 +1415,12 @@ class _SessionScreenState extends State<SessionScreen>
           contentPadding: EdgeInsets.zero,
           controlAffinity: ListTileControlAffinity.leading,
           title: Text(title),
-          onChanged: onChanged == null ? null : (v) => onChanged(v ?? true),
+          onChanged: onChanged == null
+              ? null
+              : (v) {
+                  onChanged(v ?? true);
+                  _syncVisitDetails();
+                },
         );
 
     Widget heading(String text) => Padding(
@@ -1388,12 +1429,10 @@ class _SessionScreenState extends State<SessionScreen>
     );
 
     final same = _rightModelName == null;
-    final ipgLocked =
-        sessionValueIn(_authoring.rows, (r) => r.leftIpgModel) != '';
     return TitledSection(
       title: 'Devices',
       action: IconButton(
-        icon: const Icon(Icons.settings),
+        icon: const Icon(Icons.edit_note),
         tooltip: 'Devices settings',
         onPressed: () => _editDevices(catalog),
       ),
@@ -1435,40 +1474,35 @@ class _SessionScreenState extends State<SessionScreen>
             _sameIpg ? 'IPG model' : 'Left IPG model',
             catalog.ipgs,
             controller: _leftIpgCtrl,
-            enabled: !ipgLocked,
           ),
           sameBox(
             'Same IPG on both sides',
             _sameIpg,
-            ipgLocked ? null : (v) => setState(() => _sameIpg = v),
+            (v) => setState(() => _sameIpg = v),
           ),
           if (!_sameIpg)
-            menu(
-              'Right IPG model',
-              catalog.ipgs,
-              controller: _rightIpgCtrl,
-              enabled: !ipgLocked,
-            ),
+            menu('Right IPG model', catalog.ipgs, controller: _rightIpgCtrl),
         ],
       ),
     );
   }
 
-  /// A pick-only field offering [options], [locked] once the session's rows
-  /// record a value.
+  /// A pick-only field offering [options]. A change after the first entry is
+  /// written into every saved row.
   Widget _choiceField({
     required TextEditingController controller,
     required String label,
     required List<String> options,
-    required bool locked,
     ValueChanged<String?>? onSelected,
   }) => DropdownMenu<String>(
     controller: controller,
     label: Text(label),
-    enabled: !locked,
     expandedInsets: EdgeInsets.zero,
     requestFocusOnTap: false,
-    onSelected: onSelected,
+    onSelected: (v) {
+      onSelected?.call(v);
+      _syncVisitDetails();
+    },
     dropdownMenuEntries: [
       for (final o in options) DropdownMenuEntry(value: o, label: o),
     ],
@@ -1510,7 +1544,7 @@ class _SessionScreenState extends State<SessionScreen>
                       RadioListTile<String>(
                         value: e.key,
                         dense: true,
-                        title: Text('Block ${e.key}'),
+                        title: Text('Configuration ${e.key}'),
                         subtitle: e.value.isEmpty ? null : Text(e.value),
                       ),
                     const RadioListTile<String>(
@@ -1552,35 +1586,31 @@ class _SessionScreenState extends State<SessionScreen>
   Widget _programCard() {
     final items = _programs;
     final value = items.contains(_selectedProgram) ? _selectedProgram : null;
-    return TitledSection(
-      title: 'Program',
-      child: Row(
-        children: [
-          Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: value,
-                isExpanded: true,
-                isDense: true,
-                hint: const Text('Select program'),
-                items: [
-                  for (final p in items)
-                    DropdownMenuItem<String>(value: p, child: Text(p)),
-                ],
-                onChanged: (p) => setState(() => _selectedProgram = p),
-              ),
-            ),
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownMenu<String>(
+            key: ValueKey(value),
+            initialSelection: value,
+            label: const Text('Active program (group)'),
+            hintText: 'Not specified',
+            expandedInsets: EdgeInsets.zero,
+            requestFocusOnTap: false,
+            dropdownMenuEntries: [
+              for (final p in items) DropdownMenuEntry(value: p, label: p),
+            ],
+            onSelected: (p) => setState(() => _selectedProgram = p),
           ),
-          IconButton(
-            icon: const Icon(Icons.settings, size: 18),
-            tooltip: 'Edit programs',
-            onPressed: () => _editList('Programs', _programs, (l) {
-              _prefs.programs = l;
-              if (!l.contains(_selectedProgram)) _selectedProgram = null;
-            }),
-          ),
-        ],
-      ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.edit_note),
+          tooltip: 'Edit programs',
+          onPressed: () => _editList('Programs', _programs, (l) {
+            _prefs.programs = l;
+            if (!l.contains(_selectedProgram)) _selectedProgram = null;
+          }),
+        ),
+      ],
     );
   }
 
@@ -1650,7 +1680,7 @@ class _SessionScreenState extends State<SessionScreen>
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.settings, size: 18),
+              icon: const Icon(Icons.edit_note),
               tooltip: 'Default settings per DBS indication',
               onPressed: () => _editStimDefaults(limits),
             ),
@@ -1699,14 +1729,18 @@ class _SessionScreenState extends State<SessionScreen>
           Icon(
             ok ? Icons.check_circle_outline : Icons.error_outline,
             size: 14,
-            color: ok ? DbsColors.valid : DbsColors.invalid,
+            color: ok
+                ? Theme.of(context).colorScheme.primary
+                : DbsColors.invalid,
           ),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
-              ok ? 'Configuration valid' : 'Invalid: ${side.validationError}',
+              ok ? 'Contacts set' : 'Invalid: ${side.validationError}',
               style: TextStyle(
-                color: ok ? DbsColors.valid : DbsColors.invalid,
+                color: ok
+                    ? Theme.of(context).colorScheme.primary
+                    : DbsColors.invalid,
                 fontSize: 12,
               ),
             ),
@@ -1787,12 +1821,8 @@ class _SessionScreenState extends State<SessionScreen>
       runSpacing: 4,
       children: [
         swatch(DbsColors.offBase, DbsColors.offBorder, 'Off'),
-        swatch(DbsColors.anodicBase, DbsColors.anodicBorder, 'Anodic (+)'),
-        swatch(
-          DbsColors.cathodicBase,
-          DbsColors.cathodicBorder,
-          'Cathodic (-)',
-        ),
+        swatch(DbsColors.anodicBase, DbsColors.anodicBorder, 'Anode (+)'),
+        swatch(DbsColors.cathodicBase, DbsColors.cathodicBorder, 'Cathode (-)'),
       ],
     );
   }
@@ -1800,7 +1830,7 @@ class _SessionScreenState extends State<SessionScreen>
   /// Column 2: the two electrode canvases side by side + legend.
   Widget _electrodesColumn(_Leads leads, _SideInputs left, _SideInputs right) {
     return TitledSection(
-      title: 'Electrodes',
+      title: 'Contacts',
       child: Column(
         children: [
           Row(
@@ -1832,7 +1862,6 @@ class _SessionScreenState extends State<SessionScreen>
         textAlignVertical: TextAlignVertical.top,
         decoration: const InputDecoration(
           labelText: 'Notes',
-          border: OutlineInputBorder(),
           alignLabelWithHint: true,
         ),
       ),
@@ -1865,10 +1894,7 @@ class _SessionScreenState extends State<SessionScreen>
             ),
           ],
           const SizedBox(height: 12),
-          BidsNameFields(
-            entries: _ids,
-            decoration: const InputDecoration(border: OutlineInputBorder()),
-          ),
+          BidsNameFields(entries: _ids, subjectError: _subjectError),
           const SizedBox(height: 16),
           Wrap(
             spacing: 12,
@@ -1897,7 +1923,9 @@ class _SessionScreenState extends State<SessionScreen>
               Expanded(
                 child: Text(
                   started
-                      ? 'Session started: ${_ids.name.filename}'
+                      ? 'Session started for patient ${_ids.name.subject}, '
+                            'visit ${_ids.name.session}'
+                            '${_ids.name.run == '01' ? '' : ', run ${_ids.name.run}'}'
                       : 'Enter the patient ID, then start a new session '
                             'or open a saved one.',
                   style: Theme.of(context).textTheme.bodySmall,
@@ -2013,7 +2041,7 @@ class _SessionScreenState extends State<SessionScreen>
     final pathologies = _prefs.pathologies ?? presets.pathologies;
     final targets = _prefs.targets ?? presets.targets;
     Widget gear(String tooltip, VoidCallback onPressed) => IconButton(
-      icon: const Icon(Icons.settings),
+      icon: const Icon(Icons.edit_note),
       tooltip: tooltip,
       onPressed: onPressed,
     );
@@ -2038,8 +2066,6 @@ class _SessionScreenState extends State<SessionScreen>
                   controller: _pathologyCtrl,
                   label: 'DBS indication',
                   options: pathologies,
-                  locked:
-                      sessionValueIn(_authoring.rows, (r) => r.pathology) != '',
                   onSelected: (p) {
                     if (p == null) return;
                     setState(() {});
@@ -2068,8 +2094,6 @@ class _SessionScreenState extends State<SessionScreen>
                   controller: _targetCtrl,
                   label: 'Anatomical target',
                   options: targets,
-                  locked:
-                      sessionValueIn(_authoring.rows, (r) => r.target) != '',
                 ),
               ),
               gear(
@@ -2105,16 +2129,19 @@ class _SessionScreenState extends State<SessionScreen>
           ),
   );
 
-  Widget _pageSizeMenu() => DropdownButton<String>(
-    value: _prefs.reportPageSize ?? kDefaultReportPageSize,
-    items: [
+  Widget _pageSizeMenu() => DropdownMenu<String>(
+    initialSelection: _prefs.reportPageSize ?? kDefaultReportPageSize,
+    label: const Text('Page size'),
+    width: 160,
+    requestFocusOnTap: false,
+    dropdownMenuEntries: [
       for (final size in kReportPageSizes)
-        DropdownMenuItem(
+        DropdownMenuEntry(
           value: size,
-          child: Text(size == 'letter' ? 'US Letter' : 'A4'),
+          label: size == 'letter' ? 'US Letter' : 'A4',
         ),
     ],
-    onChanged: (size) {
+    onSelected: (size) {
       if (size == null) return;
       setState(() => _prefs.reportPageSize = size);
       saveUserPrefs(_prefs);
@@ -2272,7 +2299,7 @@ class _SessionScreenState extends State<SessionScreen>
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.settings),
+              icon: const Icon(Icons.edit_note),
               tooltip: 'Settings clinical scales',
               onPressed: () => _editClinicalPresets(presets),
             ),
@@ -2299,43 +2326,46 @@ class _SessionScreenState extends State<SessionScreen>
           ],
         ),
         for (final scale in _clinicalScales)
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: TextField(
-                  controller: scale.name,
-                  decoration: const InputDecoration(
-                    labelText: 'Scale name',
-                    isDense: true,
-                  ),
-                ),
-              ),
-              Expanded(
-                flex: 3,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 12),
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 2,
                   child: TextField(
-                    controller: scale.score,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    controller: scale.name,
                     decoration: const InputDecoration(
-                      labelText: 'Score',
+                      labelText: 'Scale name',
                       isDense: true,
                     ),
                   ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.remove_circle_outline),
-                tooltip: 'Remove clinical scale',
-                onPressed: () => setState(() {
-                  _clinicalScales.remove(scale);
-                  _removedClinical.add(scale);
-                }),
-              ),
-            ],
+                Expanded(
+                  flex: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: TextField(
+                      controller: scale.score,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Score',
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.remove_circle_outline),
+                  tooltip: 'Remove clinical scale',
+                  onPressed: () => setState(() {
+                    _clinicalScales.remove(scale);
+                    _removedClinical.add(scale);
+                  }),
+                ),
+              ],
+            ),
           ),
         if (_clinicalScales.isEmpty)
           const Padding(
@@ -2370,7 +2400,6 @@ class _SessionScreenState extends State<SessionScreen>
                 maxLines: null,
                 decoration: const InputDecoration(
                   labelText: 'Medications',
-                  border: OutlineInputBorder(),
                   alignLabelWithHint: true,
                 ),
               ),
@@ -2463,13 +2492,13 @@ class _SessionScreenState extends State<SessionScreen>
           children: [
             Expanded(
               child: Text(
-                'Ratings for this configuration',
+                'Symptom and side effect ratings',
                 style: Theme.of(context).textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.settings),
+              icon: const Icon(Icons.edit_note),
               tooltip: 'Settings session scales',
               onPressed: () => _editSessionPresets(presets),
             ),
@@ -2528,37 +2557,12 @@ class _SessionScreenState extends State<SessionScreen>
           _ratingsCard(limits, presets),
           _notesField(_notesRecCtrl),
         ),
-        const SizedBox(height: 12),
-        SwitchListTile(
-          value: _starNext,
-          onChanged: (v) => setState(() => _starNext = v),
-          secondary: Icon(_starNext ? Icons.star : Icons.star_border),
-          title: const Text('Star this configuration'),
-          subtitle: const Text(
-            'Marks it as particularly good. Any number can be starred, '
-            'earlier ones too, from the table below.',
-          ),
-        ),
-        SwitchListTile(
-          value: _leavesOn,
-          onChanged: (v) => setState(() => _leavesOn = v),
-          title: const Text('Patient leaves on this'),
-          subtitle: const Text(
-            'Marks this block as the configuration the patient goes home with. '
-            'Confirmed when the session ends.',
-          ),
-        ),
-        FilledButton.icon(
-          onPressed: () => _insertRecording(catalog, limits),
-          icon: const Icon(Icons.add),
-          label: const Text('Save configuration'),
-        ),
         const Divider(height: 32),
         Row(
           children: [
             Expanded(
               child: Text(
-                'Inserted entries (append ${_authoring.appendId})',
+                'Configurations tested (${testedCount(_authoring.rows)})',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
@@ -2612,8 +2616,7 @@ class _SessionScreenState extends State<SessionScreen>
                   saveUserPrefs(_prefs);
                 },
                 title: Text(
-                  'Table of all entries '
-                  '(${blockCount(_authoring.rows)} blocks)',
+                  'All configurations',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 childrenPadding: const EdgeInsets.only(bottom: 8),
@@ -2687,8 +2690,10 @@ class _SessionScreenState extends State<SessionScreen>
               if (_currentStep >= _assessmentStep)
                 SessionStrip(
                   parts: [
-                    'Patient ${l.subject}',
-                    'Run ${l.run}',
+                    _ids.subject.text.trim().isEmpty
+                        ? 'Patient ID not entered'
+                        : 'Patient ${l.subject}',
+                    if (l.run != '01') 'Run ${l.run}',
                     for (final detail in [
                       _sessionDetails.pathology,
                       _sessionDetails.target,
@@ -2706,23 +2711,31 @@ class _SessionScreenState extends State<SessionScreen>
                   onTap: () => _goTo(0),
                 ),
               Expanded(
-                child: LayoutBuilder(
-                  builder: (context, c) => Stepper(
-                    type: c.maxWidth >= 900
-                        ? StepperType.horizontal
-                        : StepperType.vertical,
-                    currentStep: _currentStep,
-                    onStepTapped: _goTo,
-                    controlsBuilder: (context, details) =>
-                        const SizedBox.shrink(),
-                    steps: [
-                      for (var i = 0; i < contents.length; i++)
-                        Step(
-                          title: Text(_stepNames[i]),
-                          isActive: _currentStep == i,
-                          content: when(i, contents[i]),
-                        ),
-                    ],
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1200),
+                    child: LayoutBuilder(
+                      builder: (context, c) => Stepper(
+                        type: c.maxWidth >= 900
+                            ? StepperType.horizontal
+                            : StepperType.vertical,
+                        currentStep: _currentStep,
+                        onStepTapped: _goTo,
+                        controlsBuilder: (context, details) =>
+                            const SizedBox.shrink(),
+                        steps: [
+                          for (var i = 0; i < contents.length; i++)
+                            Step(
+                              title: Text(
+                                _stepNames[i],
+                                style: Theme.of(context).textTheme.labelLarge,
+                              ),
+                              isActive: _currentStep == i,
+                              content: when(i, contents[i]),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -2730,16 +2743,83 @@ class _SessionScreenState extends State<SessionScreen>
           );
         },
       ),
-      bottomNavigationBar: StepControls(
-        label: _stepNames[_currentStep],
-        onBack: _currentStep > 0 ? () => _goTo(_currentStep - 1) : null,
-        onNext: _currentStep < _finishStep
-            ? () => _goTo(_currentStep + 1)
-            : null,
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_currentStep == _programmingStep) _saveBar(),
+          StepControls(
+            label: _stepNames[_currentStep],
+            onBack: _currentStep > 0 ? () => _goTo(_currentStep - 1) : null,
+            onNext: _currentStep < _finishStep
+                ? () => _goTo(_currentStep + 1)
+                : null,
+            onClose: _currentStep == _finishStep ? _closeApp : null,
+          ),
+        ],
       ),
     );
   }
+
+  /// Close the app after the usual question about the recovery copy. On the
+  /// desktop the window's close handler asks it.
+  Future<void> _closeApp() async {
+    if (canWriteChosenFolder) {
+      await windowManager.close();
+      return;
+    }
+    if (await mayLeave(closingWindow: true)) await SystemNavigator.pop();
+  }
+
+  /// Save the configuration on screen, always in reach while programming.
+  Widget _saveBar() => Material(
+    color: Theme.of(context).colorScheme.surfaceContainer,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        alignment: WrapAlignment.end,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Tooltip(
+            message: "Clinician's impression; does not affect the ranking.",
+            child: FilterChip(
+              avatar: Icon(_starNext ? Icons.star : Icons.star_border),
+              showCheckmark: false,
+              label: const Text('Star this configuration'),
+              selected: _starNext,
+              onSelected: (v) => setState(() => _starNext = v),
+            ),
+          ),
+          Tooltip(
+            message: 'Confirmed when the session ends.',
+            child: FilterChip(
+              label: const Text('Final settings (patient goes home on this)'),
+              selected: _leavesOn,
+              onSelected: (v) => setState(() => _leavesOn = v),
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              final (rawCatalog, rawLimits, _) = await _contracts;
+              if (!mounted) return;
+              _insertRecording(
+                rawCatalog.withDevices(_prefs.devices),
+                rawLimits.withDefaults(_prefs.stimDefaults),
+              );
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Save configuration'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
+
+/// "1 configuration tested", "3 configurations tested".
+String _configurations(int n) => '$n configuration${n == 1 ? '' : 's'} tested';
 
 /// The left and right leads' models; either is null when none is selected.
 typedef _Leads = ({ElectrodeModel? left, ElectrodeModel? right});

@@ -55,8 +55,8 @@ pw.Widget _fitWidth(Uint8List png, double width) {
 
 /// Under the Visits table, in both formats.
 const kProgrammeNote =
-    'The programme shown is the one the clinician marked as left on, where '
-    'marked; otherwise the last configuration recorded at that visit, which '
+    'The program shown is the one the clinician marked as left on, where '
+    'marked; otherwise the last configuration tested at that visit, which '
     'is not necessarily one a clinician confirmed.';
 
 /// Figure 1's caption, the same in both formats.
@@ -66,7 +66,8 @@ const kClinicalFigureCaption =
 
 /// Figure 2's caption, the same in both formats.
 const kSessionFigureCaption =
-    'Figure 2. Session scale ratings by block, grouped by visit. Each visit '
+    'Figure 2. Symptom and side effect ratings by configuration, grouped by '
+    'visit. Each visit '
     'contributes one point per configuration tested. Visits are evenly '
     'spaced, not drawn to time scale.';
 
@@ -241,19 +242,21 @@ Future<ReportBytes> buildLongitudinalPdf({
             pw.SizedBox(height: 10),
           ],
 
-          // (c) Session scales by visit and block.
           if (sections.contains(LongitudinalSection.sessionChart)) ...[
             if (sessionChartPng != null)
               _figure(
-                'Session scales by visit and block',
+                'Symptom and side effect ratings by visit and configuration',
                 sessionChartPng,
                 kSessionFigureCaption,
                 format.availableWidth,
               )
             else ...[
-              pw.Header(level: 1, text: 'Session scales by visit and block'),
+              pw.Header(
+                level: 1,
+                text: 'Symptom and side effect ratings by visit and configuration',
+              ),
               if (data.sessionChart.isEmpty)
-                pw.Text('No session scale ratings were recorded.')
+                pw.Text('No symptom and side effect ratings were annotated.')
               else
                 pw.Text('(figure unavailable)'),
             ],
@@ -390,16 +393,22 @@ Uint8List buildLongitudinalDocx({
     }
 
     if (sections.contains(LongitudinalSection.sessionChart)) {
-      body.write(docxHeading('Session scales by visit and block'));
+      body.write(
+        docxHeading(
+          'Symptom and side effect ratings by visit and configuration',
+        ),
+      );
       if (sessionChartPng != null) {
         body
           ..write(
             '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>'
-            '${media.drawing(sessionChartPng, widthPx: pageSize.contentWidthPx, description: 'Session scale ratings by visit and block')}</w:p>',
+            '${media.drawing(sessionChartPng, widthPx: pageSize.contentWidthPx, description: 'Symptom and side effect ratings by visit and configuration')}</w:p>',
           )
           ..write(docxPara(kSessionFigureCaption, size: 16));
       } else if (data.sessionChart.isEmpty) {
-        body.write(docxPara('No session scale ratings were recorded.'));
+        body.write(
+          docxPara('No symptom and side effect ratings were annotated.'),
+        );
       }
       if (data.rankingTargets.isNotEmpty) {
         body.write(docxPara(data.rankingTargets, size: 16));
@@ -526,7 +535,8 @@ String _visitLabel(LongitudinalVisit v) =>
 
 /// Every uploaded file, sessions then notes, for the Source files list.
 List<String> _sourceLines(LongitudinalReportData data) => [
-  for (final v in data.visits) '${v.filename}  (${v.blocks.length} blocks)',
+  for (final v in data.visits)
+    '${v.filename}  (${v.blocks.length} configuration${v.blocks.length == 1 ? '' : 's'})',
   for (final f in data.noteFiles) '$f  (notes)',
 ];
 

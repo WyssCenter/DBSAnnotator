@@ -13,7 +13,7 @@ enum ReportSection {
         'stimulation was changed.',
   ),
   chart(
-    'Session scales figure',
+    'Symptom and side effect ratings figure',
     'Every rated scale plotted against configuration, with the aggregate '
         'index and the best / second-best bands.',
   ),

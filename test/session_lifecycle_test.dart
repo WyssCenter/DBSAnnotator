@@ -211,6 +211,7 @@ void main() {
 
       expect(find.text('Same lead on both sides'), findsOneWidget);
       expect(find.text('Patient ID'), findsNothing);
+      expect(Directory('${bids.path}/derivatives/sub-01').existsSync(), isTrue);
     });
 
     testWidgets('after an entry asks, and Delete the only copy replaces it', (
@@ -284,7 +285,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Discard copy'), findsOneWidget);
       await tester.tap(find.text('Keep copy'));
-      await pumpUntilFound(tester, find.textContaining('run-02_beh.tsv'));
+      await pumpUntilFound(tester, find.textContaining('run 02'));
       await tester.pumpAndSettle();
 
       await _add(tester, working, 'second visit');
@@ -325,7 +326,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.textContaining(
-          'A save is still running, so the latest entries may not be on disk '
+          'A save is still running, so the latest changes may not be on disk '
           'yet.',
         ),
         findsOneWidget,
@@ -372,8 +373,8 @@ void main() {
 
       expect(
         find.text(
-          'Opened sub-08_ses-20260204_task-x_beh.tsv (1 rows, next block 1, '
-          'append 2).',
+          'Opened sub-08_ses-20260204_task-x_beh.tsv (0 configurations tested '
+          'so far).',
         ),
         findsOneWidget,
       );
