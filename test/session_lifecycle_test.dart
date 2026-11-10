@@ -193,6 +193,26 @@ void main() {
   });
 
   group('New', () {
+    testWidgets('Next with a patient ID starts the visit, as New does', (
+      tester,
+    ) async {
+      useTempDirs();
+      final bids = _useFolder();
+      await pumpScreen(tester, sessionScreen());
+      await awaitRecoveryCheck(tester);
+      await pumpUntilFound(tester, find.text(bids.path));
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Patient ID'),
+        '01',
+      );
+      await tester.tap(find.text('Next'));
+      await pumpUntilFound(tester, find.textContaining(_newSnack));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Same lead on both sides'), findsOneWidget);
+      expect(find.text('Patient ID'), findsNothing);
+    });
+
     testWidgets('after an entry asks, and Delete the only copy replaces it', (
       tester,
     ) async {
@@ -409,7 +429,7 @@ void main() {
       final (working, saved, _) = await _show(tester);
       await _add(tester, working, 'first visit');
 
-      await tester.tap(find.text('Setup'));
+      await tester.tap(find.text('Session'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('BIDS folder (zip)').first);
       await settleUntil(

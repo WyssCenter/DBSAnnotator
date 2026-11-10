@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app_info.dart' show kNoticeShort;
 import '../core/bids.dart';
 
 /// The wizard's fixed bottom bar: Back on the left, the current step's name in
@@ -33,11 +34,25 @@ class StepControls extends StatelessWidget {
                 child: const Text('Back'),
               ),
               Expanded(
-                child: Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    Text(
+                      kNoticeShort,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               FilledButton(

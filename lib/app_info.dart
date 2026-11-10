@@ -26,6 +26,17 @@ final Uri issuesUri = Uri.parse(issuesUrl);
 final Uri docsUri = Uri.parse(docsUrl);
 final Uri contactUri = Uri(scheme: 'mailto', path: contactEmail);
 
+/// What the app is not, shown under every step.
+const String kNoticeShort =
+    'Not a medical device. For annotating DBS programming visits.';
+
+/// The full notice, for About, every launch and every report.
+const String kNotice =
+    '$appName is not a medical device. It is for annotating and documenting '
+    'what happens during deep brain stimulation programming visits. It does '
+    'not diagnose or decide stimulation settings: clinical decisions remain '
+    'with the clinical team.';
+
 const String publisher = 'Wyss Center for Bio and Neuroengineering';
 const String copyrightHolders =
     '$publisher, Massachusetts General Hospital, and Harvard Medical School';
@@ -161,13 +172,15 @@ void showAppAbout(BuildContext context) {
         width: min(760, MediaQuery.sizeOf(context).width - 160),
         height: 8,
       ),
+      const Text(kNotice, style: TextStyle(fontWeight: FontWeight.w600)),
+      const SizedBox(height: 12),
       const Text(
-        'Document DBS programming visits, the appointments at which '
+        'Annotate DBS programming visits, the appointments at which '
         'stimulation configurations are tested and optimised. A programming '
-        'session runs in four steps: setup, initial assessment, programming '
-        'and finish. Writes BIDS '
-        'behavioural TSV with a JSON sidecar documenting every column, and '
-        'exports PDF and Word reports.',
+        'session runs in five steps: session, indication and devices, initial '
+        'assessment, programming and finish. Each visit is saved in a BIDS '
+        'folder with a JSON sidecar documenting every column, and PDF and '
+        'Word reports can be exported.',
       ),
       const SizedBox(height: 12),
       const Text('Links:', style: TextStyle(fontWeight: FontWeight.w600)),

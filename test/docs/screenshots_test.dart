@@ -460,7 +460,7 @@ Future<void> _shootDialog(
   await tester.pumpAndSettle();
 }
 
-/// [panel] on a page of its own, as the Setup step's card shows it.
+/// [panel] on a page of its own, as the Session step shows it.
 Widget _panel(ImportExportPanel panel) => Scaffold(
   body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: panel),
 );
@@ -487,8 +487,10 @@ SessionAuthoring _seededAuthoring() =>
     SessionAuthoring()
       ..loadExisting(parseSessionTsv(File(_fixture).readAsStringSync()));
 
-/// Choose the example's pathology in Setup, which loads its scales.
+/// Go to Indication and devices and choose the example's indication, which
+/// loads its scales.
 Future<void> _choosePathology(WidgetTester tester) async {
+  await _next(tester);
   await _tapFinder(
     tester,
     find.widgetWithText(DropdownMenu<String>, 'DBS indication'),
@@ -712,8 +714,6 @@ void main() {
     }
   });
 
-  // ---- Complete workflow ------------------------------------------------
-
   testWidgets('session: file step', (tester) async {
     final (catalog, limits, presets) = await _contracts();
     await _pump(
@@ -727,6 +727,21 @@ void main() {
     );
     await _seedFileStep(tester);
     await _shootFitted(tester, 'session_step0_file');
+  });
+
+  testWidgets('session: indication and devices', (tester) async {
+    final (catalog, limits, presets) = await _contracts();
+    await _pump(
+      tester,
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
+    );
+    await _choosePathology(tester);
+    await _shootFitted(tester, 'session_devices');
   });
 
   testWidgets('session: side menu', (tester) async {
@@ -802,6 +817,7 @@ void main() {
       ),
     );
     await _next(tester);
+    await _next(tester);
 
     await _seedConfiguration(tester, model, invalid: true);
     await _shootRegion(
@@ -839,6 +855,7 @@ void main() {
     );
     await _seedFileStep(tester);
     await _next(tester);
+    await _next(tester);
     await _seedConfiguration(tester, catalog.models[_defaultModel]!);
     await _next(tester);
 
@@ -874,6 +891,7 @@ void main() {
       brightness: Brightness.dark,
     );
     await _next(tester);
+    await _next(tester);
     await _seedConfiguration(tester, catalog.models[_defaultModel]!);
     await _next(tester);
     await _seedRatings(tester);
@@ -898,7 +916,7 @@ void main() {
         authoring: _seededAuthoring(),
       ),
     );
-    for (var i = 0; i < 3; i++) {
+    for (var i = 0; i < 4; i++) {
       await _next(tester);
     }
     await _tapText(tester, 'Confirm');
@@ -970,8 +988,9 @@ void main() {
         authoring: _seededAuthoring(),
       ),
     );
-    await _next(tester);
-    await _next(tester);
+    for (var i = 0; i < 3; i++) {
+      await _next(tester);
+    }
 
     await _tapText(tester, 'Scale targets');
     await _shootDialog(tester, 'dialog_scale_targets');

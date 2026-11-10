@@ -921,12 +921,16 @@ pickDatasetZip(void Function(String) say) async {
 /// `root` is the folder, null for a zip. Null when cancelled, with any reason
 /// passed to [say].
 Future<({String? root, List<({String name, String content})> files})?>
-loadDatasetTsvs(BuildContext context, void Function(String) say) async {
+loadDatasetTsvs(
+  BuildContext context,
+  void Function(String) say, {
+  String? folder,
+}) async {
   final ({String? root, List<DatasetFile> files}) source;
   if (debugDataset case final d?) {
     source = d;
-  } else if (canWriteChosenFolder) {
-    final root = await pickDatasetFolder();
+  } else if (folder != null || canWriteChosenFolder) {
+    final root = folder ?? await pickDatasetFolder();
     if (root == null) return null;
     try {
       source = (root: root, files: await readDatasetDirectory(root));

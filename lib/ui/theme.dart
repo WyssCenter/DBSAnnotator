@@ -2,13 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../core/brand_palette.dart';
 
-/// The Wyss Center brand palette.
-///
-/// [green] is a FILL, never text or an outline. Measured against white it is
-/// 1.64:1, which fails even the 3:1 bar for a UI component, so every label and
-/// icon is [black] or [greyDark] and the green sits behind them, where black
-/// reads at 12.8:1. The same rule retires the amber this replaced, which was
-/// 2.15:1 and was being used for text.
+/// The Wyss Center brand palette. The screens take their accent from the
+/// Material scheme seeded with [green]; the raw colours are for charts and
+/// clinical states.
 class DbsColors {
   // Primary palette.
   static const greenLighter = Color(kGreenLighter);
@@ -48,24 +44,8 @@ class DbsColors {
   //
   // Deliberately NOT brand colours: both are label text, and the brand has no
   // accessible green or red for text. Brand green would be 1.64:1 here.
-  static const valid = Color(0xFF22C55E);
+  static const valid = Color(0xFF1B7F3B);
   static const invalid = Color(0xFFCC0000);
-
-  // Session-scale progress fill, per brightness. The value is printed on the
-  // bar, so this is decoration.
-  static List<Color> scaleFill(bool dark) => dark
-      ? const [green, greenLighter, green]
-      : const [Color(0xFF0BB37C), green, Color(0xFF0BB37C)];
-
-  /// Fill for the titled group cards: a translucent brand green over the
-  /// scaffold, never the Material-3 blue surface tint, which callers suppress
-  /// with `surfaceTintColor: Colors.transparent`.
-  static Color cardFill(bool dark) =>
-      greenLighter.withValues(alpha: dark ? 0.12 : 0.22);
-
-  /// Background of the initial assessment, so it never reads as programming.
-  static Color assessmentFill(bool dark) =>
-      const Color(0xFF64748B).withValues(alpha: dark ? 0.18 : 0.10);
 }
 
 /// Non-state colours for the electrode canvas: the lead's insulating polymer
@@ -169,43 +149,23 @@ class TextSizeButtons extends StatelessWidget {
   }
 }
 
-/// App theme in the brand palette: green fills, black text.
-///
-/// `onPrimary` is black rather than Material's computed white, because white on
-/// the brand green is 1.4:1 and black is 12.8:1.
+/// App theme: Material's tonal scheme seeded with the brand green.
 ThemeData dbsTheme(Brightness brightness) {
-  final dark = brightness == Brightness.dark;
-  final scheme = ColorScheme.fromSeed(
-    seedColor: DbsColors.green,
-    brightness: brightness,
-    primary: DbsColors.green,
-    onPrimary: DbsColors.black,
-    secondary: DbsColors.pink,
-    surface: dark ? DbsColors.black : DbsColors.greyLighter,
-    onSurface: dark ? DbsColors.greyLighter : DbsColors.black,
-    outlineVariant: dark ? DbsColors.greyDark : DbsColors.grey,
-  );
   return ThemeData(
     useMaterial3: true,
-    colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.surface,
-    // Material paints a text button's label in `primary`, which here would put
-    // 1.64:1 green text on the dialog actions. Filled buttons are unaffected:
-    // they get the green as a background with `onPrimary` black on it.
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(foregroundColor: scheme.onSurface),
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: DbsColors.green,
+      brightness: brightness,
     ),
-    // A dialog sizes to its widest line, and a long title is one line: capped,
-    // the title wraps instead of stretching the dialog across a wide window.
     dialogTheme: const DialogThemeData(
       constraints: BoxConstraints(minWidth: 280, maxWidth: 600),
     ),
   );
 }
 
-/// A titled card, matching the desktop `QGroupBox`.
-class GroupCard extends StatelessWidget {
-  const GroupCard({
+/// A titled group of controls: a heading, an optional action, then [child].
+class TitledSection extends StatelessWidget {
+  const TitledSection({
     super.key,
     required this.title,
     required this.child,
@@ -220,48 +180,28 @@ class GroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      // A transparent surfaceTintColor (below) keeps Material 3 from tinting
-      // the brand green blue.
-      color: DbsColors.cardFill(
-        Theme.of(context).brightness == Brightness.dark,
-      ),
-      elevation: 0,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 8, bottom: 4),
-              // The card's green wash carries the brand; the title carries the
-              // text, so it takes the scheme's ink rather than the green, which
-              // would be 1.64:1 here.
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurface,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  ?action,
-                ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 40),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
               ),
-            ),
-            child,
-          ],
+              ?action,
+            ],
+          ),
         ),
-      ),
+        const SizedBox(height: 8),
+        child,
+      ],
     );
   }
 }

@@ -10,6 +10,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:dbs_annotator/app_info.dart' show kNotice;
 
 import 'package:dbs_annotator/core/session/scale_scoring.dart';
 import 'package:dbs_annotator/core/session/session_file.dart';
@@ -76,6 +77,7 @@ void main() {
       expect(all, contains('Session data'));
       expect(all, contains('Programming summary'));
       expect(all, contains('Source files'));
+      expect(all, contains(kNotice));
     });
 
     test('each section disappears when unchecked', () {

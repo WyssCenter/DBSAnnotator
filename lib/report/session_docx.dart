@@ -12,7 +12,7 @@ library;
 
 import 'dart:typed_data';
 
-import '../app_info.dart' show appName, appVersion;
+import '../app_info.dart' show appName, appVersion, kNotice;
 import 'attestation.dart';
 import 'docx_ooxml.dart';
 import '../core/brand_palette.dart';
@@ -185,6 +185,7 @@ Uint8List buildSessionDocx({
       size: 18,
     ),
   );
+  body.write(docxPara(kNotice, size: 18));
   if (data.lastConfig.isNotEmpty) {
     // Same page-1 summary as the PDF, in the same words.
     body.write(
@@ -429,6 +430,6 @@ Uint8List buildSessionDocx({
     createdDate: data.generatedOn,
     footerPrefix:
         'sub-$subjectId  |  ${data.sessionStamp}  |  '
-        '$appName v$appVersion  |  Page ',
+        '$appName v$appVersion  |  Not a medical device  |  Page ',
   );
 }

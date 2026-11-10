@@ -72,9 +72,10 @@ void main() {
       ),
     );
     await typeInto(tester, 'Patient ID', '01');
+    await tapText(tester, 'New session');
+    await tapText(tester, 'Next');
     await tapText(tester, 'DBS indication');
     await tap(tester, find.text('OCD').last);
-    await tapText(tester, 'New session');
     await tapText(tester, 'Next');
 
     // Stimulation first: OCD defaults on the left, typed on the right.

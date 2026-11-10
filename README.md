@@ -4,7 +4,10 @@
 [![Docs](https://readthedocs.org/projects/dbs-annotator/badge/?version=latest)](https://dbs-annotator.readthedocs.io/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Record deep brain stimulation programming visits, and get analysis-ready data
+> [!IMPORTANT]
+> Wyss DBS Annotator is not a medical device. It is for annotating and documenting what happens during deep brain stimulation programming visits. It does not diagnose or decide stimulation settings: clinical decisions remain with the clinical team.
+
+Annotate deep brain stimulation programming visits, and get analysis-ready data
 out.
 
 Once the electrodes are implanted, the patient comes back to see a neurologist or

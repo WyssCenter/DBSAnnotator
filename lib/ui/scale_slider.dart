@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'theme.dart';
 import 'painter_font.dart';
 
 /// A rating bar snapping to [step], with chevrons and an X that marks the scale
@@ -78,6 +77,7 @@ class ScaleSlider extends StatelessWidget {
                           : value.toStringAsFixed(_discrete ? 0 : 2),
                       omitted: omitted,
                       dark: dark,
+                      fill: Theme.of(context).colorScheme.primaryContainer,
                       segments: _discrete ? ((max - min) / step).round() : 0,
                     ),
                   ),
@@ -112,6 +112,7 @@ class _BarPainter extends CustomPainter {
     required this.label,
     required this.omitted,
     required this.dark,
+    required this.fill,
     required this.segments,
   });
 
@@ -119,6 +120,7 @@ class _BarPainter extends CustomPainter {
   final String label;
   final bool omitted;
   final bool dark;
+  final Color fill;
   final int segments;
 
   @override
@@ -137,16 +139,12 @@ class _BarPainter extends CustomPainter {
             : (dark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
     );
 
-    // Green gradient fill up to the value.
     if (!omitted && fraction > 0) {
-      final fillRect = Rect.fromLTWH(0, 0, size.width * fraction, size.height);
       canvas.save();
       canvas.clipRRect(rrect);
       canvas.drawRect(
-        fillRect,
-        Paint()
-          ..shader = LinearGradient(colors: DbsColors.scaleFill(dark))
-              .createShader(fillRect),
+        Rect.fromLTWH(0, 0, size.width * fraction, size.height),
+        Paint()..color = fill,
       );
       canvas.restore();
     }
@@ -197,5 +195,6 @@ class _BarPainter extends CustomPainter {
       o.label != label ||
       o.omitted != omitted ||
       o.dark != dark ||
+      o.fill != fill ||
       o.segments != segments;
 }

@@ -1,11 +1,15 @@
 Import and export
 =================
 
-On the :ref:`Setup step <setup-step>`, import the session files you have, or a
+On the :ref:`Session step <setup-step>`, import the session files you have, or a
 whole BIDS folder, then take whatever they support. This never changes the
 files you give it: it reads them, shows what is in them, and produces documents
 and BIDS folders from them. Into a BIDS folder you choose it writes only what
 you ask it to add, and only after you have confirmed the list of files.
+
+On Windows, macOS and Linux you can also drag session files, or one BIDS
+folder, from the file manager onto the import area; the area turns green while
+something is held over it. On a tablet or phone, use the two import buttons.
 
 The whole screen scrolls as one page, from the import buttons down through the
 actions to the preview, so a long session table never squeezes the rest.

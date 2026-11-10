@@ -1,9 +1,13 @@
 Annotate programming session
 ============================
 
-The app opens on this screen. A programming session is recorded in four steps,
-Setup, Initial assessment, Programming and Finish, with **Back** and **Next** at
-the bottom of the screen. The menu button at the top left opens the
+Every time it starts, the app shows that it is not a medical device and asks
+you to confirm you have read it. The same line stays under every step,
+in the bar with **Back** and **Next**, and every report carries it.
+
+The app opens on this screen. A programming session is recorded in five steps,
+Session, Indication and devices, Initial assessment, Programming and Finish,
+with **Back** and **Next** at the bottom of the screen. The menu button at the top left opens the
 :ref:`settings menu <settings-menu>`.
 
 .. raw:: html
@@ -19,20 +23,21 @@ the charts and table below.
 
 .. _setup-step:
 
-Step 1: Setup
--------------
+Step 1: Session
+---------------
 
-Setup is where a visit starts and where every file goes in or out.
+Session is where a visit starts and where every file goes in or out.
 
-**BIDS folder.** Every visit is saved inside a BIDS folder, chosen at the top
-of the step. You can keep several, for example one per cohort, and pick the
+**BIDS folder.** Every visit is saved inside a BIDS folder, chosen in the bar
+across the top of the step. You can keep several, for example one per cohort, and pick the
 default in the settings menu. The folder must be a BIDS folder this app or
 another tool wrote, or an empty folder to start one in (see
 :ref:`what counts as a BIDS folder <bids-folder-requirements>`).
 
 **Patient.** Pick a patient already in that folder, or type a new patient ID.
 For a known patient the app fills in the DBS indication, the anatomical target,
-the leads and the IPGs from the patient's last visit, and says so. Check each
+the leads and the IPGs from the patient's last visit, and says so on the next
+step. Check each
 value: a reimplantation changes the target, the leads or the IPG, and every
 field stays editable.
 
@@ -54,10 +59,10 @@ every entry after that: its ``beh/`` file, its row in the patient's
 session file from an earlier version, which is saved in the current form from
 the next entry.
 
-**Import and export other sessions** reads session files or a whole BIDS
+**Other sessions**, beside this session, reads session files or a whole BIDS
 folder and produces reports across visits, the combined table and BIDS
-folders; see :doc:`import_export`. Once this visit has entries, its own report
-and its BIDS folder (zip) can be exported from Setup as well as from Finish.
+folders; see :doc:`import_export`. Once this visit has entries, **Export this
+session** offers its own report and its BIDS folder (zip), as Finish does.
 
 **Every entry is also written to a working copy inside the
 app** as you record, so a crash or a closed window loses nothing. When you leave
@@ -120,12 +125,31 @@ Settings menu
 
 The menu button at the top left opens the settings that apply to every
 session: the BIDS folders, the DBS indications and anatomical targets offered
-in Setup, the leads and IPGs, the stimulation defaults and programs, the
+in Indication and devices, the leads and IPGs, the stimulation defaults and programs, the
 clinical scales and session ratings presets, the scale targets, the report
 sections, the theme and text size, and help. The theme and text size are kept
 for the next time the app opens.
 
-Step 2: Initial configuration
+Step 2: Indication and devices
+------------------------------
+
+The patient's **DBS indication** and **anatomical target**, and the implanted
+devices. The indication chooses the clinical scales and session ratings that
+the next steps start from.
+
+**Leads.** Choose the implanted lead. The catalogue covers Medtronic,
+Boston Scientific, Abbott, PINS and ALEVA leads, including segmented
+(directional) models. The diagrams are drawn to each lead's real contact heights
+and spacings, so two different leads look different. **Same lead on both
+sides** is ticked by default; untick it when the two leads differ, and a second
+menu sets the right lead. Each side's model is written to its own column.
+
+**Implanted pulse generator (IPG).** The same choice for the IPG, one per side
+when they differ.
+
+Once the visit has entries, these values are fixed for that visit.
+
+Step 3: Initial configuration
 -----------------------------
 
 The state the patient arrived in, before anything is changed.
@@ -136,15 +160,8 @@ The state the patient arrived in, before anything is changed.
          scales and notes below
    :width: 100%
 
-   Step 2 with a baseline configuration entered: current steered across two
+   Step 3 with a baseline configuration entered: current steered across two
    segments of level 2 on the left lead, and the OCD clinical scale set.
-
-**Electrode model.** Choose the implanted lead. The catalogue covers Medtronic,
-Boston Scientific, Abbott, PINS and ALEVA leads, including segmented
-(directional) models. The diagrams are drawn to each lead's real contact heights
-and spacings, so two different leads look different. **Same model on both
-sides** is ticked by default; untick it when the two leads differ, and a second
-menu sets the right lead. Each side's model is written to its own column.
 
 **Parameters, per side.** Frequency, amplitude and pulse width, with quick-pick
 presets. When more than one cathode is active, an amplitude split appears so you
@@ -174,7 +191,7 @@ Programs
    :width: 36%
    :align: center
 
-Opened by the gear beside the **Program** card in steps 2 and 4.
+Opened by the gear beside the **Program** card in steps 3 and 4.
 
 The program labels offered by the dropdown: ``A``, ``B``, ``C``
 and so on, or whatever your centre uses. Stored as a preset, so the list you
@@ -191,7 +208,7 @@ Parameter presets
    :width: 40%
    :align: center
 
-Opened by the gear beside **Parameters** in steps 2 and 4.
+Opened by the gear beside **Parameters** in steps 3 and 4.
 
 The quick-pick chips under each stimulation field, one tab per parameter. These
 are shortcuts, not limits: each field accepts any value within the permitted
@@ -211,7 +228,7 @@ Clinical scales settings
    :width: 50%
    :align: center
 
-Opened by the gear on the **Clinical scales** card in step 2.
+Opened by the gear on the **Clinical scales** card in step 3.
 
 Edits the disease preset buttons for the baseline assessment: the group names
 (OCD, MDD, PD, ET, Dystonia, TS), the scale names inside each, and each scale's
@@ -260,10 +277,10 @@ scrolling.
    :alt: The same step in a single stacked column on a narrow screen
    :width: 100%
 
-   Step 2 in the single-column layout.
+   Step 3 in the single-column layout.
 
-Step 3: Session scales configuration
-------------------------------------
+Session scales configuration
+----------------------------
 
 .. figure:: ../_static/screenshots/session_step2_scales.png
    :alt: Session scales configuration with the OCD preset applied, one row per
@@ -299,8 +316,8 @@ carries a **minimum and maximum**. Session scales are rated on a slider at every
 configuration, so they need a range; clinical scales are typed once, so they do
 not.
 
-Step 4: Recording
------------------
+Step 4: Programming
+-------------------
 
 The loop, repeated once per configuration tried.
 

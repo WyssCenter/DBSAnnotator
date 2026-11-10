@@ -6,7 +6,7 @@ Opening the app
 
 Launch Wyss DBS Annotator as you would any other app on the device. It opens on
 :doc:`Annotate programming session <screens/programming_session>`, where a
-session is recorded in four steps. Its first step, Setup, is also where you
+session is recorded in five steps. Its first step, Session, is also where you
 import earlier sessions and export reports and BIDS folders.
 
 New to the vocabulary (configuration, initial assessment, clinical and session
@@ -20,19 +20,22 @@ Your first session
 The shortest useful path through
 :doc:`Annotate programming session <screens/programming_session>`:
 
-1. **Setup.** Choose the BIDS folder, pick or type the patient, and press
+1. **Session.** Choose the BIDS folder, pick or type the patient, and press
    **New session**. The app builds the BIDS filename for you and saves every
    entry into the folder from the first one onward.
 
-2. **Initial configuration.** Record the state the patient arrived in: the
+2. **Indication and devices.** Choose the DBS indication, the target, the
+   leads and the IPGs. A known patient's last visit fills them in; check them.
+
+3. **Initial configuration.** Record the state the patient arrived in: the
    electrode model, the settings currently programmed, and the baseline clinical
    scores. Insert it. This block is marked as the baseline and is excluded from
    "configurations tested" later.
 
-3. **Session scales configuration.** Name the scales you will rate at every
+4. **Session scales configuration.** Name the scales you will rate at every
    configuration, with their range. Disease presets fill this in with a tap.
 
-4. **Recording.** For each configuration: set the parameters, select contacts on
+5. **Recording.** For each configuration: set the parameters, select contacts on
    the lead diagram, rate the scales, add any note, and insert. Repeat.
 
 Things worth knowing early
@@ -59,6 +62,6 @@ Getting the report
 ------------------
 
 From the Recording step choose **Export** and pick PDF or Word. For a file
-recorded earlier, import it on the Setup step (see :doc:`screens/import_export`)
+recorded earlier, import it on the Session step (see :doc:`screens/import_export`)
 and choose *Single session report*. You will be asked which sections to
 include and can set the scale targets at that point. See :doc:`reports`.

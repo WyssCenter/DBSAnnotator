@@ -11,7 +11,7 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
-import '../app_info.dart' show appName, appVersion;
+import '../app_info.dart' show appName, appVersion, kNotice;
 import '../core/brand_palette.dart' show rankRowTint;
 import 'attestation.dart';
 import 'docx_ooxml.dart';
@@ -128,6 +128,7 @@ Future<ReportBytes> buildLongitudinalPdf({
         child: pw.Text(
           'sub-${t(data.patientId)}  |  ${data.visits.length} visits'
           '${span.isEmpty ? '' : ', $span'}  |  $appName v$appVersion'
+          '  |  Not a medical device'
           '  |  Page ${context.pageNumber} of ${context.pagesCount}',
           style: const pw.TextStyle(fontSize: 8, color: pdfInk),
         ),
@@ -151,6 +152,7 @@ Future<ReportBytes> buildLongitudinalPdf({
           'Generated on: ${data.generatedOn} by $appName v$appVersion',
           style: const pw.TextStyle(fontSize: 9, color: pdfInk),
         ),
+        pw.Text(kNotice, style: const pw.TextStyle(fontSize: 9, color: pdfInk)),
 
         // Mixing two patients into one longitudinal report is a safety problem,
         // so it is stated at the top of page 1, not buried in a file list.
@@ -326,7 +328,8 @@ Uint8List buildLongitudinalDocx({
         'Generated on: ${data.generatedOn} by $appName v$appVersion',
         size: 18,
       ),
-    );
+    )
+    ..write(docxPara(kNotice, size: 18));
 
   if (data.mismatchedPatients.isNotEmpty) {
     body.write(
@@ -513,7 +516,7 @@ Uint8List buildLongitudinalDocx({
     footerPrefix:
         'sub-${data.patientId}  |  ${data.visits.length} visits'
         '${span.isEmpty ? '' : ', $span'}  |  $appName v$appVersion'
-        '  |  Page ',
+        '  |  Not a medical device  |  Page ',
   );
 }
 
