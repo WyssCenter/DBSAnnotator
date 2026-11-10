@@ -9,6 +9,8 @@
 /// assert the same false comparability.
 library;
 
+import 'dart:math' as math;
+
 import '../core/annotation.dart';
 import '../core/brand_palette.dart' show kBestFill, kSecondFill;
 import '../core/session/longitudinal.dart'
@@ -439,6 +441,8 @@ LongitudinalReportData buildLongitudinalReportData({
         if (v > hi) hi = v;
       }
     }
+    final dataLo = lo;
+    final dataHi = hi;
     if (!lo.isFinite) {
       lo = 0;
       hi = 1;
@@ -452,8 +456,8 @@ LongitudinalReportData buildLongitudinalReportData({
     // The targets describe the session scales only; a clinical total such as
     // Y-BOCS 28 would fall off a 0-10 axis.
     if (declaredBounds && declared != null) {
-      lo = declared.$1;
-      hi = declared.$2;
+      lo = math.min(dataLo, declared.$1);
+      hi = math.max(dataHi, declared.$2);
     }
     // A plotted scale with a declared range widens the axis to it, so a score
     // reads against its scale rather than against the other values drawn.
@@ -538,9 +542,8 @@ LongitudinalReportData buildLongitudinalReportData({
       '${visit.blocks.length}',
       scores.isEmpty
           ? '-'
-          : [
-              for (final e in scores.entries) '${e.key}: ${trimZeros(e.value)}',
-            ].join('\n'),
+          : [for (final e in scores.entries) '${e.key}: ${trimZeros(e.value)}']
+                .join('\n'),
     ]);
   }
 

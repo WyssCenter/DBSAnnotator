@@ -30,9 +30,8 @@ Uint8List _tinyPng() => base64Decode(
 );
 
 List<SessionRow> _example() => parseSessionTsv(
-  File(
-    'test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv',
-  ).readAsStringSync(),
+  File('test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv')
+      .readAsStringSync(),
 );
 
 /// The visible text of `word/document.xml`, in order.

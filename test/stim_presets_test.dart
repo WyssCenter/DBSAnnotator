@@ -52,9 +52,9 @@ void main() {
   });
 
   test('step1 / decimals / omitted_tsv fall back to defaults when absent', () {
-    final json =
-        jsonDecode(File('schema/limits.json').readAsStringSync())
-            as Map<String, dynamic>;
+    final json = jsonDecode(
+      File('schema/limits.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
     final stim = json['stimulation'] as Map<String, dynamic>;
     for (final key in ['frequency', 'amplitude', 'pulse_width']) {
       (stim[key] as Map<String, dynamic>).remove('step1');
@@ -78,9 +78,9 @@ void main() {
   });
 
   test('defaults are optional: a contract without them has none', () {
-    final json =
-        jsonDecode(File('schema/limits.json').readAsStringSync())
-            as Map<String, dynamic>;
+    final json = jsonDecode(
+      File('schema/limits.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
     json.remove('stimulation_defaults');
     expect(StimLimits.fromJson(json).defaults, isEmpty);
   });

@@ -193,4 +193,53 @@ void main() {
       ],
     });
   });
+
+  testWidgets('an empty group name is refused with an inline error', (
+    tester,
+  ) async {
+    Map<String, List<List<String>>>? result;
+    await pumpHost(tester, (context) async {
+      result = await showSessionPresetsDialog(
+        context,
+        presets: const {
+          'PD': [(name: 'Tremor', min: '0', max: '10', mode: 'max', step: '')],
+        },
+      );
+    });
+
+    await tester.enterText(find.widgetWithText(TextField, 'PD'), '  ');
+    await tester.tap(find.text('Save & Close'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Not saved: A preset group has no name.'), findsOneWidget);
+    expect(find.text('Session scales settings'), findsOneWidget);
+    expect(result, isNull);
+  });
+
+  testWidgets('a duplicate group name is refused with an inline error', (
+    tester,
+  ) async {
+    Map<String, List<List<String>>>? result;
+    await pumpHost(tester, (context) async {
+      result = await showSessionPresetsDialog(
+        context,
+        presets: const {
+          'A': [(name: 'Tremor', min: '0', max: '10', mode: 'max', step: '')],
+          'B': [(name: 'Rigidity', min: '0', max: '10', mode: 'max', step: '')],
+        },
+      );
+    });
+
+    await tester.tap(find.text('B'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'B'), 'A');
+    await tester.tap(find.text('Save & Close'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Not saved: Two preset groups are named "A".'),
+      findsOneWidget,
+    );
+    expect(result, isNull);
+  });
 }

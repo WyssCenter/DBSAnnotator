@@ -22,6 +22,7 @@ import 'session_docx.dart' show datedNotesDocx;
 import 'session_pdf.dart'
     show
         ElectrodeReportImages,
+        LongNotes,
         datedNotesPdf,
         numericColumnAlignments,
         electrodeCellWidth,
@@ -532,84 +533,94 @@ List<String> _sourceLines(LongitudinalReportData data) => [
 List<pw.Widget> _sessionTable(
   LongitudinalReportData data,
   ReportTextSanitiser t,
-) => [
-  pw.SizedBox(height: 12),
-  pw.Header(level: 1, text: 'Session data'),
-  for (final entry in data.timeline)
-    if (entry.noteDay case final day?) ...[
-      pw.SizedBox(height: 6),
-      pw.Text(
-        t(day.date),
-        style: const pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-      ),
-      pw.TableHelper.fromTextArray(
-        headers: data.tableHeadersFor(data.visits.first),
-        data: t.rows(day.rows),
-        cellStyle: const pw.TextStyle(fontSize: 8),
-        headerStyle: const pw.TextStyle(
-          fontSize: 8,
-          fontWeight: pw.FontWeight.bold,
+) {
+  final long = LongNotes();
+  return [
+    pw.SizedBox(height: 12),
+    pw.Header(level: 1, text: 'Session data'),
+    for (final entry in data.timeline)
+      if (entry.noteDay case final day?) ...[
+        pw.SizedBox(height: 6),
+        pw.Text(
+          t(day.date),
+          style: const pw.TextStyle(
+            fontSize: 9,
+            fontWeight: pw.FontWeight.bold,
+          ),
         ),
-        headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
-        cellAlignment: pw.Alignment.centerLeft,
-        columnWidths: {
-          for (final (i, w) in data.visits.first.session.tableWeights.indexed)
-            i: pw.FlexColumnWidth(w),
-        },
-      ),
-    ] else if (entry.visit case final v?
-        when v.session.tableData.isNotEmpty) ...[
-      pw.SizedBox(height: 6),
-      pw.Text(
-        t('${v.date}${v.run.isEmpty ? '' : ' run ${v.run}'}'),
-        style: const pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-      ),
-      pw.TableHelper.fromTextArray(
-        headers: data.tableHeadersFor(v),
-        data: t.rows(data.tableRowsFor(v)),
-        cellStyle: const pw.TextStyle(fontSize: 8),
-        headerStyle: const pw.TextStyle(
-          fontSize: 8,
-          fontWeight: pw.FontWeight.bold,
+        pw.TableHelper.fromTextArray(
+          headers: data.tableHeadersFor(data.visits.first),
+          data: t.rows(long.rows(day.rows, prefix: day.date)),
+          cellStyle: const pw.TextStyle(fontSize: 8),
+          headerStyle: const pw.TextStyle(
+            fontSize: 8,
+            fontWeight: pw.FontWeight.bold,
+          ),
+          headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
+          cellAlignment: pw.Alignment.centerLeft,
+          columnWidths: {
+            for (final (i, w) in data.visits.first.session.tableWeights.indexed)
+              i: pw.FlexColumnWidth(w),
+          },
         ),
-        headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
-        cellAlignment: pw.Alignment.centerLeft,
-        cellAlignments: numericColumnAlignments(data.tableHeadersFor(v)),
-        columnWidths: {
-          for (final (i, w) in v.session.tableWeights.indexed)
-            i: pw.FlexColumnWidth(w),
-        },
-        border: const pw.TableBorder(
-          left: pw.BorderSide(),
-          right: pw.BorderSide(),
-          top: pw.BorderSide(),
-          bottom: pw.BorderSide(),
-          verticalInside: pw.BorderSide(),
-          horizontalInside: pw.BorderSide(color: pdfRule, width: 0.4),
+      ] else if (entry.visit case final v?
+          when v.session.tableData.isNotEmpty) ...[
+        pw.SizedBox(height: 6),
+        pw.Text(
+          t('${v.date}${v.run.isEmpty ? '' : ' run ${v.run}'}'),
+          style: const pw.TextStyle(
+            fontSize: 9,
+            fontWeight: pw.FontWeight.bold,
+          ),
         ),
-        // Header is row 0, so data row i is table row i + 1.
-        cellDecoration: (col, dynamic cell, row) {
-          final fill = data.rowFillsFor(v)[row - 1];
-          return pw.BoxDecoration(
-            color: fill == null ? null : PdfColor.fromInt(rankRowTint(fill)),
-            border: pw.Border(
-              top: _blockStarts(v.session.tableRows).contains(row - 1)
-                  ? const pw.BorderSide(width: 1.2)
-                  : pw.BorderSide.none,
-              left: fill != null && col == 0
-                  ? pw.BorderSide(width: 2, color: PdfColor.fromInt(fill))
-                  : pw.BorderSide.none,
-            ),
-          );
-        },
-      ),
+        pw.TableHelper.fromTextArray(
+          headers: data.tableHeadersFor(v),
+          data: t.rows(long.rows(data.tableRowsFor(v), prefix: _visitLabel(v))),
+          cellStyle: const pw.TextStyle(fontSize: 8),
+          headerStyle: const pw.TextStyle(
+            fontSize: 8,
+            fontWeight: pw.FontWeight.bold,
+          ),
+          headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
+          cellAlignment: pw.Alignment.centerLeft,
+          cellAlignments: numericColumnAlignments(data.tableHeadersFor(v)),
+          columnWidths: {
+            for (final (i, w) in v.session.tableWeights.indexed)
+              i: pw.FlexColumnWidth(w),
+          },
+          border: const pw.TableBorder(
+            left: pw.BorderSide(),
+            right: pw.BorderSide(),
+            top: pw.BorderSide(),
+            bottom: pw.BorderSide(),
+            verticalInside: pw.BorderSide(),
+            horizontalInside: pw.BorderSide(color: pdfRule, width: 0.4),
+          ),
+          // Header is row 0, so data row i is table row i + 1.
+          cellDecoration: (col, dynamic cell, row) {
+            final fill = data.rowFillsFor(v)[row - 1];
+            return pw.BoxDecoration(
+              color: fill == null ? null : PdfColor.fromInt(rankRowTint(fill)),
+              border: pw.Border(
+                top: _blockStarts(v.session.tableRows).contains(row - 1)
+                    ? const pw.BorderSide(width: 1.2)
+                    : pw.BorderSide.none,
+                left: fill != null && col == 0
+                    ? pw.BorderSide(width: 2, color: PdfColor.fromInt(fill))
+                    : pw.BorderSide.none,
+              ),
+            );
+          },
+        ),
+      ],
+    if (_anyShaded(data)) ...[
+      pw.SizedBox(height: 4),
+      pw.Text(kVisitRankingLegend, style: const pw.TextStyle(fontSize: 8)),
+      pw.Text(t(data.rankingTargets), style: const pw.TextStyle(fontSize: 8)),
     ],
-  if (_anyShaded(data)) ...[
-    pw.SizedBox(height: 4),
-    pw.Text(kVisitRankingLegend, style: const pw.TextStyle(fontSize: 8)),
-    pw.Text(t(data.rankingTargets), style: const pw.TextStyle(fontSize: 8)),
-  ],
-];
+    ...long.section(t),
+  ];
+}
 
 bool _anyShaded(LongitudinalReportData data) => data.rankedBlocks.isNotEmpty;
 

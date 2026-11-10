@@ -270,9 +270,8 @@ void main() {
   const stem = 'sub-01_ses-20260203_task-programming_run-01';
 
   File('$dir/${stem}_beh.tsv').writeAsStringSync(serializeSessionTsv(rows));
-  File(
-    '$dir/legacy_0.4_${stem}_events.tsv',
-  ).writeAsStringSync(_legacyDocument(rows).replaceAll('\tn/a', '\tNaN'));
+  File('$dir/legacy_0.4_${stem}_events.tsv')
+      .writeAsStringSync(_legacyDocument(rows).replaceAll('\tn/a', '\tNaN'));
 
   // Print the arithmetic the tests pin, so a change here shows its effect
   // immediately rather than as a context-free test failure.

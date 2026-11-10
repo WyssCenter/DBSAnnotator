@@ -5,11 +5,16 @@ library;
 import 'dart:async';
 import 'dart:io';
 
+/// Holds every write until it completes, so a test can keep a save running.
+Future<void>? debugWriteGate;
+
 /// Atomically replace [path]'s contents: write `<path>.tmp`, then rename it
 /// over [path], so a reader sees the old contents or the new, never a mixture.
 /// The rename is retried with backoff (on Windows a reader, antivirus or the
 /// indexer can hold the target) and never deletes it, so `.tmp` survives too.
 Future<void> writeStringAtomic(String path, String contents) async {
+  final gate = debugWriteGate;
+  if (gate != null) await gate;
   final tmp = File('$path.tmp');
   await tmp.writeAsString(contents, flush: true);
   var delay = const Duration(milliseconds: 15);

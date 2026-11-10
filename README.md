@@ -53,7 +53,7 @@ paper/               JOSS paper
 ## Getting started
 
 Requires the [Flutter SDK](https://docs.flutter.dev/get-started/install)
-**3.38.4 or later** (Dart 3.12+). From the repository root:
+**3.47 or later** (Dart 3.13+). From the repository root:
 
 ```bash
 flutter pub get

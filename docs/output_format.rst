@@ -315,8 +315,8 @@ ones with no ``block_id``. So:
 ``participant_id`` uses the BIDS spelling and the BIDS value shape deliberately,
 so the table joins onto ``participants.tsv`` with no transformation.
 
-A block is unique across the table on
-``(participant_id, session_id, run_id, block_id)``. ``source_file`` is a key
+A block is unique across the table on ``(source_file, block_id)``, and a note
+row has no ``block_id``, so it belongs to no block. ``source_file`` is a key
 column rather than a convenience: ``run`` defaults to ``01`` and does not
 auto-increment, so two visits on the same day can share all three entities
 above, and the filename is then the only thing that separates their rows.
@@ -344,6 +344,15 @@ guessing entities would put a wrong subject label on clinical data; and the same
 filename twice is refused rather than concatenated, because duplicate rows
 double every count derived from the table with nothing on the face of it to show
 why.
+
+A combined table saved into a dataset for chosen files is replaced by the next
+merge from the Reports screen, which rebuilds it from every session and notes
+file the dataset holds. A visit recorded straight into a dataset is added to the
+table once, when the recording ends: on leaving the screen, closing the window,
+or starting or opening another file. After an interrupted recording the table
+stays as it was until the next merge from Reports or the next visit recorded
+into the dataset. The previous copy is kept beside it with a ``.bak-`` suffix
+when the dataset is a folder.
 
 Notes files join this table one row per note, with only ``acq_time`` and
 ``notes`` filled. Grouping by ``block_id`` therefore leaves them out, since their

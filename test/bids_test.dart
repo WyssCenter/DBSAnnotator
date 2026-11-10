@@ -15,9 +15,9 @@ import 'package:dbs_annotator/core/schema_columns.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final contract =
-      jsonDecode(File('schema/tsv_schema.json').readAsStringSync())
-          as Map<String, dynamic>;
+  final contract = jsonDecode(
+    File('schema/tsv_schema.json').readAsStringSync(),
+  ) as Map<String, dynamic>;
 
   group('sidecar', () {
     test('documents every column of both kinds, and nothing else', () {
@@ -67,9 +67,9 @@ void main() {
       );
       expect(notes['TaskName'], 'notes');
 
-      final aggregate =
-          jsonDecode(aggregateSidecarJson(contract, appVersion: '0.5.0'))
-              as Map<String, dynamic>;
+      final aggregate = jsonDecode(
+        aggregateSidecarJson(contract, appVersion: '0.5.0'),
+      ) as Map<String, dynamic>;
       expect(aggregate.containsKey('TaskName'), isFalse);
       expect(aggregate.containsKey('TaskDescription'), isFalse);
     });
@@ -180,13 +180,9 @@ void main() {
           appVersion: '0.5.0',
           repoUrl: 'https://example.invalid',
         );
-        final description =
-            jsonDecode(
-                  files
-                      .firstWhere((f) => f.path == 'dataset_description.json')
-                      .content,
-                )
-                as Map<String, dynamic>;
+        final description = jsonDecode(
+          files.firstWhere((f) => f.path == 'dataset_description.json').content,
+        ) as Map<String, dynamic>;
 
         expect(description['BIDSVersion'], bidsVersion);
         expect(description['DatasetType'], 'raw');

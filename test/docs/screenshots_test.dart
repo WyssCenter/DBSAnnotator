@@ -1059,18 +1059,40 @@ void main() {
       (
         'dialog_add_to_dataset',
         (c) => confirmMerge(c, (
-          write: const [(path: '$visit.tsv', content: '')],
+          write: const [
+            (path: '$visit.tsv', content: ''),
+            (
+              path:
+                  'derivatives/dbs-annotator-aggregate/desc-aggregate_beh.tsv',
+              content: '',
+            ),
+            (
+              path:
+                  'derivatives/dbs-annotator-aggregate/desc-aggregate_beh.json',
+              content: '',
+            ),
+          ],
           added: const ['$visit.tsv', '$visit.json'],
           rowMerged: const [
             'participants.tsv',
             'sub-01/ses-20260203/sub-01_ses-20260203_scans.tsv',
           ],
+          rebuilt: const [
+            'derivatives/dbs-annotator-aggregate/desc-aggregate_beh.tsv',
+            'derivatives/dbs-annotator-aggregate/desc-aggregate_beh.json',
+          ],
           keptAsIs: const ['dataset_description.json', 'README'],
+          unread: const [],
           refused: const [],
+          leftOut: const [],
         ), root),
         'Cancel',
       ),
-      ('dialog_keep_recovery', askKeepRecoveryCopy, 'Cancel'),
+      (
+        'dialog_keep_recovery',
+        (c) => askKeepRecoveryCopy(c, onlyCopy: false),
+        'Cancel',
+      ),
       (
         'dialog_reopen_unfinished',
         (c) => askReopenUnfinished(
@@ -1237,9 +1259,8 @@ void main() {
         sessionChartPng: await renderScalesChartPng(longitudinal.sessionChart),
       );
     });
-    File(
-      '${out.path}/longitudinal_report.pdf',
-    ).writeAsBytesSync(longitudinalPdf!.bytes);
+    File('${out.path}/longitudinal_report.pdf')
+        .writeAsBytesSync(longitudinalPdf!.bytes);
 
     final notes = buildAnnotationsReportData(
       entries: const [
@@ -1260,8 +1281,7 @@ void main() {
       sourceFile: 'sub-01_ses-20260203_task-notes_run-01_beh.tsv',
     );
     final notesPdf = await tester.runAsync(() => buildAnnotationsPdf(notes));
-    File(
-      '${out.path}/annotations_report.pdf',
-    ).writeAsBytesSync(notesPdf!.bytes);
+    File('${out.path}/annotations_report.pdf')
+        .writeAsBytesSync(notesPdf!.bytes);
   });
 }

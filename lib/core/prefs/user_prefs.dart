@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../electrode/electrode_model.dart';
+import '../safe_file.dart';
 import '../session/scale_presets.dart';
 
 /// Per-user preset overrides, persisted as JSON in the app-support directory
@@ -235,8 +236,10 @@ Future<UserPrefs> loadUserPrefs() async {
   }
 }
 
+final _prefsWriter = SafeFileWriter();
+
 /// Persist overrides so edits survive relaunch.
 Future<void> saveUserPrefs(UserPrefs prefs) async {
   final f = await _prefsFile();
-  await f.writeAsString(jsonEncode(prefs.toJson()));
+  await _prefsWriter.write(f.path, jsonEncode(prefs.toJson()));
 }

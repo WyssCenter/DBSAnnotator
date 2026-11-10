@@ -37,8 +37,9 @@ const String naCell = 'n/a';
 List<Map<String, String>> parseTsvRecords(String content) {
   final rows = parseTsv(content);
   if (rows.isEmpty) return <Map<String, String>>[];
-  final header = rows.first;
-  return rows.skip(1).map((row) {
+  final header = [for (final c in rows.first) c.trim()];
+  final dataRows = rows.skip(1).where((r) => r.any((c) => c.trim().isNotEmpty));
+  return dataRows.map((row) {
     final record = <String, String>{};
     for (var i = 0; i < header.length; i++) {
       final cell = i < row.length ? row[i] : '';

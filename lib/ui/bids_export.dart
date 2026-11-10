@@ -23,22 +23,24 @@ import '../core/session/aggregate.dart';
 import '../core/session/session_file.dart';
 import '../core/session/tsv_kind.dart';
 import '../report/upload_actions.dart';
+import 'save_target.dart';
 import 'share_util.dart';
 
 /// Zip the dataset built from [entries] and deliver it.
 ///
-/// [anchor] is the export button, for the iPad share popover.
-Future<void> exportBidsDataset(
+/// [anchor] is the export button, for the iPad share popover. See
+/// [ExportOutcome].
+Future<ExportOutcome> exportBidsDataset(
   BuildContext context, {
   required List<DatasetEntry> entries,
   List<DatasetFile> extraFiles = const <DatasetFile>[],
   GlobalKey? anchor,
+  AvoidFile? avoid,
 }) async {
   if (entries.isEmpty) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Nothing to export yet.')));
-    return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Nothing to export yet.')));
+    return ExportOutcome.notDelivered;
   }
   // Naming only the first of several subjects would be worse than generic.
   final subjects = {for (final e in entries) BidsName.label(e.name.subject)};
@@ -46,11 +48,12 @@ Future<void> exportBidsDataset(
       ? 'sub-${subjects.first}_bids'
       : 'bids-dataset';
 
-  await exportFile(
+  return exportFile(
     context,
     filename: '$stem.zip',
     anchor: anchor,
     failureLabel: 'BIDS export failed',
+    avoid: avoid,
     build: () async {
       final files = buildBidsDataset(
         entries,
@@ -116,6 +119,7 @@ datasetFromUploads(
   List<DatasetFile> existing = const [],
 }) {
   final entries = <DatasetEntry>[];
+  final recorded = <Uploaded>[];
   final skipped = <String>[];
   for (final file in uploads) {
     final name = BidsName.parse(file.name);
@@ -123,6 +127,7 @@ datasetFromUploads(
       skipped.add(file.name);
       continue;
     }
+    recorded.add(file);
     final isSession = file.kind == TsvKind.programming;
     entries.add(
       datasetEntry(
@@ -160,7 +165,12 @@ datasetFromUploads(
 
   // The combined table goes where BIDS puts a cross-session derivation: its
   // own directory under `derivatives/`, with its own dataset_description.
-  final aggregate = buildAggregate(aggregateSources(uploads));
+  // Named as filed, after any renumbering, so run_id and source_file point at
+  // the recording that sits at that path.
+  final aggregate = buildAggregate([
+    for (final (i, source) in aggregateSources(recorded).indexed)
+      (filename: placed.entries[i].name.filename, rows: source.rows),
+  ]);
   final files = <DatasetFile>[
     ...buildBidsDataset(
       placed.entries,

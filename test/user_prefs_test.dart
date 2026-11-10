@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dbs_annotator/core/prefs/user_prefs.dart';
 import 'package:dbs_annotator/core/session/scale_presets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -130,5 +132,21 @@ void main() {
       );
       expect(m.session['PD']!.single.mode, defaultScaleOptimizationMode);
     });
+  });
+
+  test('overlapping saves leave valid JSON holding the last write', () async {
+    final dir = await Directory.systemTemp.createTemp('prefs_test');
+    addTearDown(() {
+      debugPrefsDir = null;
+      dir.deleteSync(recursive: true);
+    });
+    debugPrefsDir = dir;
+    final saves = [
+      for (var i = 0; i < 20; i++)
+        saveUserPrefs(UserPrefs(programs: List.filled(200, 'p$i'))),
+    ];
+    await Future.wait(saves);
+    final back = await loadUserPrefs();
+    expect(back.programs, List.filled(200, 'p19'));
   });
 }

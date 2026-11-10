@@ -27,14 +27,14 @@ void main() {
     setUp(() => root = Directory.systemTemp.createTempSync('dbs_target'));
     tearDown(() => root.deleteSync(recursive: true));
 
-    Future<String?> put(BidsName name, String kind, {String tsv = 'a'}) =>
-        fileIntoDataset(
+    Future<String?> put(BidsName name, String kind, {String tsv = 'a'}) async =>
+        (await fileIntoDataset(
           root: root.path,
           name: name,
           tsv: tsv,
           kind: kind,
           acqTime: '2026-02-03T09:00:00+00:00',
-        );
+        ))?.path;
 
     test('notes are filed beside the visit, under their own task', () async {
       await put(_name('programming'), 'session_tsv');
@@ -44,15 +44,13 @@ void main() {
       expect(path, '$dir/sub-01_ses-preop_task-notes_run-01_beh.tsv');
       expect(File(path!).existsSync(), isTrue);
       expect(
-        File(
-          '$dir/sub-01_ses-preop_task-programming_run-01_beh.tsv',
-        ).existsSync(),
+        File('$dir/sub-01_ses-preop_task-programming_run-01_beh.tsv')
+            .existsSync(),
         isTrue,
       );
       final scans = parseTsvRecords(
-        File(
-          '${root.path}/sub-01/ses-preop/sub-01_ses-preop_scans.tsv',
-        ).readAsStringSync(),
+        File('${root.path}/sub-01/ses-preop/sub-01_ses-preop_scans.tsv')
+            .readAsStringSync(),
       );
       expect(scans.map((r) => r['filename']), hasLength(2));
     });
@@ -60,13 +58,9 @@ void main() {
     test('a renamed task names the file and its sidecar', () async {
       final path = await put(_name('followup'), 'annotation_tsv');
       expect(path, endsWith('_task-followup_run-01_beh.tsv'));
-      final sidecar =
-          jsonDecode(
-                File(
-                  path!.replaceFirst(RegExp(r'\.tsv$'), '.json'),
-                ).readAsStringSync(),
-              )
-              as Map<String, dynamic>;
+      final sidecar = jsonDecode(
+        File(path!.replaceFirst(RegExp(r'\.tsv$'), '.json')).readAsStringSync(),
+      ) as Map<String, dynamic>;
       expect(sidecar['TaskName'], 'followup');
     });
 

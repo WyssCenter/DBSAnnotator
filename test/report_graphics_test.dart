@@ -19,9 +19,8 @@ import 'report_ranking_prefs.dart';
 /// compared against the reference figure in
 /// docs/_static/session_report_session_scales_figure.png.
 List<SessionRow> _exampleRows() => parseSessionTsv(
-  File(
-    'test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv',
-  ).readAsStringSync(),
+  File('test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv')
+      .readAsStringSync(),
 );
 
 void main() {

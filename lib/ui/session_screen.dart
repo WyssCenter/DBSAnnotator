@@ -1,7 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart' show PdfPageFormat;
@@ -14,7 +12,6 @@ import '../core/electrode/electrode_model.dart';
 import '../core/electrode/stimulation_rule.dart';
 import '../core/electrode/tokens.dart';
 import '../core/prefs/user_prefs.dart';
-import '../core/safe_file.dart';
 import '../core/schema_columns.dart' show isInitialValue;
 import '../core/session/authoring.dart';
 import '../core/session/scale_presets.dart';
@@ -31,8 +28,6 @@ import '../report/session_pdf.dart';
 import '../app_info.dart';
 import 'amplitude_split.dart';
 import 'bids_export.dart';
-import 'bids_merge_ui.dart';
-import 'close_guard.dart';
 import 'electrode_view.dart';
 import 'list_editor_dialog.dart';
 import 'report_images.dart';
@@ -45,6 +40,7 @@ import 'save_target.dart';
 import 'scale_slider.dart';
 import 'share_util.dart';
 import 'devices_dialog.dart';
+import 'recording_file.dart';
 import 'stim_defaults_dialog.dart';
 import 'wizard_parts.dart';
 import 'stim_params_form.dart';
@@ -82,6 +78,17 @@ String _fmtValue(double v) {
   }
   if (out.endsWith('.')) out = out.substring(0, out.length - 1);
   return out;
+}
+
+/// The sentence for electrode models a file names that the catalogue lacks.
+String _unknownModelsNotice(List<String> models) {
+  if (models.length == 1) {
+    return 'This file names an electrode model, ${models.first}, that is not '
+        'in the catalogue.';
+  }
+  final head = models.sublist(0, models.length - 1).join(', ');
+  return 'This file names electrode models $head and ${models.last} that are '
+      'not in the catalogue.';
 }
 
 /// One clinical scale of the initial assessment: name and score.
@@ -164,7 +171,23 @@ class _SideInputs {
 const _stepNames = ['Setup', 'Initial assessment', 'Programming', 'Finish'];
 const _finishStep = 3;
 
-class _SessionScreenState extends State<SessionScreen> {
+const RecordingWords _words = (
+  entry: 'entry',
+  what: 'this visit',
+  thing: 'the session',
+  staysInApp: 'This visit stays in the app.',
+  exportUnderOtherRun: 'Export it under a different run.',
+  savedInApp: 'The visit is saved in the app.',
+  filedOnFirstEntry:
+      'The visit is filed there as soon as the first block is inserted.',
+  newDialogTitle: 'Create new session TSV',
+  newFileSaid: 'New session',
+  recoveryTitle: 'Unfinished session found',
+  pickerFailed: 'Could not open the file picker.',
+);
+
+class _SessionScreenState extends State<SessionScreen>
+    with RecordingFile<SessionScreen, SessionAuthoring> {
   late SessionAuthoring _authoring = widget.authoring ?? SessionAuthoring();
   final _ids = BidsEntries('programming');
   // Notes are per-context: the initial-config notes persist across inserts (the
@@ -197,12 +220,6 @@ class _SessionScreenState extends State<SessionScreen> {
   final _removedClinical = <_ClinicalScaleEdit>[];
   final _removedSession = <_SessionScaleEdit>[];
 
-  // Serialised, atomic autosave to the chosen file. See [SafeFileWriter].
-  final _writer = SafeFileWriter();
-
-  /// The iPad share-popover anchor, on the Finish step's export section.
-  final _exportKey = GlobalKey();
-
   int _currentStep = 0;
   String? _modelName;
 
@@ -215,20 +232,6 @@ class _SessionScreenState extends State<SessionScreen> {
 
   /// Whether the block about to be inserted is starred.
   bool _starNext = false;
-  // Chosen save path (from New/Open); when set, inserts autosave to it.
-  String? _savePath;
-  // Working copy in the app's own storage, written on every insert whatever
-  // the picker returned, and dropped once the session has been exported.
-  String? _workingPath;
-  // Set when the session is being recorded into a BIDS dataset rather than a
-  // loose file. The visit is filed on the FIRST insert, not at creation: a
-  // header-only TSV that no scans.tsv lists is a dataset that does not
-  // validate, and between New and the first block there is nothing to file.
-  String? _datasetRoot;
-  BidsName? _datasetName;
-  // True when that path is an iOS sandbox copy rather than the user's own
-  // file. See [pickedPathAutosavesToOriginal].
-  bool _savePathIsSandboxCopy = false;
   // The indication whose scales are loaded.
   String? _selectedClinicalPreset;
   // Selected program name (desktop program combo).
@@ -244,62 +247,10 @@ class _SessionScreenState extends State<SessionScreen> {
     loadUserPrefs().then((p) {
       if (mounted) setState(() => _prefs = p);
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _offerRecovery());
-    activeSessionGuard = _mayLeave;
     if (widget.authoring case final a?) {
       _fillSessionDetails(a.rows);
       _loadPathologyScales();
     }
-  }
-
-  /// Offer back a session the app stopped in the middle of. Asking rather than
-  /// restoring silently: the clinician may have moved on to another patient.
-  Future<void> _offerRecovery() async {
-    final left = await unfinishedWork();
-    if (left.isEmpty || !mounted) return;
-    final file = left.first;
-    final String content;
-    try {
-      content = await file.readAsString();
-    } catch (_) {
-      return;
-    }
-    if (sniffTsvKind(content) != TsvKind.programming) return;
-    final recovered = SessionAuthoring()..loadExisting(content);
-    if (recovered.rows.isEmpty || !mounted) return;
-
-    final name = pickedBasename(file.path);
-    final keep = await askReopenUnfinished(
-      context,
-      title: 'Unfinished session found',
-      message:
-          '$name was left open with ${blockCount(recovered.rows)} blocks '
-          'recorded. They were saved as you went, and can be reopened here.',
-    );
-    if (!mounted || keep == null) return;
-    if (!keep) {
-      await discardWork(file.path);
-      return;
-    }
-    _invalidateEntryCharts();
-    final bids = BidsName.parse(name);
-    setState(() {
-      _authoring = recovered;
-      _workingPath = file.path;
-      // No _savePath: guessing it would autosave over a file not chosen here.
-      _savePath = null;
-      _savePathIsSandboxCopy = false;
-      _datasetRoot = null;
-      _datasetName = null;
-      _initialBlock = null;
-      _initialSaved = null;
-      if (bids != null) _ids.fill(bids);
-      _fillSessionDetails(_authoring.rows);
-      _selectedClinicalPreset = null;
-      _currentStep = 2;
-    });
-    _loadPathologyScales();
-    _snack('Reopened $name. Export it to save it outside the app.');
   }
 
   // Chart data is derived from every inserted row, so it is cached and rebuilt
@@ -373,7 +324,7 @@ class _SessionScreenState extends State<SessionScreen> {
     scalePrefs: _scalePrefs(),
     // Provenance: the report prints which file it came from, so it can be
     // tied back to one run among several of the same session.
-    sourceFile: _savePath == null ? '' : pickedBasename(_savePath!),
+    sourceFile: savePath == null ? '' : pickedBasename(savePath!),
   );
 
   /// Report paper size from the user preference, applied to BOTH formats so the
@@ -403,7 +354,6 @@ class _SessionScreenState extends State<SessionScreen> {
 
   @override
   void dispose() {
-    if (activeSessionGuard == _mayLeave) activeSessionGuard = null;
     _ids.dispose();
     _notesInitCtrl.dispose();
     _notesRecCtrl.dispose();
@@ -572,7 +522,7 @@ class _SessionScreenState extends State<SessionScreen> {
     );
     _initialBlock = int.parse(inserted.first.blockId);
     _initialSaved = signature;
-    _autosave();
+    autosave();
     _snack('Initial assessment saved.');
     return true;
   }
@@ -611,7 +561,7 @@ class _SessionScreenState extends State<SessionScreen> {
     await saveUserPrefs(_prefs);
   }
 
-  bool get _started => _workingPath != null || widget.authoring != null;
+  bool get _started => hasFile || widget.authoring != null;
 
   /// Move to [step], saving the initial assessment when leaving it and asking
   /// which configuration the patient leaves on when entering Finish.
@@ -695,7 +645,7 @@ class _SessionScreenState extends State<SessionScreen> {
       _leavesOn = false;
       _starNext = false;
     });
-    _autosave();
+    autosave();
     _snack(
       'Inserted recording block ${inserted.first.blockId} '
       '(${inserted.length} row${inserted.length == 1 ? '' : 's'}).',
@@ -706,267 +656,111 @@ class _SessionScreenState extends State<SessionScreen> {
     final on = starredBlocksIn(_authoring.rows).contains(blockId);
     setState(() => _authoring.setStarred(blockId, !on));
     _invalidateEntryCharts();
-    _autosave();
+    autosave();
   }
 
-  /// Write every entry to disk as it is inserted.
-  ///
-  /// The working copy is unconditional; [_savePath] is written too when the
-  /// picker returned a path `dart:io` can open, which on Android it does not.
-  /// Both go through [SafeFileWriter], so a crash mid-write leaves either the
-  /// previous complete file or the new one.
-  Future<void> _autosave() async {
-    // Resolved here rather than only in New/Open, because the wizard lets the
-    // File step be skipped entirely: without this a whole visit recorded that
-    // way would be held in memory.
-    final work = _workingPath ?? await workingPath(_ids.name.filename);
-    _workingPath = work;
-    try {
-      await _writer.write(work, _authoring.serialize());
-    } catch (e) {
-      if (mounted) _snack('Could not save this entry: $e');
-      return;
-    }
-    // File into the dataset the moment there is something to file. Done here
-    // rather than at New so the dataset is never left holding a header-only
-    // TSV that no scans.tsv lists, which is a dataset that does not validate.
-    if (_datasetRoot != null &&
-        _savePath == null &&
-        _authoring.rows.isNotEmpty) {
-      await _fileIntoDataset();
-    }
+  @override
+  RecordingWords get words => _words;
 
-    final path = _savePath;
-    if (path == null) return;
-    try {
-      await _writer.write(path, _authoring.serialize());
-    } catch (e) {
-      if (mounted) {
-        _snack(
-          'Autosave to your file failed: $e. The entry is saved in the app.',
-        );
-      }
-    }
+  @override
+  TsvKind get tsvKind => TsvKind.programming;
+
+  @override
+  BidsName get bidsName => datasetName ?? _ids.name;
+
+  @override
+  String serialise() => _authoring.serialize();
+
+  @override
+  bool get hasEntries => _authoring.rows.isNotEmpty;
+
+  @override
+  String get firstAcqTime => _authoring.rows.first.acqTime;
+
+  @override
+  SessionAuthoring readTsv(String content) =>
+      SessionAuthoring()..loadExisting(content);
+
+  @override
+  bool isBlank(SessionAuthoring content) => content.rows.isEmpty;
+
+  @override
+  String recoveredCount(SessionAuthoring content) =>
+      '${blockCount(content.rows)} blocks';
+
+  @override
+  String openedSummary(SessionAuthoring content) =>
+      '${content.rows.length} rows, next block ${content.blockId}, '
+      'append ${content.appendId}';
+
+  @override
+  void show(SessionAuthoring content, {required bool reopened}) {
+    _invalidateEntryCharts();
+    _authoring = content;
+    _initialBlock = null;
+    _initialSaved = null;
+    _fillSessionDetails(content.rows);
+    _selectedClinicalPreset = null;
+    if (reopened) _currentStep = 2;
   }
 
-  /// Place this visit in the chosen dataset; see [fileIntoDataset].
-  Future<void> _fileIntoDataset() async {
-    final root = _datasetRoot;
-    final name = _datasetName;
-    if (root == null || name == null) return;
-    try {
-      final path = await fileIntoDataset(
-        root: root,
-        name: name,
-        tsv: _authoring.serialize(),
-        kind: 'session_tsv',
-        acqTime: _authoring.rows.first.acqTime,
+  @override
+  void fillLabels(BidsName name) => _ids.fill(name);
+
+  @override
+  Future<void> announceLoaded(String message) async {
+    _loadPathologyScales();
+    final unknownModels = await _syncModelsToRows();
+    if (!mounted) return;
+    _snack(message);
+    if (unknownModels.isNotEmpty) {
+      _snack(
+        '${_unknownModelsNotice(unknownModels)} The diagrams show '
+        '${_modelName ?? 'the selected model'} instead.',
       );
-      if (path == null) {
-        if (mounted) {
-          _snack(
-            'That dataset already holds ${name.filename}. This visit stays in '
-            'the app; export it under a different run.',
-          );
-        }
-        setState(() => _datasetRoot = null);
-        return;
-      }
-      if (!mounted) return;
-      setState(() => _savePath = path);
-      _snack('Filed as ${name.relativeDir}/${name.filename}.');
-    } catch (e) {
-      if (mounted) {
-        _snack(
-          'Could not file into the dataset: $e. The visit is saved in the app.',
-        );
-      }
-      setState(() => _datasetRoot = null);
     }
   }
 
-  /// Write the `_beh.json` sidecar beside [tsvPath].
-  ///
-  /// Best-effort and silent: the sidecar documents the columns for whoever
-  /// analyses the file later, so failing to write it must never stop a session
-  /// from being recorded. Skipped when one is already there, since its content
-  /// depends only on the schema version, not on the session.
-  Future<void> _writeSidecar(String tsvPath) async {
-    try {
-      final json = tsvPath.replaceFirst(RegExp(r'\.tsv$'), '.json');
-      if (json == tsvPath || File(json).existsSync()) return;
-      final contract = await loadTsvContract();
-      await File(json).writeAsString(
-        sessionSidecarJson(
-          contract,
-          appVersion: appVersion,
-          task: _ids.name.task,
-        ),
-      );
-    } catch (_) {
-      // No sidecar is a documentation loss, not a data loss.
-    }
-  }
-
-  Future<void> _newSession() async {
-    final subject = _ids.subject.text.trim();
-    if (subject.isEmpty) {
+  Future<void> _newSession() {
+    if (_ids.subject.text.trim().isEmpty) {
       _snack('Enter the patient ID first.');
-      return;
+      return Future.value();
     }
-    final bids = _ids.name;
-    final name = bids.filename;
     final authoring = SessionAuthoring();
-
-    // Loose file, or straight into a dataset. Asked here because the answer
-    // decides where every autosave of this visit lands.
-    final into = await askNewTarget(context, bids, what: 'this visit');
-    if (into == null || !mounted) return;
-    if (into.root != null) {
-      final work = await workingPath(into.name.filename);
-      if (!mounted) return;
-      setState(() {
+    return newFile(
+      proposed: _ids.name,
+      header: authoring.serialize(),
+      prefs: _prefs,
+      start: (filedAs) {
+        _invalidateEntryCharts();
         _authoring = authoring;
-        _savePath = null;
-        _workingPath = work;
-        _datasetRoot = into.root;
-        _datasetName = into.name;
-        _savePathIsSandboxCopy = false;
-        _ids.run.text = into.name.run;
+        if (filedAs != null) _ids.run.text = filedAs.run;
         _initialBlock = null;
         _initialSaved = null;
-      });
-      _snack(
-        'Recording into ${into.root}. '
-        'The visit is filed there as soon as the first block is inserted.',
-      );
-      return;
-    }
-
-    final folder = canWriteChosenFolder ? await chooseSaveFolder(_prefs) : null;
-    if (canWriteChosenFolder && folder == null) return;
-    if (!mounted) return;
-    final NewTsvTarget? target;
-    try {
-      target = await createNewTsv(
-        dialogTitle: 'Create new session TSV',
-        fileName: name,
-        header: authoring.serialize(),
-        folder: folder,
-      );
-    } on PathExistsException {
-      if (mounted) {
-        _snack(
-          '$name is already in $folder. Change the run number, '
-          'or use Open to continue that session.',
-        );
-      }
-      return;
-    } catch (e) {
-      if (mounted) _snack('Could not create $name: $e');
-      return;
-    }
-    if (target == null) return; // dialog shown but cancelled
-    if (target.fellBack && mounted) {
-      _snack('No file dialog available; saved to ${target.location}');
-    }
-    final p = target.path;
-    if (p != null) await _writeSidecar(p);
-    final work = await workingPath(name);
-    if (!mounted) return;
-    setState(() {
-      _authoring = authoring;
-      _savePath = p;
-      _workingPath = work;
-      _datasetRoot = null;
-      _datasetName = null;
-      _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(p);
-      _initialBlock = null;
-      _initialSaved = null;
-    });
-    _snack('New session: ${target.location}');
+      },
+    );
   }
 
-  Future<void> _open() async {
-    // `pickFile`, not `pickFiles`: `allowMultiple` defaults to TRUE, so
-    // `pickFiles` here would silently accept a multi-selection.
-    final PlatformFile? chosen;
-    try {
-      chosen = await FilePicker.pickFile(type: FileType.any);
-    } catch (e) {
-      if (mounted) {
-        // On Linux desktop this usually means zenity/kdialog is missing.
-        _snack('Could not open the file picker. ($e)');
-      }
-      return;
-    }
-    if (chosen == null) return;
-    final picked = chosen; // non-nullable, so the setState closure can use it
-    final content = await readPickedText(picked);
-    if (content == null) {
-      if (mounted) _snack('Could not read ${picked.name}.');
-      return;
-    }
-    // Refuse the wrong workflow's file rather than loading it into nothing.
-    // `SessionRow.fromMap` is total, so a notes TSV parses into all-empty rows
-    // and would open "successfully" with no blocks and no explanation.
-    final kind = sniffTsvKind(content);
-    if (kind != TsvKind.programming) {
-      if (mounted) {
-        _snack(tsvKindMismatch(picked.name, kind, TsvKind.programming));
-      }
-      return;
-    }
-
-    _invalidateEntryCharts();
-    _authoring.loadExisting(content);
-    final bids = BidsName.parse(picked.name);
-
-    // The file names its own electrode model, so the dropdown follows it. A
-    // mismatch is not cosmetic: it labels one lead's contacts with another
-    // lead's geometry, in the diagrams here and in the report.
+  /// The file names its own electrode model, so the dropdown follows it. A
+  /// mismatch is not cosmetic: it labels one lead's contacts with another
+  /// lead's geometry, in the diagrams here and in the report.
+  Future<List<String>> _syncModelsToRows() async {
     final catalog = (await _contracts).$1.withDevices(_prefs.devices);
     final named = electrodeModelIn(_authoring.rows);
     final namedRight = electrodeModelIn(_authoring.rows, right: true);
-    final unknownModel = [
-      named,
-      namedRight,
-    ].any((n) => n.isNotEmpty && !catalog.models.containsKey(n));
-    final work = await workingPath(picked.name);
-
-    if (!mounted) return;
-    setState(() {
-      // Autosave future inserts back to the opened file (when a real path).
-      _savePath = picked.path;
-      _workingPath = work;
-      _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(picked.path);
-      _datasetRoot = null;
-      _datasetName = null;
-      _initialBlock = null;
-      _initialSaved = null;
-      if (bids != null) _ids.fill(bids);
-      _fillSessionDetails(_authoring.rows);
-      _selectedClinicalPreset = null;
-      if (named.isNotEmpty && !unknownModel) {
+    final unknown = {
+      for (final n in [named, namedRight])
+        if (n.isNotEmpty && !catalog.models.containsKey(n)) '"$n"',
+    }.toList();
+    if (mounted && named.isNotEmpty && unknown.isEmpty) {
+      setState(() {
         _modelName = named;
         _rightModelName = namedRight.isEmpty || namedRight == named
             ? null
             : namedRight;
-      }
-    });
-    _loadPathologyScales();
-    final opened =
-        'Opened ${picked.name} (${_authoring.rows.length} rows, '
-        'next block ${_authoring.blockId}, append ${_authoring.appendId}).';
-    _snack(_savePathIsSandboxCopy ? '$opened $sandboxCopyNotice' : opened);
-    if (unknownModel) {
-      _snack(
-        'This file names an electrode model ("$named", "$namedRight") '
-        'that is not in the '
-        'catalogue. The diagrams show ${_modelName ?? 'the selected model'} '
-        'instead.',
-      );
+      });
     }
+    return unknown;
   }
 
   /// Report sections the user last chose (all of them, by default).
@@ -1001,13 +795,7 @@ class _SessionScreenState extends State<SessionScreen> {
       _snack('Insert at least one block before exporting.');
       return;
     }
-    await exportFile(
-      context,
-      filename: _ids.name.filename,
-      anchor: _exportKey,
-      build: () async =>
-          (bytes: utf8.encode(_authoring.serialize()), warning: null),
-    );
+    await exportTsv();
   }
 
   /// Export this session as a one-subject BIDS dataset (zipped).
@@ -1031,18 +819,21 @@ class _SessionScreenState extends State<SessionScreen> {
     }
     if (!mounted) return;
     final rows = _authoring.rows;
-    await exportBidsDataset(
-      context,
-      anchor: _exportKey,
-      entries: [
-        datasetEntry(
-          name: _ids.name,
-          tsv: _authoring.serialize(),
-          contract: contract,
-          kind: 'session_tsv',
-          acqTime: rows.isEmpty ? '' : rows.first.acqTime,
-        ),
-      ],
+    await countExport(
+      () => exportBidsDataset(
+        context,
+        anchor: exportKey,
+        avoid: exportAvoid,
+        entries: [
+          datasetEntry(
+            name: _ids.name,
+            tsv: _authoring.serialize(),
+            contract: contract,
+            kind: 'session_tsv',
+            acqTime: rows.isEmpty ? '' : rows.first.acqTime,
+          ),
+        ],
+      ),
     );
   }
 
@@ -1068,7 +859,8 @@ class _SessionScreenState extends State<SessionScreen> {
     await exportFile(
       context,
       filename: filename,
-      anchor: _exportKey,
+      anchor: exportKey,
+      avoid: exportAvoid,
       failureLabel: 'Report export failed',
       build: () async {
         final data = _reportData();
@@ -1122,7 +914,7 @@ class _SessionScreenState extends State<SessionScreen> {
         if (!isInitialValue(r.isInitial)) r.blockId,
     }.length;
     final leftOn = finalBlockIn(_authoring.rows);
-    final saved = _savePath ?? _datasetRoot ?? _workingPath;
+    final saved = savedLocation;
     Widget action(IconData icon, String label, VoidCallback onTap) =>
         OutlinedButton.icon(
           onPressed: onTap,
@@ -1130,7 +922,7 @@ class _SessionScreenState extends State<SessionScreen> {
           label: Text(label),
         );
     return Column(
-      key: _exportKey,
+      key: exportKey,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         GroupCard(
@@ -1144,7 +936,7 @@ class _SessionScreenState extends State<SessionScreen> {
                 '${leftOn == null ? 'not recorded' : 'block $leftOn'}',
               ),
               if (saved != null) Text('Saved to: $saved'),
-              if (_savePathIsSandboxCopy)
+              if (savePathIsSandboxCopy)
                 Text(
                   sandboxCopyNotice,
                   style: Theme.of(context).textTheme.bodySmall,
@@ -1478,7 +1270,7 @@ class _SessionScreenState extends State<SessionScreen> {
     final picked = choice.isEmpty ? null : choice;
     if (picked != marked) {
       setState(() => _authoring.markFinalBlock(picked));
-      await _autosave();
+      await autosave();
     }
     return true;
   }
@@ -1807,7 +1599,7 @@ class _SessionScreenState extends State<SessionScreen> {
                   label: const Text('New session'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _open,
+                  onPressed: openFile,
                   icon: const Icon(Icons.folder_open),
                   label: const Text('Open saved session'),
                 ),
@@ -2495,15 +2287,11 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  /// Leaving asks whether to keep the recovery copy; see `close_guard.dart`.
-  Future<bool> _mayLeave() => confirmLeaveSession(context, _workingPath);
-
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: false,
     onPopInvokedWithResult: (didPop, _) async {
-      if (didPop) return;
-      if (await _mayLeave() && context.mounted) Navigator.pop(context);
+      if (!didPop) await leaveOnBack();
     },
     child: _page(context),
   );

@@ -145,9 +145,8 @@ class _BarPainter extends CustomPainter {
       canvas.drawRect(
         fillRect,
         Paint()
-          ..shader = LinearGradient(
-            colors: DbsColors.scaleFill(dark),
-          ).createShader(fillRect),
+          ..shader = LinearGradient(colors: DbsColors.scaleFill(dark))
+              .createShader(fillRect),
       );
       canvas.restore();
     }

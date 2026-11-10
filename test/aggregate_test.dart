@@ -241,9 +241,9 @@ void main() {
     late Map<String, dynamic> contract;
 
     setUpAll(() {
-      contract =
-          jsonDecode(File('schema/tsv_schema.json').readAsStringSync())
-              as Map<String, dynamic>;
+      contract = jsonDecode(
+        File('schema/tsv_schema.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
     });
 
     // The guard that stops the sidecar drifting from the header: every column
@@ -251,9 +251,9 @@ void main() {
     // no definition - which for a clinical derivative is the whole point of
     // shipping a sidecar at all.
     test('documents every column in the header, and no others', () {
-      final json =
-          jsonDecode(aggregateSidecarJson(contract, appVersion: 'test'))
-              as Map<String, dynamic>;
+      final json = jsonDecode(
+        aggregateSidecarJson(contract, appVersion: 'test'),
+      ) as Map<String, dynamic>;
       const documentLevel = {
         'GeneratedBy',
         'SchemaVersion',
@@ -264,9 +264,9 @@ void main() {
     });
 
     test('says acq_time may be computed for a pre-0.5.0 row', () {
-      final json =
-          jsonDecode(aggregateSidecarJson(contract, appVersion: 'test'))
-              as Map<String, dynamic>;
+      final json = jsonDecode(
+        aggregateSidecarJson(contract, appVersion: 'test'),
+      ) as Map<String, dynamic>;
       expect(
         (json['acq_time'] as Map)['Description'] as String,
         contains('COMPUTED'),
@@ -274,9 +274,9 @@ void main() {
     });
 
     test('distinguishes session_id from append_id in prose', () {
-      final json =
-          jsonDecode(aggregateSidecarJson(contract, appVersion: 'test'))
-              as Map<String, dynamic>;
+      final json = jsonDecode(
+        aggregateSidecarJson(contract, appVersion: 'test'),
+      ) as Map<String, dynamic>;
       expect(
         (json['session_id'] as Map)['Description'] as String,
         contains('append_id'),

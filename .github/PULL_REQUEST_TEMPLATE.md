@@ -5,7 +5,7 @@
 ## Checks
 
 - [ ] `flutter analyze && flutter test` pass
-- [ ] `uvx pre-commit run --all-files` passes (this is what CI runs)
+- [ ] `uvx pre-commit@4.7.0 run --all-files` passes (this is what CI runs)
 - [ ] If it changes the app: `newsfragments/<PR>.<type>.md` added
       (see `newsfragments/README.md`), or the `skip-changelog` label if nobody
       using the app would notice

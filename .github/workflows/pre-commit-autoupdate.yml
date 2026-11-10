@@ -15,10 +15,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v7
-      - run: uvx pre-commit autoupdate
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.5"
+          checksum: f68d291c75783122dad58ab77def0e13f3233f358731db5d6d7e8715603b928f
+      - run: uvx pre-commit@4.7.0 autoupdate --freeze
 
-      - uses: peter-evans/create-pull-request@v8
+      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           branch: chore/pre-commit-autoupdate
           delete-branch: true
@@ -26,12 +31,12 @@ jobs:
           commit-message: "chore: pre-commit autoupdate"
           labels: dependencies,ci
           body: |
-            `uvx pre-commit autoupdate`, monthly.
+            `uvx pre-commit autoupdate --freeze`, monthly.
 
-            The `checks` job runs these same hooks, so green here means the new
-            revisions agree with the tree. Red almost always means a new lint
-            or spelling rule: fix the code, or pin the rev back with a comment
-            saying why.
+            CI does not run on this PR automatically; close and reopen it to run
+            the checks. The `checks` job runs these same hooks. Red almost
+            always means a new lint or spelling rule: fix the code, or pin the
+            rev back with a comment saying why.
 
             Merged by hand, because a hook bump can require code changes, so
             this needs a review rather than a rubber stamp.

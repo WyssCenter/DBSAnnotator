@@ -14,7 +14,7 @@ from. Change it there, and `lib/core/schema_columns.dart` with it.
 ## Quick start
 
 Requires the [Flutter SDK](https://docs.flutter.dev/get-started/install)
-**3.38.4 or later** (Dart 3.12+), the floor `pubspec.lock` resolves against, so
+**3.47 or later** (Dart 3.13+), the floor `pubspec.lock` resolves against, so
 an older SDK fails at `pub get`. From the repository root:
 
 ```bash
@@ -54,7 +54,7 @@ now, along with a few things that are cheap to check and expensive to miss.
 To run everything the way CI does:
 
 ```bash
-uvx pre-commit run --all-files
+uvx pre-commit@4.7.0 run --all-files
 ```
 
 To have it run on each commit:
@@ -84,7 +84,7 @@ merge rather than before.
 
 CI is the authority, since `git commit --no-verify` skips the hooks and CI
 cannot be skipped, but it runs the checks by invoking **these same hooks**
-(`uvx pre-commit run --all-files`), so there is one definition of each rule and
+(`uvx pre-commit@4.7.0 run --all-files`), so there is one definition of each rule and
 nothing to keep in step. `pyproject.toml` holds the ruff, doc8 and codespell
 settings for the same reason. Change a rule in one place and both follow.
 

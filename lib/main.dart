@@ -102,7 +102,7 @@ class _CloseListener extends WindowListener {
   @override
   Future<void> onWindowClose() async {
     final guard = activeSessionGuard;
-    if (guard != null && !await guard()) return;
+    if (guard != null && !await guard(closingWindow: true)) return;
     // Not destroy(): on Windows that only quits the message loop, leaving the
     // window on screen, apparently frozen, while the engine shuts down.
     await windowManager.setPreventClose(false);
@@ -127,9 +127,8 @@ class DbsAnnotatorApp extends StatelessWidget {
           themeMode: mode,
           // Wraps the Navigator, so dialogs and all routes scale too.
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.linear(scale)),
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(scale)),
             child: child!,
           ),
           home: const HomeScreen(),

@@ -86,7 +86,13 @@ Before recording starts, a dialog shows the dataset folder and the exact path
 the visit will be filed under, such as
 ``sub-01/ses-20260203/beh/sub-01_ses-20260203_task-programming_run-01_beh.tsv``,
 with the rule for what is added: the file and its sidecar, a row in
-``participants.tsv`` and one in that session's ``scans.tsv``.
+``participants.tsv`` and one in that session's ``scans.tsv``. Recording does not
+update the dataset's combined table under
+``derivatives/dbs-annotator-aggregate/`` entry by entry. It is refreshed once
+when the recording ends: when you leave the screen, close the window, or start
+or open another file. If the recording is interrupted, the table leaves out this
+visit until the next merge from :doc:`Reports <reports>` or the next visit
+recorded into the dataset refreshes it.
 
 .. figure:: ../_static/screenshots/dialog_record_into.png
    :alt: The confirmation showing the path the visit will be filed under in the dataset
@@ -128,6 +134,24 @@ app says so rather than drawing the wrong lead.
 
 A file that is not a programming session, an annotations file for instance, is
 refused with an explanation rather than loading as empty rows.
+
+A session file can carry columns this app does not keep: one added by hand or by
+another tool, a header name that appears twice, a value under a blank header, or a
+row with more cells than the header. The app writes only the columns of the
+format, so saving over such a file would delete that data. When **Open existing
+TSV** finds any, the message names them (for example *The app does not keep these
+columns: lab_flag. Your file is left unchanged.*) and the app never writes to
+that file. You can still add blocks: every insert is saved in the app's own
+recovery copy, as for a new session that has not been exported yet, so leaving
+the screen asks whether to keep that copy. A line beside **Export** repeats the
+names of the unkept columns for as long as the file is open. **Export**
+then saves the session without them, under a name you choose, and on the
+desktop refuses the file you opened as a target, as does **New**. On Android
+and iOS the opened file is the app's own copy of your file, so there is nothing
+to refuse. Opening another file, or starting
+or reopening a session, ends this mode. Older files that spell a column the way
+earlier versions did, such as ``block_ID`` or a separate ``date``, ``time`` and
+``timezone``, are read as before and do not count as unkept.
 
 Step 2: Initial configuration
 -----------------------------

@@ -20,6 +20,7 @@ import 'report_data.dart' show ReportBytes;
 import 'report_fonts.dart';
 import 'report_palette.dart';
 import 'report_text.dart';
+import 'session_pdf.dart' show LongNotes, kWideNoteBudget;
 
 /// Everything both formats print, computed once so they cannot disagree.
 class AnnotationsReportData {
@@ -124,6 +125,7 @@ Future<ReportBytes> buildAnnotationsPdf(
     subject: 'Deep brain stimulation session notes',
   );
 
+  final long = LongNotes();
   doc.addPage(
     pw.MultiPage(
       // Same margins as the session report, so a clinician filing both does not
@@ -179,7 +181,17 @@ Future<ReportBytes> buildAnnotationsPdf(
           pw.TableHelper.fromTextArray(
             headers: const ['Time', 'Note'],
             data: [
-              for (final e in data.entries) [t(_clock(e)), t(e.notes.trim())],
+              for (final e in data.entries)
+                [
+                  t(_clock(e)),
+                  t(
+                    long.cell(
+                      e.notes.trim(),
+                      _clock(e).isEmpty ? _noteStart(e) : _clock(e),
+                      kWideNoteBudget,
+                    ),
+                  ),
+                ],
             ],
             cellStyle: const pw.TextStyle(fontSize: 9),
             headerStyle: const pw.TextStyle(
@@ -193,6 +205,7 @@ Future<ReportBytes> buildAnnotationsPdf(
               1: pw.FlexColumnWidth(7),
             },
           ),
+        ...long.section(t),
         ...attestationPdf(attestationFields(attestation, rated: false), t),
       ],
     ),
@@ -261,3 +274,8 @@ Uint8List buildAnnotationsDocx(
 /// Derived from `acq_time`; files whose `timezone` cell carries a zone name
 /// instead of an offset depend on `Annotation.fromMap` backfilling it.
 String _clock(Annotation e) => recordedTime(e.acqTime);
+
+String _noteStart(Annotation e) {
+  final text = e.notes.trim().replaceAll(RegExp(r'\s+'), ' ');
+  return 'Note starting ${String.fromCharCodes(text.runes.take(30))}';
+}

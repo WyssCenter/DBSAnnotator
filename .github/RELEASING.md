@@ -117,7 +117,7 @@ iPadOS cannot be sideloaded from GitHub, so TestFlight is the channel.
    ```
 
    Then replace the placeholder step in the iOS CI job with
-   `run: cd ios && fastlane beta` (guarded by `env.APP_STORE_CONNECT_KEY_ID != ''`,
+   `run: cd ios && fastlane beta` (guarded by `env.HAS_APP_STORE_KEY == 'true'`,
    already in place). Signing certs/profiles: use `fastlane match` or Xcode
    automatic signing with the API key.
 
@@ -261,9 +261,10 @@ Steps 1 and 2 are what unblock the Store identity, so they gate everything else.
 
 MSIX needs four components and Microsoft reserves the fourth: *"the last (fourth)
 section of the version number is reserved for Store use and must be left as 0"*.
-`msix_version` in `pubspec.yaml` is therefore `<pubspec version>.0`, enforced by
-`test/version_parity_test.dart`. On a tag, CI derives it from the tag instead
-(`v0.5.1` gives `0.5.1.0`), so the release artifact matches what you tagged.
+`msix_version` in `pubspec.yaml` is therefore `<major.minor.patch>.0` of the
+pubspec version, enforced by `test/version_parity_test.dart`; a pre-release
+stage has no place in it. On a tag, CI requires the tag to equal the pubspec
+version and checks the built package against `msix_version`.
 
 One caveat to expect: the same Microsoft page says the first section *"cannot be
 0"*. That sentence sits in a section about UWP packages and it is not established
@@ -273,20 +274,58 @@ Package validation runs before review, so finding out costs nothing.
 
 ## 5. Cut a release
 
+`tool/release.dart` walks through it and asks before every step that changes a
+file, commits, pushes or tags. Start from a clean, up-to-date `main`:
+
 ```bash
-# bump pubspec.yaml version (e.g. 0.5.0+1 becomes 0.5.1+2), then the three
-# literals that restate it (lib/app_info.dart, CITATION.cff, msix_config).
-# `flutter test` fails if you miss one (test/version_parity_test.dart).
-# Then assemble the changelog: every newsfragments/*.md moves into
-# CHANGELOG.md under the new version, and the fragment files are deleted.
-uvx towncrier build --version 0.5.1 --yes
-# Commit both, through a PR, then tag the merged commit.
-git tag v0.5.1 && git push origin v0.5.1
+dart run tool/release.dart            # or name the version: dart run tool/release.dart 0.7.0-rc.1
 ```
 
-The new `CHANGELOG.md` section is also the text for the GitHub Release notes
-and for the Microsoft Store's *What's new*. Check it reads well for a clinician
-before tagging: it is what they will see.
+It offers the next versions, previews the release notes from `newsfragments/`,
+writes the version to `pubspec.yaml` (raising the `+N` build number by one),
+`msix_version`, `lib/app_info.dart` and `CITATION.cff`, runs the version parity
+test and, if you want, the analyzer and full test suite, then commits to a
+`release/vX.Y.Z` branch and opens a pull request labelled `skip-changelog`.
+Once that is merged:
+
+```bash
+dart run tool/release.dart tag
+```
+
+tags the merge commit `vX.Y.Z` and pushes the tag, which starts the build below.
+If `main` has moved on since the merge, it refuses and prints the `git tag`
+command to tag the release commit by hand.
+
+A final release also runs `uvx towncrier@26.9.0 build`, which moves every fragment into
+`CHANGELOG.md` under the new version and deletes the files. That section is
+also the text for the GitHub Release notes and for the Microsoft Store's
+*What's new*. Check it reads well for a clinician before merging: it is what
+they will see.
+
+### Pre-releases
+
+A version with a stage, `X.Y.Z-alpha.N`, `X.Y.Z-beta.N` or `X.Y.Z-rc.N`, is a
+pre-release. It goes through the same two steps and every CI job, and its draft
+is marked as a GitHub *prerelease*: never `latest`. Differences from a final
+release:
+
+- `CHANGELOG.md` is not touched and the fragments stay, so the final release's
+  section lists everything since the previous final release.
+- The version, stage included, reaches the reports, the BIDS metadata and the
+  Android `versionName`. The `+N` build number still rises with every
+  pre-release, as Google Play requires.
+- iOS gets only `X.Y.Z`, because `CFBundleShortVersionString` allows no stage;
+  CI passes it as `--build-name`.
+- The MSIX is `X.Y.Z.0`, the same as the final release, because MSIX has no
+  room for a stage. Do not submit a pre-release MSIX to the Store, or the final
+  release cannot reuse its version.
+- A sideloaded pre-release MSIX must be uninstalled before the final MSIX of
+  the same version is installed. Uninstalling deletes the app's data, including
+  an unfinished session's working copy, so export unfinished sessions first.
+
+Stages sort `alpha` < `beta` < `rc` < final. The script accepts only versions
+newer than the latest tag and not older than the version already in
+`pubspec.yaml`.
 
 **CI publishes a draft, never a live release.** The tag runs static checks (which
 assert the tag matches `pubspec.yaml` before anything is built), the tests, and
@@ -299,18 +338,8 @@ You then read the asset list and click **Publish**. That is the whole point: the
 automation guarantees "every gate passed and nothing is missing"; the decision
 to publish is yours.
 
-**Do a dry run first**, and it is a real rehearsal now rather than a hazard:
-
-```bash
-git tag v0.5.1-rc && git push origin v0.5.1-rc
-```
-
-An `-rc` tag takes an identical path through every job and produces a draft
-*prerelease* titled "dry run, do not publish". It is invisible to the public, is
-never marked `latest`, and sends no watcher notifications. Inspect it, then
-delete it. (Before this, `-rc` matched
-`startsWith(github.ref, 'refs/tags/v')` like any other tag and published for
-real.)
+To rehearse a release, cut an `-rc.N` pre-release: it builds exactly what the
+final release will, and its draft can be deleted unpublished.
 
 What is and is not in a release:
 
@@ -324,6 +353,32 @@ What is and is not in a release:
 TestFlight upload still requires the Apple secrets; without them the iOS job
 compiles, warns in the run summary that nothing was shipped, and stays green.
 Link the TestFlight invite from the Release notes once it exists.
+
+## Admin: put the signing secrets behind an environment
+
+Needs repository admin; maintain access is not enough. The jobs in `ci.yml` that read
+signing or store secrets (windows, android, ios, release) already declare an
+environment: `release` on `v*` tags and `build` everywhere else. Until the secrets are
+moved, behaviour is unchanged: they stay readable as repository secrets.
+
+1. Settings > Environments > New environment, name it `build`. Leave it empty, with no
+   secrets and no protection rules; do not rely on GitHub creating it on first use, since
+   that is not confirmed for Dependabot or fork pull request runs.
+2. Settings > Environments > New environment, name it `release`.
+3. Under Deployment branches and tags choose Selected branches and tags, then Add
+   deployment branch or tag rule, type Tag, pattern `v*`.
+4. Optional: tick Required reviewers and add the people who must approve each release.
+   GitHub approves deployments per environment for a run, and the jobs waiting at
+   the same time are approved together. A tag run asks twice: once for the windows,
+   android and ios build jobs, and once, after they finish, for the release job,
+   which needs all three.
+5. Under Environment secrets add each of these with its current value:
+   `WINDOWS_CERT_BASE64`, `WINDOWS_CERT_PASSWORD`, `ANDROID_KEYSTORE_BASE64`,
+   `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_STORE_PASSWORD`,
+   `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`,
+   `APP_STORE_CONNECT_API_KEY`.
+6. Settings > Secrets and variables > Actions: delete the repository copy of each of
+   the nine secrets. Until then a branch run could still read them.
 
 ## Scale-up later (same artifacts, no rebuild)
 

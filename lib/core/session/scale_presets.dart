@@ -117,10 +117,8 @@ class ScalePresets {
 /// [ranges] as numbers, leaving out any that do not parse or are empty.
 Map<String, (double, double)> numericRanges(Map<String, ScaleRange> ranges) => {
   for (final e in ranges.entries)
-    if ((double.tryParse(e.value.min), double.tryParse(e.value.max)) case (
-      final lo?,
-      final hi?,
-    ) when lo < hi)
+    if ((double.tryParse(e.value.min), double.tryParse(e.value.max))
+        case (final lo?, final hi?) when lo < hi)
       e.key: (lo, hi),
 };
 

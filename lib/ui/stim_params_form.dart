@@ -118,7 +118,7 @@ String? rangeError(String text, LimitRange range) {
   final t = text.trim();
   if (t.isEmpty) return null;
   final v = double.tryParse(t);
-  if (v == null) return 'Not a number';
+  if (v == null || !v.isFinite) return 'Not a number';
   if (v < range.min || v > range.max) {
     return 'Allowed: ${_fmt(range.min)}-${_fmt(range.max)}';
   }

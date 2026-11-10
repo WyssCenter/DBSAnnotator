@@ -60,13 +60,15 @@ void main() {
         isNotNull,
         reason: 'msix_config in pubspec.yaml must declare msix_version.',
       );
+      // MSIX has no room for a pre-release stage such as -beta.1.
+      final expected = '${version.split('-').first}.0';
       expect(
         msixVersion,
-        '$version.0',
+        expected,
         reason:
-            'msix_version must be `<pubspec version>.0`: four components, '
-            'with the fourth left 0 because Microsoft reserves the revision '
-            'field for Store use. Expected $version.0.',
+            'msix_version must be `<pubspec major.minor.patch>.0`: four '
+            'components, with the fourth left 0 because Microsoft reserves '
+            'the revision field for Store use. Expected $expected.',
       );
     },
   );

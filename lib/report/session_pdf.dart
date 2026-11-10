@@ -82,29 +82,109 @@ pw.Widget reportGrid(
   tableWidth: widths == null ? pw.TableWidth.min : pw.TableWidth.max,
 );
 
+/// Cell budgets for a note, as (lines, characters). dart_pdf cannot split a
+/// table row across pages, so a cell taller than a page never lays out. The
+/// narrow budget fits the session table's Notes column (about 10 characters a
+/// line), the wide one a column that spans most of the page. Both keep
+/// all-capitals and wrapping-line worst cases within one page, with the bundled
+/// font, and leave headroom for a taller page header.
+typedef NoteBudget = ({int lines, int chars});
+const kNarrowNoteBudget = (lines: 16, chars: 300);
+const kWideNoteBudget = (lines: 24, chars: 1500);
+
+/// Notes too long for a table cell: [cell] keeps the start in the table and
+/// [section] prints the full text after it, so nothing is cut from the report.
+class LongNotes {
+  final _entries = <({String label, String text})>[];
+
+  /// [text] unchanged when it fits [budget], else its start and a pointer.
+  String cell(String text, String label, NoteBudget budget) {
+    final body = text.trimRight();
+    final lines = '\n'.allMatches(body).length + 1;
+    if (lines <= budget.lines && body.length <= budget.chars) return text;
+    _entries.add((label: label, text: body));
+    final head = body.split('\n').take(budget.lines).join('\n');
+    final clipped = String.fromCharCodes(head.runes.take(budget.chars));
+    return '${clipped.trimRight()}\n(full note below)';
+  }
+
+  /// [rows] with the last cell, the Notes column, passed through [cell]. A row
+  /// is named by its block and time, after [prefix].
+  List<List<String>> rows(List<List<String>> rows, {String prefix = ''}) => [
+    for (final r in rows)
+      [
+        ...r.take(r.length - 1),
+        cell(r.last, _rowLabel(r, prefix), kNarrowNoteBudget),
+      ],
+  ];
+
+  String _rowLabel(List<String> row, String prefix) {
+    final time = row[1]
+        .split('\n')
+        .where((line) => !line.startsWith('('))
+        .join(' ');
+    return [
+      if (prefix.isNotEmpty) prefix,
+      if (row.first.isNotEmpty) 'Block ${row.first}',
+      if (time.isNotEmpty) time,
+    ].join(', ');
+  }
+
+  /// The full text of every clipped note; nothing when none was clipped.
+  List<pw.Widget> section(ReportTextSanitiser t) => _entries.isEmpty
+      ? const []
+      : [
+          pw.SizedBox(height: 8),
+          pw.Header(level: 2, text: 'Full notes'),
+          for (final e in _entries) ...[
+            pw.Text(
+              t(e.label.isEmpty ? 'Note' : e.label),
+              style: const pw.TextStyle(
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.Text(
+              t(e.text),
+              style: const pw.TextStyle(fontSize: 9),
+              overflow: pw.TextOverflow.span,
+            ),
+            pw.SizedBox(height: 6),
+          ],
+        ];
+}
+
 /// [notes] under [heading] as a Date / Time / Note grid; nothing when empty.
 List<pw.Widget> datedNotesPdf(
   String heading,
   List<DatedNote> notes,
   ReportTextSanitiser t,
-) => notes.isEmpty
-    ? const []
-    : [
-        pw.SizedBox(height: 8),
-        pw.Header(level: 2, text: heading),
-        reportGrid(
+) {
+  if (notes.isEmpty) return const [];
+  final long = LongNotes();
+  return [
+    pw.SizedBox(height: 8),
+    pw.Header(level: 2, text: heading),
+    reportGrid(
+      [
+        ['Date', 'Time', 'Note'],
+        for (final n in notes)
           [
-            ['Date', 'Time', 'Note'],
-            for (final n in notes) [n.date, n.time, n.text],
+            n.date,
+            n.time,
+            long.cell(n.text, '${n.date} ${n.time}'.trim(), kWideNoteBudget),
           ],
-          t,
-          widths: const {
-            0: pw.FlexColumnWidth(2),
-            1: pw.FlexColumnWidth(1.5),
-            2: pw.FlexColumnWidth(8),
-          },
-        ),
-      ];
+      ],
+      t,
+      widths: const {
+        0: pw.FlexColumnWidth(2),
+        1: pw.FlexColumnWidth(1.5),
+        2: pw.FlexColumnWidth(8),
+      },
+    ),
+    ...long.section(t),
+  ];
+}
 
 /// "Scales rated per block: 3-5, so blocks are not directly comparable."
 /// Null when every block rated the same number of scales.
@@ -336,7 +416,8 @@ Future<ReportBytes> buildSessionPdf({
   final fonts = await loadReportFonts();
   final theme = fonts.theme;
   final t = ReportTextSanitiser(coverage: fonts.coverage);
-  final tableData = t.rows(data.tableRows);
+  final longNotes = LongNotes();
+  final tableData = t.rows(longNotes.rows(data.tableRows));
   // An /Info dictionary, so the file says what it is, who made it and when
   // once it reaches a document system and its name is no longer the only clue.
   final title = 'DBS session report - sub-$subjectId - ${data.sessionDate}';
@@ -505,6 +586,7 @@ Future<ReportBytes> buildSessionPdf({
               pw.Text(
                 'Notes: ${t(data.initNotes)}',
                 style: const pw.TextStyle(fontSize: 9),
+                overflow: pw.TextOverflow.span,
               ),
             ],
           ],
@@ -605,6 +687,7 @@ Future<ReportBytes> buildSessionPdf({
               },
             ),
             ..._legendBlock(data, t),
+            ...longNotes.section(t),
             if (data.hasStars)
               pw.Text(kStarredLegend, style: const pw.TextStyle(fontSize: 8)),
           ],

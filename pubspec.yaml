@@ -6,7 +6,9 @@ publish_to: "none"
 
 # THE source of truth for the version. Android versionCode/versionName, the
 # iOS/macOS FLUTTER_BUILD_NAME, the Windows FILEVERSION and the docs footer are
-# all derived from this line; do not edit those by hand.
+# all derived from this line; do not edit those by hand. A pre-release such as
+# 0.7.0-beta.1 is allowed; the iOS build in CI strips the stage.
+# tool/release.dart sets this and the three literals below.
 #
 # Three literals cannot read it and so restate it: `appVersion` in
 # lib/app_info.dart, `version:` in CITATION.cff, and `msix_version` below (which
@@ -20,12 +22,12 @@ version: 0.6.0+2
 
 environment:
   # Must not understate what the app actually needs. pubspec.lock resolves
-  # against `dart: ">=3.12.0 <4.0.0"` / `flutter: ">=3.38.4"`, so this said
+  # against `dart: ">=3.13.0 <4.0.0"` / `flutter: ">=3.47.0"`, so this said
   # 3.4.0 while a contributor on 3.4 could not run `flutter pub get` at all.
   # The failure arrived from the lockfile, with no hint that the declared
   # constraint was the lie. Keep this at or above the lockfile's floor.
-  sdk: ">=3.12.0 <4.0.0"
-  flutter: ">=3.38.4"
+  sdk: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0"
 
 dependencies:
   flutter:
@@ -35,6 +37,9 @@ dependencies:
   csv: ^6.0.0
   path_provider: ^2.1.4
   file_picker: ^12.2.0
+  # The desktop Save-As path without writing anything, so a save over a file
+  # the app must not touch can be refused first.
+  file_selector: ^1.1.0
   share_plus: ^13.3.1
   # Opens the repository, issues and contact links in the About dialog. Its
   # Windows and Linux plugins were already being linked through share_plus, so
@@ -63,6 +68,7 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   cross_file: ^0.3.4
+  file_selector_platform_interface: ^2.7.0
   flutter_lints: ^6.0.0
   # App icon generation (run: dart run flutter_launcher_icons). See .github/RELEASING.md.
   flutter_launcher_icons: ^0.14.1

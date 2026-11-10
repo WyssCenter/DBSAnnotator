@@ -5,6 +5,7 @@
 /// platform channels: fully headless-testable.
 library;
 
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import '../core/annotation.dart';
@@ -168,13 +169,13 @@ String _valuesText(
       .join(', ');
 }
 
+/// Whether [acqTime] is dated after [sessionDate].
+bool _onLaterDay(String acqTime, String sessionDate) =>
+    recordedDate(acqTime).isNotEmpty &&
+    recordedDate(acqTime).compareTo(sessionDate) > 0;
+
 /// A row's clock time for display, `HH:MM:SS`, or '' when it has no instant.
 String _clock(SessionRow row) => recordedTime(row.acqTime);
-
-/// The clock time out of a built table row, whose Time cell may carry the gap
-/// since the previous block on a second line.
-String _rowClock(List<String> row) =>
-    row.length < 2 ? '' : row[1].split('\n').first.trim();
 
 /// The UTC offset the rows were recorded at, e.g. "+02:00", or ''.
 ///
@@ -577,6 +578,7 @@ class SessionReportData {
     required this.generatedOn,
     required this.startTime,
     required this.endTime,
+    required this.endDate,
     required this.utcOffset,
     required this.sourceFile,
     required this.rowCount,
@@ -629,6 +631,9 @@ class SessionReportData {
 
   /// Clock time of the first and last entry, "HH:mm", or '' when unknown.
   final String startTime, endTime;
+
+  /// Date of the last entry, "yyyy-MM-dd", or '' when unknown.
+  final String endDate;
 
   /// UTC offset of those times, e.g. "+02:00", or '' when the rows carry none.
   final String utcOffset;
@@ -841,13 +846,17 @@ class SessionReportData {
       ? tableData
       : [for (final r in tableData) List.of(r)..removeAt(_indexColumn)];
 
-  /// The encounter, for the header/footer: "2026-06-26, 09:12-11:40". ASCII on
+  /// The encounter, for the header/footer: "2026-06-26, 09:12-11:40", or
+  /// "2026-06-26 22:10 to 2026-06-27 08:30" when it ends on a later day. ASCII on
   /// purpose: with no Unicode TTF bundled the PDF falls back to Helvetica,
   /// which cannot draw an en dash, and the sanitiser only runs over user text.
-  String get sessionStamp => startTime.isEmpty
-      ? sessionDate
-      : '$sessionDate, $startTime-$endTime'
-            '${utcOffset.isEmpty ? '' : ' (UTC$utcOffset)'}';
+  String get sessionStamp {
+    if (startTime.isEmpty) return sessionDate;
+    final span = endDate.isEmpty || endDate == sessionDate
+        ? '$sessionDate, $startTime-$endTime'
+        : '$sessionDate $startTime to $endDate $endTime';
+    return '$span${utcOffset.isEmpty ? '' : ' (UTC$utcOffset)'}';
+  }
 }
 
 /// Build the scales-chart spec, applying the same target/index/ranking rules as
@@ -886,7 +895,8 @@ ScalesChartSpec buildScalesChartSpec({
   var yMax = dataMax;
   final declared = declaredScaleRange(targets);
   if (declared != null) {
-    (yMin, yMax) = declared;
+    yMin = math.min(dataMin, declared.$1);
+    yMax = math.max(dataMax, declared.$2);
   } else if (!dataMin.isFinite || dataMin == dataMax) {
     yMin = dataMin.isFinite ? dataMin - 1 : 0;
     yMax = dataMax.isFinite ? dataMax + 1 : 1;
@@ -1045,19 +1055,24 @@ Map<String, String> _lastConfigLines(SessionRow? r) {
     final cathodes = contactsWithCurrent(cathode, amp);
     final anodes = contactsWithCurrent(anode, '');
     final total = _paramRange([amp], splitSum: true);
+    final totalText = total == null
+        ? ''
+        : amp.contains('_')
+        ? amplitudeCell(amp)
+        : trimZeros(total.$2);
     final f = freq.trim().isEmpty ? '' : ', ${numCell(freq)} Hz';
     final p = pw.trim().isEmpty ? '' : ', ${numCell(pw)} \u00B5s';
     // Parameters without contacts are still printed: a side's dose is not
     // dropped because its contacts were not recorded.
     if (cathodes.isEmpty && anodes.isEmpty) {
       final params = [
-        if (total != null) '${trimZeros(total.$2)} mA',
+        if (total != null) '$totalText mA',
         if (f.isNotEmpty) f.substring(2),
         if (p.isNotEmpty) p.substring(2),
       ];
       return params.join(', ');
     }
-    final dose = total == null ? '' : ' = ${trimZeros(total.$2)} mA';
+    final dose = total == null ? '' : ' = $totalText mA';
     return '$cathodes-'
         '${anodes.isEmpty ? '' : ' / $anodes+'}$dose$f$p';
   }
@@ -1126,6 +1141,7 @@ SessionReportData buildSessionReportData({
       : recordedDate(recorded.first);
   final startTime = recorded.isEmpty ? '' : _hourMinute(recorded.first);
   final endTime = recorded.isEmpty ? '' : _hourMinute(recorded.last);
+  final endDate = recorded.isEmpty ? '' : recordedDate(recorded.last);
 
   // Split like the desktop: is_initial coerced == 1 -> baseline (Step 1),
   // everything else -> recording blocks (the session-data table).
@@ -1317,6 +1333,7 @@ SessionReportData buildSessionReportData({
   // PDF reads as merged. Printed on both, a duplicated note reads as two
   // separate observations.
   final tableData = <List<String>>[];
+  final blockKeys = <String>[];
   for (final entry in blocks.entries) {
     final first = entry.value.first;
     final scales = _scalesCell(entry.value);
@@ -1331,7 +1348,14 @@ SessionReportData buildSessionReportData({
         : '${idx.toStringAsFixed(indexDecimals)}\n(rank ${rankOf[entry.key]})';
     List<String> side(bool left) => [
       starred.contains('${entry.key}') ? '${entry.key} *' : '${entry.key}',
-      left ? [_clock(first), if (gap.isNotEmpty) '($gap)'].join('\n') : '',
+      left
+          ? [
+              if (_onLaterDay(first.acqTime, sessionDate))
+                recordedDate(first.acqTime),
+              _clock(first),
+              if (gap.isNotEmpty) '($gap)',
+            ].join('\n')
+          : '',
       left ? 'L' : 'R',
       first.programId,
       numCell(left ? first.leftStimFreq : first.rightStimFreq),
@@ -1348,6 +1372,11 @@ SessionReportData buildSessionReportData({
     ];
     tableData.add(side(true));
     tableData.add(side(false));
+    blockKeys.add(
+      _clock(first).isEmpty
+          ? ''
+          : '${recordedDate(first.acqTime)} ${_clock(first)}',
+    );
   }
 
   // Notes from an accompanying file, interleaved by their own clock time.
@@ -1356,24 +1385,29 @@ SessionReportData buildSessionReportData({
   // the Word builder merges vertically, so anything that could place a note
   // between them would break the merge. Each block is one group with one time,
   // each note a group of one.
-  final sameDay = [
+  final lastDate = endDate.isEmpty ? sessionDate : endDate;
+  final inSession = [
     for (final n in notes)
-      if (recordedDate(n.acqTime) == sessionDate) n,
+      if (recordedDate(n.acqTime).compareTo(sessionDate) >= 0 &&
+          recordedDate(n.acqTime).compareTo(lastDate) <= 0)
+        n,
   ];
-  if (sameDay.isNotEmpty) {
+  if (inSession.isNotEmpty) {
     final groups = <(String, List<List<String>>)>[];
     for (var i = 0; i + 1 < tableData.length; i += 2) {
-      groups.add((_rowClock(tableData[i]), [tableData[i], tableData[i + 1]]));
+      groups.add((blockKeys[i ~/ 2], [tableData[i], tableData[i + 1]]));
     }
     final blank = List<String>.filled(sessionTableHeaders.length, '');
-    for (final note in sameDay) {
+    for (final note in inSession) {
       final at = recordedTime(note.acqTime);
       if (at.isEmpty || note.notes.trim().isEmpty) continue;
       groups.add((
-        at,
+        '${recordedDate(note.acqTime)} $at',
         [
           List<String>.of(blank)
-            ..[1] = at
+            ..[1] = _onLaterDay(note.acqTime, sessionDate)
+                ? '${recordedDate(note.acqTime)}\n$at'
+                : at
             ..[sessionTableHeaders.length - 1] = note.notes,
         ],
       ));
@@ -1398,6 +1432,7 @@ SessionReportData buildSessionReportData({
     generatedOn: generatedOn,
     startTime: startTime,
     endTime: endTime,
+    endDate: endDate,
     utcOffset: _utcOffset(rows),
     sourceFile: sourceFile,
     rowCount: rows.length,

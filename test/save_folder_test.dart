@@ -15,6 +15,7 @@ void main() {
       fileName: 'sub-01_ses-20260203_task-programming_run-01_beh.tsv',
       header: 'acq_time\tblock_id\n',
       folder: folder.path,
+      confirmReplace: (_) async => false,
     );
     expect(target!.path, startsWith(folder.path));
     expect(File(target.path!).readAsStringSync(), 'acq_time\tblock_id\n');
@@ -29,6 +30,7 @@ void main() {
         fileName: name,
         header: 'acq_time\n',
         folder: folder.path,
+        confirmReplace: (_) async => false,
       ),
       throwsA(isA<PathExistsException>()),
     );
