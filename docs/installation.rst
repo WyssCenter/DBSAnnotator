@@ -16,7 +16,7 @@ the same application and writes the same files.
      var targets = {
        ipados: ["https://apps.apple.com/app/idAPPLE_APP_ID", "App Store"],
        android: ["https://play.google.com/store/apps/details?id=ch.wysscenter.dbsannotator", "Google Play"],
-       windows: ["https://apps.microsoft.com/search?query=Wyss%20DBS%20Annotator", "Microsoft Store"],
+       windows: ["https://apps.microsoft.com/detail/9PD9QFRXZLLL", "Microsoft Store"],
        macos: ["https://apps.apple.com/app/idAPPLE_APP_ID", "Mac App Store"],
        linux: ["#install-on-linux", "the install command"]
      };
@@ -52,7 +52,7 @@ the install command on Linux. To install on a different device, pick it here:
    * - Android
      - `Google Play <https://play.google.com/store/apps/details?id=ch.wysscenter.dbsannotator>`__
    * - Windows
-     - `Microsoft Store <https://apps.microsoft.com/search?query=Wyss%20DBS%20Annotator>`__
+     - `Microsoft Store <https://apps.microsoft.com/detail/9PD9QFRXZLLL>`__
    * - macOS
      - `Mac App Store <https://apps.apple.com/app/idAPPLE_APP_ID>`__
    * - Linux
