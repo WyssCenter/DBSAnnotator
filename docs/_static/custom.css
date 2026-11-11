@@ -220,3 +220,52 @@ section.wy-nav-content-wrap,
 .rst-content .wy-table-responsive {
   overflow-x: auto;
 }
+
+/* Installation page download button: the brand blue as a fill, dark text on it. */
+.rst-content .dbs-download {
+  margin: 1.5em 0;
+}
+
+.rst-content a.dbs-download-button,
+.rst-content a.dbs-download-button:visited {
+  display: inline-block;
+  padding: 0.7em 2.2em;
+  margin-right: 1em;
+  border-radius: 6px;
+  background: var(--wyss-blue);
+  color: #1a1a1a;
+  font-size: 120%;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.rst-content a.dbs-download-button:hover,
+.rst-content a.dbs-download-button:focus {
+  background: var(--wyss-blue-ink);
+  color: #ffffff;
+}
+
+.rst-content .dbs-download-note {
+  color: #6b6b6b;
+}
+
+/* Speed buttons under each video (video_speed.js). */
+.video-speed {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 18px;
+}
+.video-speed button {
+  min-width: 48px;
+  min-height: 36px;
+  border: 1px solid #6f6f6f;
+  border-radius: 18px;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+.video-speed button[aria-pressed="true"] {
+  background: #0de69f;
+  border-color: #0b8a62;
+  font-weight: 600;
+}

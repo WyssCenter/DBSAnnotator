@@ -1,0 +1,20 @@
+WEBVTT
+
+00:00:01.038 --> 00:00:09.286
+This is the Session step. Type the patient ID and press Next: the session starts, and is saved into the chosen BIDS folder.
+
+00:00:09.413 --> 00:00:17.858
+In Indication and devices, choose the DBS indication. The target, the leads and the IPG are set here too.
+
+00:00:17.995 --> 00:00:29.227
+The initial assessment documents how the patient arrives. Set the stimulation of each side, and tap the contacts on the lead: once for an anode, twice for a cathode.
+
+00:00:29.367 --> 00:00:35.931
+Then the clinical scores, and a note on how the patient presents. Next saves the initial assessment.
+
+00:00:46.004 --> 00:00:54.890
+In Programming, change one thing at a time, rate the symptoms and side effects, note how the patient responds, and press Save configuration.
+
+00:01:11.925 --> 00:01:20.022
+Each saved configuration is added to the charts and to the table below, where it can be starred, edited or deleted.
+

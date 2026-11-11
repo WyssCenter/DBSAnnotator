@@ -77,14 +77,11 @@ void main() {
       expect(header.sublist(header.length - 2), ['scale_mood', 'notes']);
     });
 
-    test('carries append_id, and never a bare session counter', () {
-      // The per-file counter travels under a name that cannot be read as the
-      // BIDS session label, which is what `session_id` holds here.
-      expect(aggregateColumns(), contains('append_id'));
+    test('session_id is the BIDS session label, never a counter', () {
+      expect(aggregateColumns(), isNot(contains('append_id')));
       final out = buildAggregate(_twoVisits());
       final header = _table(out.tsv).first;
-      expect(header, contains('append_id'));
-      // Every session_id value is a BIDS label, not a counter.
+      expect(header, isNot(contains('append_id')));
       for (final row in _table(out.tsv).skip(1)) {
         expect(row[header.indexOf('session_id')], startsWith('ses-'));
       }
@@ -282,18 +279,15 @@ void main() {
       );
     });
 
-    test('distinguishes session_id from append_id in prose', () {
+    test('describes session_id as the BIDS session', () {
       final json = jsonDecode(
         aggregateSidecarJson(contract, appVersion: 'test'),
       ) as Map<String, dynamic>;
       expect(
         (json['session_id'] as Map)['Description'] as String,
-        contains('append_id'),
+        contains('sessions.tsv'),
       );
-      expect(
-        (json['append_id'] as Map)['Description'] as String,
-        contains('File-scoped'),
-      );
+      expect(json.containsKey('append_id'), isFalse);
     });
   });
 

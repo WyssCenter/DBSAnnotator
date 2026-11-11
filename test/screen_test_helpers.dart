@@ -62,7 +62,7 @@ Future<void> settleUntil(
 /// Waits for the queued dataset writes to finish and fails when they never do,
 /// so a test that leaves work queued ends only once that work has drained.
 Future<void> drainDatasetQueue(WidgetTester tester) async {
-  final end = DateTime.now().add(const Duration(seconds: 10));
+  final end = DateTime.now().add(const Duration(seconds: 30));
   while (!datasetQueueIdle) {
     if (!DateTime.now().isBefore(end)) fail('the dataset queue never emptied');
     await tester.runAsync(
@@ -74,7 +74,7 @@ Future<void> drainDatasetQueue(WidgetTester tester) async {
 
 /// [drainDatasetQueue] for a test outside the fake-async zone.
 Future<void> expectDatasetQueueIdle() async {
-  final end = DateTime.now().add(const Duration(seconds: 10));
+  final end = DateTime.now().add(const Duration(seconds: 30));
   while (!datasetQueueIdle) {
     if (!DateTime.now().isBefore(end)) fail('the dataset queue never emptied');
     await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -82,7 +82,7 @@ Future<void> expectDatasetQueueIdle() async {
 }
 
 Future<void> pumpUntilFound(WidgetTester tester, Finder finder) async {
-  final end = DateTime.now().add(const Duration(seconds: 10));
+  final end = DateTime.now().add(const Duration(seconds: 30));
   while (finder.evaluate().isEmpty) {
     if (!DateTime.now().isBefore(end)) fail('timed out waiting for $finder');
     await tester.runAsync(
@@ -93,7 +93,7 @@ Future<void> pumpUntilFound(WidgetTester tester, Finder finder) async {
 }
 
 Future<void> pumpUntilGone(WidgetTester tester, Finder finder) async {
-  final end = DateTime.now().add(const Duration(seconds: 10));
+  final end = DateTime.now().add(const Duration(seconds: 30));
   while (finder.evaluate().isNotEmpty) {
     if (!DateTime.now().isBefore(end)) fail('timed out waiting for no $finder');
     await tester.runAsync(

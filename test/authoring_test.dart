@@ -171,4 +171,17 @@ void main() {
     // The NEXT insert still advances by one block, not one per row.
     expect(a.blockId, 1);
   });
+
+  test('deleting a configuration moves the later ones up by one', () {
+    final a = SessionAuthoring();
+    for (final n in ['one', 'two', 'three']) {
+      a.addInsert(isInitial: false, stim: const {}, notes: n);
+    }
+    a.removeBlock('1');
+    expect(
+      [for (final r in a.rows) (r.blockId, r.notes)],
+      [('0', 'one'), ('1', 'three')],
+    );
+    expect(a.addInsert(isInitial: false, stim: const {}).first.blockId, '2');
+  });
 }

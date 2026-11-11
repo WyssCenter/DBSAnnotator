@@ -164,9 +164,19 @@ powershell -File tool/record_video.ps1 -Flow record_block
 powershell -File tool/record_video.ps1 -Flow reports
 ```
 
-The tests use a temporary folder for preferences and the working copy, so
-recording never changes your own. Windows only; on macOS or Linux the same
-tests run, with ffmpeg's `avfoundation` or `x11grab` in place of `gdigrab`.
+Each flow lists what it says in an enum at the top of its test, and calls
+`say(...)` where each line applies. The script turns those lines into a
+WebVTT caption file beside the video (`<flow>.vtt`, shown by default in the
+docs) and into a spoken voice mixed into the MP4. The voice is Piper's
+public-domain LJSpeech voice, run offline through `uvx`; it is downloaded once
+into `%LOCALAPPDATA%\dbs_annotator_voices`. Add `-NoVoice` for captions only.
+To change what a video says, edit its lines and record it again.
+
+The tests use a temporary folder for preferences and the working copy, and a
+BIDS folder under the public profile (`C:\Users\Public\DBS study`), so
+recording never changes your own and the video shows no user name. Windows
+only; on macOS or Linux the same tests run, with ffmpeg's `avfoundation` or
+`x11grab` in place of `gdigrab`.
 
 ## Getting help
 

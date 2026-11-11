@@ -106,9 +106,21 @@ class SessionAuthoring {
     }
   }
 
-  /// Remove every row of [blockId].
-  void removeBlock(String blockId) =>
-      rows.removeWhere((r) => r.blockId == blockId);
+  /// Remove every row of [blockId] and close the gap, so the configurations
+  /// stay numbered as their rows in the saved file.
+  void removeBlock(String blockId) {
+    final gone = int.parse(blockId);
+    rows.removeWhere((r) => r.blockId == blockId);
+    for (var i = 0; i < rows.length; i++) {
+      final id = int.tryParse(rows[i].blockId);
+      if (id == null || id < gone) continue;
+      rows[i] = SessionRow.fromMap({
+        ...rows[i].toMap(),
+        'block_id': '${id - 1}',
+      });
+    }
+    _blockId -= 1;
+  }
 
   /// Write [cells] into every row of [blockId].
   void setOnBlock(String blockId, Map<String, String> cells) {

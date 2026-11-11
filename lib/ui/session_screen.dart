@@ -858,13 +858,19 @@ class _SessionScreenState extends State<SessionScreen>
         ) ??
         false;
     if (!yes || !mounted) return;
+    final gone = int.parse(blockId);
+    int? shifted(int? id) => id == null || id < gone ? id : id - 1;
     setState(() {
       _authoring.removeBlock(blockId);
-      if (_editingBlock == blockId) _editingBlock = null;
+      _initialBlock = shifted(_initialBlock);
+      final editing = _editingBlock == null ? null : int.parse(_editingBlock!);
+      _editingBlock = editing == gone ? null : shifted(editing)?.toString();
     });
     _invalidateEntryCharts();
     autosave();
-    _snack('Configuration #$blockId deleted.');
+    _snack(
+      'Configuration #$blockId deleted. The ones after it moved up by one.',
+    );
   }
 
   void _toggleStar(String blockId) {
@@ -1450,7 +1456,7 @@ class _SessionScreenState extends State<SessionScreen>
               Text('Configurations tested: $configs'),
               Text(
                 'Final settings: '
-                '${leftOn == null ? 'not noted' : 'configuration $leftOn'}',
+                '${leftOn == null ? 'not noted' : _settingsOf(leftOn)}',
               ),
               if (saved != null) Text('Saved to: $saved'),
               if (savePathIsSandboxCopy)
@@ -1710,6 +1716,23 @@ class _SessionScreenState extends State<SessionScreen>
   /// Ask which recorded block the patient leaves on, defaulting to the one
   /// already marked, else the last, and write the choice into the file. False
   /// when cancelled.
+  /// A configuration's stimulation as values: "Left 130 Hz, 3.5 mA, 60 µs;
+  /// Right 130 Hz, 4 mA, 60 µs". A side with nothing set reads "off".
+  String _settingsOf(String blockId) {
+    final r = _authoring.rows.firstWhere((r) => r.blockId == blockId);
+    String side(String name, String freq, String amp, String pulseWidth) {
+      if ([freq, amp, pulseWidth].every((v) => v.trim().isEmpty)) {
+        return '$name off';
+      }
+      String part(String v, String unit, String Function(String) fmt) =>
+          v.trim().isEmpty ? '' : '${fmt(v)} $unit';
+      return '$name ${[part(freq, 'Hz', numCell), part(amp, 'mA', amplitudeCell), part(pulseWidth, 'µs', numCell)].where((p) => p.isNotEmpty).join(', ')}';
+    }
+
+    return '${side('Left', r.leftStimFreq, r.leftAmplitude, r.leftPulseWidth)}; '
+        '${side('Right', r.rightStimFreq, r.rightAmplitude, r.rightPulseWidth)}';
+  }
+
   Future<bool> _confirmLeftOn() async {
     final blocks = <String, String>{};
     for (final r in _authoring.rows) {
@@ -1737,16 +1760,18 @@ class _SessionScreenState extends State<SessionScreen>
                       RadioListTile<String>(
                         value: e.key,
                         dense: true,
-                        title: Text('Configuration ${e.key}'),
-                        subtitle: e.value.isEmpty ? null : Text(e.value),
+                        title: Text(_settingsOf(e.key)),
+                        subtitle: Text(
+                          '#${e.key}${e.value.isEmpty ? '' : ', ${e.value}'}',
+                        ),
                       ),
                     const RadioListTile<String>(
                       value: '',
                       dense: true,
-                      title: Text('Not recorded'),
+                      title: Text('Not noted'),
                       subtitle: Text(
                         'The report then shows the last configuration '
-                        'recorded, and says so.',
+                        'tested, and says so.',
                       ),
                     ),
                   ],

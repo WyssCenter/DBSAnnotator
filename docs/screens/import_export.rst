@@ -16,9 +16,11 @@ actions to the preview, so a long session table never squeezes the rest.
 
 .. raw:: html
 
-   <video controls muted playsinline preload="metadata" width="100%"
+   <video controls playsinline preload="metadata" width="100%"
           poster="../_static/videos/reports.png">
      <source src="../_static/videos/reports.mp4" type="video/mp4">
+     <track kind="captions" src="../_static/videos/reports.vtt" srclang="en"
+            label="English" default>
    </video>
 
 Two visits imported, the report across visits's sections
