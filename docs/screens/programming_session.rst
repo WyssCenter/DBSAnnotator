@@ -13,9 +13,11 @@ between them. The menu button at the top left opens the :ref:`settings menu <set
 
 .. raw:: html
 
-   <video controls muted playsinline preload="metadata" width="100%"
+   <video controls playsinline preload="metadata" width="100%"
           poster="../_static/videos/record_block.png">
      <source src="../_static/videos/record_block.mp4" type="video/mp4">
+     <track kind="captions" src="../_static/videos/record_block.vtt" srclang="en"
+            label="English" default>
    </video>
 
 A visit from start to end: a new session, the stimulation parameters, the lead, the clinical

@@ -118,7 +118,7 @@ const _frequency = '125';
 const _amplitude = '5.5';
 const _pulseWidth = '90';
 const _initialNotes =
-    'Settings on arrival. Medication unchanged since the last visit.';
+    'Rest tremor in the right hand; walks slowly with short steps.';
 const _recordingNotes =
     'Tremor much reduced at rest; mild tingling in the right hand, fading.';
 

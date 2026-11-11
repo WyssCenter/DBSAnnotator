@@ -1,2 +1,2 @@
 filename	acq_time	medications	program_id	left_stim_freq	left_anode	left_cathode	left_amplitude	left_pulse_width	right_stim_freq	right_anode	right_cathode	right_amplitude	right_pulse_width	scale_mds_updrs_part_iii	scale_pdq_39	scale_udysrs	notes
-beh/sub-01_ses-20260203_task-programming_run-01_beh.tsv	2026-02-03T09:00:00+00:00	Levodopa/carbidopa 100/25 mg four times a day	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	4.0	60	38	31	14	assessed before any change, one hour after the morning dose
+beh/sub-01_ses-20260203_task-programming_run-01_beh.tsv	2026-02-03T09:00:00+00:00	Levodopa/carbidopa 100/25 mg four times a day	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	4.0	60	38	31	14	stiff and slow, rest tremor in the right hand, one hour after the morning dose

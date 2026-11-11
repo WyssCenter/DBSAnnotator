@@ -248,3 +248,24 @@ section.wy-nav-content-wrap,
 .rst-content .dbs-download-note {
   color: #6b6b6b;
 }
+
+/* Speed buttons under each video (video_speed.js). */
+.video-speed {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 18px;
+}
+.video-speed button {
+  min-width: 48px;
+  min-height: 36px;
+  border: 1px solid #6f6f6f;
+  border-radius: 18px;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+.video-speed button[aria-pressed="true"] {
+  background: #0de69f;
+  border-color: #0b8a62;
+  font-weight: 600;
+}

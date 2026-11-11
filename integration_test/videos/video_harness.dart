@@ -11,6 +11,85 @@ import 'package:window_manager/window_manager.dart';
 /// Repo root, passed by `tool/record_video.ps1`, for the committed fixtures.
 const videoRoot = String.fromEnvironment('VIDEO_ROOT', defaultValue: '.');
 
+/// The folder `tool/record_video.ps1` watches, and the Piper voice it passes.
+const _marks = String.fromEnvironment('VIDEO_MARKS');
+const _voice = String.fromEnvironment('VIDEO_VOICE');
+const _uvx = String.fromEnvironment('VIDEO_UVX', defaultValue: 'uvx');
+
+/// Each line of the script: its spoken WAV, empty without a voice, and how
+/// long it takes to say.
+final _spoken = <String, ({String wav, int ms})>{};
+var _speechEnds = DateTime.now();
+
+/// A fresh, empty folder whose path names no user: under the Windows public
+/// profile, else the system temp folder.
+Directory videoFolder(String name) {
+  final base = Platform.environment['PUBLIC'] ?? Directory.systemTemp.path;
+  final dir = Directory('$base${Platform.pathSeparator}$name');
+  if (dir.existsSync()) dir.deleteSync(recursive: true);
+  return dir..createSync(recursive: true);
+}
+
+/// Speak every line of [script] to a WAV file before the recording starts, so
+/// the voice never stalls it. Without a voice each line gets its reading time.
+Future<void> prepareScript(Iterable<String> script) async {
+  final dir = _marks.isEmpty ? Directory.systemTemp.path : _marks;
+  for (final (i, line) in script.indexed) {
+    if (_voice.isEmpty) {
+      _spoken[line] = (wav: '', ms: 800 + 60 * line.length);
+      continue;
+    }
+    final wav = '$dir/say_$i.wav';
+    final piper = await Process.start(_uvx, [
+      '--from',
+      'piper-tts',
+      'piper',
+      '-m',
+      _voice,
+      '-f',
+      wav,
+    ]);
+    piper.stdin.writeln(line);
+    await piper.stdin.close();
+    if (await piper.exitCode != 0) throw StateError('Piper failed on: $line');
+    _spoken[line] = (wav: wav, ms: _wavMs(File(wav).readAsBytesSync()));
+  }
+}
+
+/// The length of a PCM WAV file: its data chunk over its byte rate.
+int _wavMs(List<int> bytes) {
+  int u32(int at) =>
+      bytes[at] |
+      bytes[at + 1] << 8 |
+      bytes[at + 2] << 16 |
+      bytes[at + 3] << 24;
+  final byteRate = u32(28);
+  for (var at = 12; at + 8 <= bytes.length; at += 8 + u32(at + 4)) {
+    if (String.fromCharCodes(bytes.sublist(at, at + 4)) == 'data') {
+      return u32(at + 4) * 1000 ~/ byteRate;
+    }
+  }
+  throw StateError('No data chunk in the WAV file');
+}
+
+/// Caption and speak [line] of the script, once the previous line has
+/// finished, and log when it starts and ends for the recorder.
+Future<void> say(WidgetTester tester, String line) async {
+  final spoken = _spoken[line];
+  if (spoken == null) throw ArgumentError('Not in the script: $line');
+  final wait = _speechEnds.difference(DateTime.now()).inMilliseconds;
+  if (wait > 0) await pause(tester, wait);
+  final start = DateTime.now();
+  _speechEnds = start.add(Duration(milliseconds: spoken.ms + 400));
+  if (_marks.isNotEmpty) {
+    File('$_marks/captions.tsv').writeAsStringSync(
+      '${start.millisecondsSinceEpoch}\t'
+      '${_speechEnds.millisecondsSinceEpoch}\t${spoken.wav}\t$line\n',
+      mode: FileMode.append,
+    );
+  }
+}
+
 final _tap = ValueNotifier<Offset?>(null);
 
 void initVideoBinding() {
@@ -54,17 +133,18 @@ Future<void> startVideo(WidgetTester tester, Widget home) async {
   await pause(tester, 1000);
 }
 
-/// Tells the recorder to stop, then holds the last frame briefly.
+/// Lets the last line finish, tells the recorder to stop, then holds the last
+/// frame briefly.
 Future<void> endVideo(WidgetTester tester) async {
-  await pause(tester, 1500);
+  final wait = _speechEnds.difference(DateTime.now()).inMilliseconds;
+  await pause(tester, wait > 1500 ? wait : 1500);
   _mark('done');
   await pause(tester, 1000);
 }
 
 /// Marker files `tool/record_video.ps1` waits on to start and stop ffmpeg.
 void _mark(String name) {
-  const dir = String.fromEnvironment('VIDEO_MARKS');
-  if (dir.isNotEmpty) File('$dir/$name').writeAsStringSync('');
+  if (_marks.isNotEmpty) File('$_marks/$name').writeAsStringSync('');
 }
 
 Future<void> pause(WidgetTester tester, [int ms = 700]) async {

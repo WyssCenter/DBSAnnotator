@@ -79,7 +79,7 @@ const List<_Block> _blocks = [
     rightCathode: 'E3',
     rightAmplitude: '4.0',
     ratings: [3, 3, 2, 2],
-    notes: 'starting configuration carried over from the last visit',
+    notes: 'right arm still stiff, finger tapping slow',
   ),
   (
     seconds: 305,
@@ -115,7 +115,7 @@ const List<_Block> _blocks = [
     rightCathode: 'E2a_E2b_E2c',
     rightAmplitude: '2.5_2.5_2.5',
     ratings: [3, 3, 3, 3],
-    notes: 'slurred speech and unsteady gait; amplitude reduced',
+    notes: 'slurred speech and unsteady gait',
   ),
   (
     seconds: 870,
@@ -135,7 +135,7 @@ const List<_Block> _blocks = [
     rightCathode: 'E3',
     rightAmplitude: '5.0',
     ratings: [1, 1, 0, 2],
-    notes: 're-rated on the same setting',
+    notes: 'walks steadily, speech clear',
   ),
 ];
 
@@ -160,7 +160,9 @@ List<SessionRow> _rows() => [
     leftIpgModel: _ipg,
     rightIpgModel: _ipg,
     medications: 'Levodopa/carbidopa 100/25 mg four times a day',
-    notes: 'assessed before any change, one hour after the morning dose',
+    notes:
+        'stiff and slow, rest tremor in the right hand, one hour after '
+        'the morning dose',
     leftStimFreq: _freq,
     leftAnode: 'case',
     leftCathode: _blocks.first.leftCathode,
