@@ -73,7 +73,6 @@ SessionTables splitSession(
     }
     behRows.add({
       'acq_time': first.acqTime,
-      'append_id': first.appendId,
       'is_final': first.isFinal,
       'is_starred': first.isStarred,
       'program_id': first.programId,

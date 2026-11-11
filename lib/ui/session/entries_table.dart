@@ -60,10 +60,12 @@ class SessionEntriesTable extends StatelessWidget {
     'Left',
     'Right',
     'Notes',
+    '',
   ];
 
-  /// Relative column widths; Notes takes the largest share.
-  static const _flex = <double>[5, 5, 8, 4, 9, 5, 15, 15, 12];
+  /// Relative widths of the columns between # and the actions; Notes takes
+  /// the largest share.
+  static const _flex = <double>[5, 8, 4, 9, 5, 13, 13, 12];
 
   @override
   Widget build(BuildContext context) {
@@ -170,6 +172,9 @@ class SessionEntriesTable extends StatelessWidget {
             _cell(isNewBlock ? side(r, left: true) : ''),
             _cell(isNewBlock ? side(r, left: false) : ''),
             _cell(isNewBlock ? r.notes : '', maxLines: 4),
+            isNewBlock && !isInitial
+                ? _actionsCell(context, r.blockId)
+                : const SizedBox.shrink(),
           ],
         ),
       );
@@ -181,7 +186,12 @@ class SessionEntriesTable extends StatelessWidget {
       style: theme.textTheme.bodyMedium,
       child: Table(
         columnWidths: {
-          for (var i = 0; i < _flex.length; i++) i: FlexColumnWidth(_flex[i]),
+          0: FixedColumnWidth(MediaQuery.textScalerOf(context).scale(88)),
+          for (var i = 0; i < _flex.length; i++)
+            i + 1: FlexColumnWidth(_flex[i]),
+          _flex.length + 1: FixedColumnWidth(
+            MediaQuery.textScalerOf(context).scale(150),
+          ),
         },
         defaultVerticalAlignment: TableCellVerticalAlignment.top,
         children: tableRows,
@@ -189,46 +199,71 @@ class SessionEntriesTable extends StatelessWidget {
     );
   }
 
+  /// The configuration's number, with its star as a button before it.
   Widget _blockCell(
     String id, {
     required bool starrable,
     required bool starred,
   }) {
     final toggle = onToggleStar;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      child: Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 2,
-        children: [
-          Text(id, style: const TextStyle(fontWeight: FontWeight.w600)),
-          if (starrable && (starred || toggle != null))
-            Tooltip(
-              message: starred ? 'Starred' : 'Star this configuration',
-              child: InkWell(
-                onTap: toggle == null ? null : () => toggle(id),
-                child: Icon(
-                  starred ? Icons.star : Icons.star_border,
-                  size: 18,
-                  semanticLabel: starred ? 'Starred' : 'Not starred',
+    final number = Text(
+      id,
+      style: const TextStyle(fontWeight: FontWeight.w600),
+    );
+    if (!starrable || (!starred && toggle == null)) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        child: number,
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          isSelected: starred,
+          icon: const Icon(Icons.star_border),
+          selectedIcon: const Icon(Icons.star),
+          tooltip: starred ? 'Remove star' : 'Star configuration #$id',
+          onPressed: toggle == null ? null : () => toggle(id),
+        ),
+        Flexible(child: number),
+      ],
+    );
+  }
+
+  /// Edit as a labelled button; delete, less prominent, in the menu beside it.
+  Widget _actionsCell(BuildContext context, String id) {
+    final edit = onEdit;
+    final delete = onDelete;
+    final error = Theme.of(context).colorScheme.error;
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (edit != null)
+          TextButton.icon(
+            onPressed: () => edit(id),
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Edit'),
+          ),
+        if (delete != null)
+          MenuAnchor(
+            builder: (context, menu, _) => IconButton(
+              icon: const Icon(Icons.more_vert),
+              tooltip: 'More for configuration #$id',
+              onPressed: () => menu.isOpen ? menu.close() : menu.open(),
+            ),
+            menuChildren: [
+              MenuItemButton(
+                leadingIcon: Icon(Icons.delete_outline, color: error),
+                onPressed: () => delete(id),
+                child: Text(
+                  'Delete configuration #$id…',
+                  style: TextStyle(color: error),
                 ),
               ),
-            ),
-          if (starrable)
-            for (final (icon, tip, action) in [
-              (Icons.edit_outlined, 'Edit configuration #$id', onEdit),
-              (Icons.delete_outline, 'Delete configuration #$id', onDelete),
-            ])
-              if (action != null)
-                Tooltip(
-                  message: tip,
-                  child: InkWell(
-                    onTap: () => action(id),
-                    child: Icon(icon, size: 18, semanticLabel: tip),
-                  ),
-                ),
-        ],
-      ),
+            ],
+          ),
+      ],
     );
   }
 

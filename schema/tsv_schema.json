@@ -8,11 +8,6 @@
         "description": "The entry's instant in ISO-8601 with its UTC offset (e.g. ``2026-02-03T09:00:00+00:00``). The only timestamp a row carries, and BIDS' own name for it: ``pd.to_datetime(df.acq_time)`` reads it offset-aware in one step. Older files that split the instant across ``date``, ``time`` and a free-text ``timezone`` are read and folded into this column; only ``acq_time`` is ever written."
       },
       {
-        "name": "append_id",
-        "type": "integer",
-        "description": "Data-entry episode within this file: increments each time the file is reopened to add rows. File-scoped, so equal values in different files are unrelated. Deliberately not called ``session_id``, which BIDS uses for the ``ses-`` label in ``sessions.tsv``; one name for both meanings would mislead every reader of a combined table."
-      },
-      {
         "name": "is_final",
         "type": "integer",
         "description": "``1`` on the configuration the patient was left on at the end of the visit, as marked by the clinician; ``0`` elsewhere. No row is ``1`` when the clinician did not mark one."
@@ -258,7 +253,7 @@
       {
         "name": "session_id",
         "type": "string",
-        "description": "Session label as ``ses-<label>``, parsed from the source filename: the BIDS session, as ``sessions.tsv`` means it. Not to be confused with ``append_id``, the data-entry counter within one source file, which older files spell ``session_id``."
+        "description": "Session label as ``ses-<label>``, parsed from the source filename: the BIDS session, as ``sessions.tsv`` means it."
       },
       {
         "name": "run_id",

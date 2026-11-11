@@ -162,7 +162,7 @@ jobs:
           v=$(sed -n 's/^version:[[:space:]]*\([0-9][^+ #]*\).*/\1/p' pubspec.yaml | head -1)
           test -x build/linux/x64/release/bundle/dbs_annotator
           mkdir -p out
-          tar -czf "out/dbs-annotator-${v}-linux-x64.tar.gz" \
+          tar -czf "out/dbs-annotator-linux-x64.tar.gz" \
               -C build/linux/x64/release/bundle .
       - uses: actions/upload-artifact@v7
         with:
@@ -462,7 +462,7 @@ jobs:
           v="${GITHUB_REF_NAME#v}"
           missing=0
           expect() { [ -f "dist/$1" ] || { echo "::error::missing release asset: $1"; missing=1; }; }
-          expect "dbs-annotator-${v}-linux-x64.tar.gz"
+          expect "dbs-annotator-linux-x64.tar.gz"
           expect "dbs-annotator-${v}-windows-x64.zip"
           expect "dbs-annotator-${v}-android.apk"
           expect "dbs-annotator-${v}-android.aab"

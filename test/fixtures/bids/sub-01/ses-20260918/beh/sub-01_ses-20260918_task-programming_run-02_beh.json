@@ -13,10 +13,6 @@
     "LongName": "Acq time",
     "Description": "The entry's instant in ISO-8601 with its UTC offset (e.g. 2026-02-03T09:00:00+00:00). The only timestamp a row carries, and BIDS' own name for it: pd.to_datetime(df.acq_time) reads it offset-aware in one step. Older files that split the instant across date, time and a free-text timezone are read and folded into this column; only acq_time is ever written."
   },
-  "append_id": {
-    "LongName": "Append id",
-    "Description": "Data-entry episode within this file: increments each time the file is reopened to add rows. File-scoped, so equal values in different files are unrelated. Deliberately not called session_id, which BIDS uses for the ses- label in sessions.tsv; one name for both meanings would mislead every reader of a combined table."
-  },
   "is_final": {
     "LongName": "Is final",
     "Description": "1 on the configuration the patient was left on at the end of the visit, as marked by the clinician; 0 elsewhere. No row is 1 when the clinician did not mark one."

@@ -432,12 +432,22 @@ handles to reorder the panels.
 **All configurations** is a table of every configuration saved, numbered in the ``#`` column and
 typed ``Initial`` or ``Test``. Values that belong to the configuration (time, program, parameters)
 are printed once rather than repeated on every rating row, and a heavy rule marks each boundary.
-The star of a configuration can be set or cleared here too. The pencil beside a configuration's
-number opens it in the step above to change it: the bar says **Editing configuration #3**, and
+The star before a configuration's number sets or clears its star. **Edit**, at the end of its
+first row, opens it in the step above to change it: the bar says **Editing configuration #3**, and
 **Save changes** replaces that configuration, keeping its number and time, while **Cancel edit**
-leaves it as it was. The bin deletes a configuration after asking, and warns when it is the one
-the patient goes home on. Numbers are not reused, so a deleted configuration leaves a gap rather
-than renumbering the others. Once scale targets are set, the rows
+leaves it as it was. The menu beside **Edit** holds **Delete configuration #3**, which asks first
+and warns when it is the one the patient goes home on. The configurations after a deleted one
+move up by one, so the numbers always match the order of the rows in the saved file.
+
+.. figure:: ../_static/screenshots/session_step3_table.png
+   :alt: The All configurations table: a star and the number on the left of each configuration,
+         its time, program, ratings, left and right stimulation and notes, and Edit with a menu
+         on the right
+   :width: 100%
+
+   Each configuration with its star, its ratings and its Edit button.
+
+Once scale targets are set, the rows
 of the best and second-best configurations are shaded in the same greens as the charts, and the
 shading moves as each configuration is saved.
 
@@ -475,7 +485,7 @@ Step 5: Finish
          BIDS folder for research, and the Close button
    :width: 100%
 
-   Finish after seven configurations, with the final settings confirmed as configuration 7.
+   Finish after seven configurations, with the final settings shown as their values per side.
 
 **Session summary** gives the number of configurations tested, the final settings, and where the
 visit was saved.

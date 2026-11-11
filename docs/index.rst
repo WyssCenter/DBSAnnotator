@@ -29,8 +29,9 @@ clinician-readable :doc:`PDF and Word reports <reports>` for the patient
 record. New to the terms? See :doc:`glossary`.
 
 It runs **fully offline**: no account, no server, no telemetry. It is available
-for iPadOS, Android, Windows, macOS and Linux, published in each platform's app
-store by the Wyss Center for Bio and Neuroengineering. See :doc:`installation`.
+for iPadOS, Android, Windows, macOS and Linux, published by the Wyss Center for
+Bio and Neuroengineering in the app stores and, for Linux, on GitHub. See
+:doc:`installation`.
 
 .. note::
 

@@ -54,6 +54,7 @@ import 'package:dbs_annotator/ui/painter_font.dart';
 import 'package:dbs_annotator/ui/report_sections_dialog.dart';
 import 'package:dbs_annotator/ui/save_target.dart' show debugSaveDir;
 import 'package:dbs_annotator/ui/scale_slider.dart';
+import 'package:dbs_annotator/ui/session/entries_table.dart';
 import 'package:dbs_annotator/ui/session/entry_charts_view.dart';
 import 'package:dbs_annotator/ui/session_screen.dart';
 import 'package:dbs_annotator/ui/stim_params_form.dart';
@@ -267,6 +268,11 @@ Future<void> _shoot(
   String name, {
   bool trim = false,
 }) async {
+  for (final e in find.byType(ScaffoldMessenger).evaluate()) {
+    ((e as StatefulElement).state as ScaffoldMessengerState)
+        .removeCurrentSnackBar();
+  }
+  await tester.pump();
   // Image.asset decodes asynchronously and never completes under the fake
   // clock, so the AppBar logo would be missing from every capture.
   await tester.runAsync(() async {
@@ -368,9 +374,16 @@ Future<void> _shootFitted(
   } else {
     final position = scroll.position;
     final chrome = probe - position.viewportDimension;
-    fitted = (chrome + position.viewportDimension + position.maxScrollExtent)
-        .ceilToDouble()
-        .clamp(200.0, max);
+    // A horizontal Stepper's list reports more extent than its step holds, so
+    // the step's own height, plus the list's 24 px padding each side, is used.
+    final step = find.descendant(
+      of: find.byType(Stepper),
+      matching: find.byType(AnimatedSize),
+    );
+    final extent = step.evaluate().isEmpty
+        ? position.viewportDimension + position.maxScrollExtent
+        : tester.getSize(step.first).height + 48;
+    fitted = (chrome + extent).ceilToDouble().clamp(200.0, max);
   }
 
   await tester.binding.setSurfaceSize(Size(width, fitted));
@@ -669,7 +682,9 @@ Future<void> _seedRatings(WidgetTester tester) async {
     );
     if (bar.evaluate().isEmpty) continue;
     await tester.ensureVisible(sliders.at(i));
-    final rect = tester.getRect(bar.first);
+    final rect = [
+      for (var j = 0; j < bar.evaluate().length; j++) tester.getRect(bar.at(j)),
+    ].reduce((a, b) => a.width >= b.width ? a : b);
     await tester.tapAt(
       Offset(
         rect.left + rect.width * _ratings[i % _ratings.length],
@@ -876,6 +891,14 @@ void main() {
       'session_step3_charts',
       from: find.textContaining('Configurations tested'),
       to: find.byType(EntryChartsView),
+    );
+    await _tapText(tester, 'Comparison charts');
+    await _shootRegion(
+      tester,
+      'session_step3_table',
+      from: find.text('All configurations'),
+      to: find.byType(SessionEntriesTable),
+      max: 1400,
     );
   });
 

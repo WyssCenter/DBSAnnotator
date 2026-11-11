@@ -26,7 +26,6 @@ const List<String> stimColumns = <String>[
 /// before `notes`.
 const List<String> sessionColumns = <String>[
   'acq_time',
-  'append_id',
   'is_final',
   'is_starred',
   'program_id',

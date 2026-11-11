@@ -19,7 +19,7 @@ Reports generated from this data are under `derivatives/dbs-annotator-reports/`.
 
 ## Columns
 
-Programming sessions (`task-programming`): acq_time, append_id, is_final, is_starred, program_id, left_stim_freq, left_anode, left_cathode, left_amplitude, left_pulse_width, right_stim_freq, right_anode, right_cathode, right_amplitude, right_pulse_width, notes, with
+Programming sessions (`task-programming`): acq_time, is_final, is_starred, program_id, left_stim_freq, left_anode, left_cathode, left_amplitude, left_pulse_width, right_stim_freq, right_anode, right_cathode, right_amplitude, right_pulse_width, notes, with
 the scale columns before `notes`.
 
 Visits (`sub-*_sessions.tsv`): session_id, acq_time, target, left_electrode_model, right_electrode_model, left_ipg_model, right_ipg_model.

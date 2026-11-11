@@ -90,7 +90,3 @@ The words the rest of this documentation uses, in the order you meet them.
    The number that tells apart two visits of the same patient on the same day (``run-01``,
    ``run-02``).
 
-**append_id**
-   A counter in the file that goes up each time a saved session is opened again to add more
-   configurations, so a visit continued later can be told apart from one annotated in a single
-   sitting.

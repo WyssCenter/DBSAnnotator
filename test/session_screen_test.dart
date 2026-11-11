@@ -171,7 +171,7 @@ void main() {
         .firstWhere((r) => !isInitialValue(r.isInitial))
         .blockId;
 
-    final edit = find.byTooltip('Edit configuration #$id');
+    final edit = find.widgetWithText(TextButton, 'Edit');
     await tester.ensureVisible(edit);
     await tester.tap(edit);
     await tester.pumpAndSettle();
@@ -188,9 +188,11 @@ void main() {
     expect(tested.map((r) => r.blockId).toSet(), {id});
     expect(tested.every((r) => r.notes == 'second'), isTrue);
 
-    final delete = find.byTooltip('Delete configuration #$id');
-    await tester.ensureVisible(delete);
-    await tester.tap(delete);
+    final more = find.byTooltip('More for configuration #$id');
+    await tester.ensureVisible(more);
+    await tester.tap(more);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete configuration #$id…'));
     await tester.pumpAndSettle();
     expect(find.text('Delete configuration #$id?'), findsOneWidget);
     await tester.tap(find.text('Delete'));
@@ -403,7 +405,7 @@ void main() {
     expect(starredBlocksIn(authoring.rows), {'1'});
 
     // An earlier configuration is starred from the table.
-    final starInTable = find.byTooltip('Star this configuration');
+    final starInTable = find.byTooltip(RegExp('^Star configuration #'));
     await tester.ensureVisible(starInTable);
     await tester.pumpAndSettle();
     await tester.tap(starInTable);
