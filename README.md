@@ -22,8 +22,9 @@ straight into analysis. It also produces clinician-readable **PDF and Word
 reports** for the patient record.
 
 It runs **fully offline**. No account, no server, no telemetry. It is available
-for iPadOS, Android, Windows, macOS and Linux, published in each platform's app
-store by the Wyss Center for Bio and Neuroengineering.
+for iPadOS, Android, Windows and macOS in each platform's app store, and for
+Linux as a one-line terminal install from GitHub, published by the Wyss Center
+for Bio and Neuroengineering.
 
 ## Why
 

@@ -49,7 +49,8 @@ At a glance
    * - Aspect
      - Detail
    * - Platforms
-     - iPadOS, Android, Windows, macOS, Linux, from each platform's app store
+     - iPadOS, Android, Windows and macOS from each platform's app store; Linux
+       with a one-line terminal install from GitHub
    * - Data files
      - A BIDS folder: ``_beh.tsv`` with one row per configuration, the visit in
        ``sessions.tsv``, the patient in ``participants.tsv``, each with a JSON

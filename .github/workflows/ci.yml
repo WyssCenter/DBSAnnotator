@@ -159,7 +159,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          v=$(sed -n 's/^version:[[:space:]]*\([0-9][^+ #]*\).*/\1/p' pubspec.yaml | head -1)
           test -x build/linux/x64/release/bundle/dbs_annotator
           mkdir -p out
           tar -czf "out/dbs-annotator-linux-x64.tar.gz" \
