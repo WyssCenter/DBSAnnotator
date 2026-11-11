@@ -22,8 +22,8 @@ The shortest useful path through
 :doc:`Annotate programming session <screens/programming_session>`, moving between steps with
 **Back** and **Next**:
 
-1. **Session.** Choose the BIDS folder, pick or type the patient ID, and press **New session** or
-   **Next**. The app builds the BIDS file name for you and saves the visit into the folder from the
+1. **Session.** Choose the BIDS folder, pick or type the patient ID, and press **Next**. The app
+   starts the visit, builds the BIDS file name for you and saves the visit into the folder from the
    first save onward.
 
 2. **Indication and devices.** Choose the DBS indication, the anatomical target, the leads and the

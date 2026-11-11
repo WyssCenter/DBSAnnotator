@@ -375,7 +375,9 @@ class _SessionScreenState extends State<SessionScreen>
     scalePrefs: _scalePrefs(),
     // Provenance: the report prints which file it came from, so it can be
     // tied back to one run among several of the same session.
-    sourceFile: savePath == null ? '' : pickedBasename(savePath!),
+    sourceFile: savePath == null
+        ? _ids.name.filename
+        : pickedBasename(savePath!),
   );
 
   /// Report paper size from the user preference, applied to BOTH formats so the
@@ -1016,18 +1018,8 @@ class _SessionScreenState extends State<SessionScreen>
         )) {
       return false;
     }
-    final visit = await visitRow(root, name);
-    if (!mounted) return false;
-    if (visit.isNotEmpty &&
-        !await _confirm(
-          'This visit is already in the folder',
-          'Session ${name.session} of $subject has an earlier run. This run '
-              'is saved as run ${name.run}; an initial assessment recorded '
-              "here replaces the visit's values in its sessions.tsv.",
-          'Continue',
-        )) {
-      return false;
-    }
+    final earlier = await earlierInitial(root, name);
+    final catalog = (await _contracts).$1.withDevices(_prefs.devices);
     if (!mounted) return false;
     final started = await newInFolder(
       root: root,
@@ -1048,12 +1040,83 @@ class _SessionScreenState extends State<SessionScreen>
         _snack('Could not create the derivatives folder: ${e.message}');
       }
       if (!mounted) return started;
+      if (earlier.isNotEmpty) setState(() => _prefillInitial(earlier, catalog));
       _snack(
-        'New session in ${folder.name}. It is saved there from the first '
-        'save.',
+        'New session in ${folder.name}. Run ${name.run} is saved there from '
+        'the first save.'
+        '${earlier.isEmpty ? '' : ' The initial assessment is filled in from '
+                  'the earlier run; check it before Next.'}',
       );
     }
     return started;
+  }
+
+  /// Fill the initial assessment with an earlier run's [rows], to check and
+  /// change; nothing is saved until Next.
+  void _prefillInitial(List<SessionRow> rows, ElectrodeCatalog catalog) {
+    final initial = [
+      for (final r in rows)
+        if (isInitialValue(r.isInitial)) r,
+    ];
+    if (initial.isEmpty) return;
+    final first = initial.first;
+    final leads = _leads(catalog);
+    void side(
+      _SideInputs s, {
+      required String freq,
+      required String anode,
+      required String cathode,
+      required String amp,
+      required String pulseWidth,
+      required ElectrodeModel? model,
+    }) {
+      final parsed = parseAmplitude(amp);
+      s.freq.text = freq;
+      s.pulseWidth.text = pulseWidth;
+      s.amp.text = amp.isEmpty ? '' : presetLabel(parsed.total);
+      s.ampSplit = parsed.percentages.length > 1
+          ? parsed.percentages
+          : const [];
+      if (model != null) {
+        final decoded = decodeTokens(anode, cathode, model);
+        s.states = decoded.states;
+        s.caseState = decoded.caseState;
+      }
+    }
+
+    side(
+      _leftInit,
+      freq: first.leftStimFreq,
+      anode: first.leftAnode,
+      cathode: first.leftCathode,
+      amp: first.leftAmplitude,
+      pulseWidth: first.leftPulseWidth,
+      model: leads.left,
+    );
+    side(
+      _rightInit,
+      freq: first.rightStimFreq,
+      anode: first.rightAnode,
+      cathode: first.rightCathode,
+      amp: first.rightAmplitude,
+      pulseWidth: first.rightPulseWidth,
+      model: leads.right,
+    );
+    _medicationsCtrl.text = first.medications;
+    _notesInitCtrl.text = first.notes;
+    if (_programs.contains(first.programId)) _selectedProgram = first.programId;
+    for (final scale in _clinicalScales) {
+      scale.dispose();
+    }
+    _clinicalScales
+      ..clear()
+      ..addAll([
+        for (final r in initial)
+          if (r.scaleName.trim().isNotEmpty)
+            _ClinicalScaleEdit()
+              ..name.text = r.scaleName
+              ..score.text = r.scaleValue,
+      ]);
   }
 
   Future<bool> _confirm(String title, String message, String yes) async =>
@@ -1900,11 +1963,12 @@ class _SessionScreenState extends State<SessionScreen>
             spacing: 12,
             runSpacing: 8,
             children: [
-              FilledButton.icon(
-                onPressed: _newSession,
-                icon: const Icon(Icons.note_add_outlined),
-                label: const Text('New session'),
-              ),
+              if (started)
+                FilledButton.icon(
+                  onPressed: _newSession,
+                  icon: const Icon(Icons.note_add_outlined),
+                  label: const Text('New session'),
+                ),
               OutlinedButton.icon(
                 onPressed: openFile,
                 icon: const Icon(Icons.folder_open),
@@ -1926,8 +1990,8 @@ class _SessionScreenState extends State<SessionScreen>
                       ? 'Session started for patient ${_ids.name.subject}, '
                             'visit ${_ids.name.session}'
                             '${_ids.name.run == '01' ? '' : ', run ${_ids.name.run}'}'
-                      : 'Enter the patient ID, then start a new session '
-                            'or open a saved one.',
+                      : 'Enter or choose the patient ID and press Next, or '
+                            'open a saved session.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),

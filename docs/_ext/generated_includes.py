@@ -145,6 +145,16 @@ def _write(app, *_args) -> None:
         _rst_table(contract["sessions_tsv"]["columns"], "Visit columns (sessions.tsv)"),
         encoding="utf-8",
     )
+    (_OUT / "scans_columns.inc.rst").write_text(
+        _rst_table(contract["scans_tsv"]["columns"], "Run columns (scans.tsv)"),
+        encoding="utf-8",
+    )
+    bids = _ROOT / "test" / "fixtures" / "bids"
+    tree = sorted(p.relative_to(bids).as_posix() for p in bids.rglob("*") if p.is_file())
+    (_OUT / "example_bids_tree.inc.rst").write_text(
+        ".. code-block:: text\n\n" + "".join(f"   {p}\n" for p in tree),
+        encoding="utf-8",
+    )
     (_OUT / "participants_columns.inc.rst").write_text(
         _rst_table(contract["participants_tsv"]["columns"], "Participant columns"),
         encoding="utf-8",

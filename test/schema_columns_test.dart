@@ -23,6 +23,9 @@ void main() {
 
     expect(annotationColumns, columnsOf('annotation_tsv'));
     expect(sessionColumns, columnsOf('session_tsv'));
+    expect(visitColumns, columnsOf('sessions_tsv'));
+    expect(scanColumns, columnsOf('scans_tsv'));
+    expect(participantColumns, columnsOf('participants_tsv'));
   });
 
   test('only numeric columns declare Units', () {

@@ -278,8 +278,9 @@ void main() {
       sidecar: '{}',
       acqTime: 'n/a',
       visit: const {},
+      initial: const {},
       participant: const {},
-      visitScales: const {},
+      initialScales: const {},
     );
     String at(BidsName n) => '${n.relativeDir}/${n.filename}';
 

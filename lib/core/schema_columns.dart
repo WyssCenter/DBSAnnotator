@@ -34,8 +34,8 @@ const List<String> sessionColumns = <String>[
   'notes',
 ];
 
-/// The fixed columns of `sub-<label>_sessions.tsv`, one row per visit;
-/// `scale_<name>` columns go before `notes`.
+/// The columns of `sub-<label>_sessions.tsv`, one row per visit: what cannot
+/// change between the runs of a visit.
 const List<String> visitColumns = <String>[
   'session_id',
   'acq_time',
@@ -44,6 +44,13 @@ const List<String> visitColumns = <String>[
   'right_electrode_model',
   'left_ipg_model',
   'right_ipg_model',
+];
+
+/// The fixed columns of a session's `_scans.tsv`, one row per run with its
+/// initial assessment; `scale_<name>` columns go before `notes`.
+const List<String> scanColumns = <String>[
+  'filename',
+  'acq_time',
   'medications',
   'program_id',
   ...stimColumns,

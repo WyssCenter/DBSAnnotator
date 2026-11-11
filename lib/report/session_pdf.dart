@@ -475,7 +475,8 @@ Future<ReportBytes> buildSessionPdf({
         ),
         pw.Text(
           'Patient: sub-${t(subjectId)}    '
-          'Session: ${data.sessionStamp}',
+          'Session: ${data.sessionStamp}'
+          '${data.laterRun.isEmpty ? '' : '    Run: ${data.laterRun}'}',
         ),
         if (data.sessionDetails.isNotEmpty) pw.Text(t(data.sessionDetails)),
         pw.Text(

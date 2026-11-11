@@ -1,0 +1,59 @@
+{
+  "filename": {
+    "Description": "The run's beh/ file, relative to the session folder. One row per run, so each run of a visit keeps its own initial assessment."
+  },
+  "acq_time": {
+    "Description": "When the initial assessment of this run was annotated, in ISO-8601 with its UTC offset; the first configuration's time when there was none."
+  },
+  "medications": {
+    "Description": "Medications at this run, as noted in its initial assessment, free text."
+  },
+  "program_id": {
+    "Description": "Stimulation program the patient arrived on."
+  },
+  "left_stim_freq": {
+    "Description": "Left stimulation frequency."
+  },
+  "left_anode": {
+    "Description": "Left anode contact(s) in the contact grammar: case for the can, E2 for a ring, E2b for one segment, _ joining several."
+  },
+  "left_cathode": {
+    "Description": "Left cathode contact(s), same grammar as left_anode."
+  },
+  "left_amplitude": {
+    "Description": "Left amplitude in mA. A single value, or per-contact values joined by _ in left_cathode order when current is steered (3.3_2.2 is 5.5 mA split 60/40). It carries no Units because a steered value is not a single number; sum the parts for the delivered current."
+  },
+  "left_pulse_width": {
+    "Description": "Left pulse width."
+  },
+  "right_stim_freq": {
+    "Description": "Right stimulation frequency."
+  },
+  "right_anode": {
+    "Description": "Right anode contact(s), same grammar as left_anode."
+  },
+  "right_cathode": {
+    "Description": "Right cathode contact(s), same grammar as left_anode."
+  },
+  "right_amplitude": {
+    "Description": "Right amplitude in mA, same shape as left_amplitude."
+  },
+  "right_pulse_width": {
+    "Description": "Right pulse width."
+  },
+  "notes": {
+    "Description": "Notes of the initial assessment of this run."
+  },
+  "scale_mds_updrs_part_iii": {
+    "LongName": "MDS-UPDRS Part III",
+    "Description": "The run's initial assessment: its clinical scales, named as in the session files' scale_<name> columns. The stimulation columns hold the settings the patient arrived on."
+  },
+  "scale_pdq_39": {
+    "LongName": "PDQ-39",
+    "Description": "The run's initial assessment: its clinical scales, named as in the session files' scale_<name> columns. The stimulation columns hold the settings the patient arrived on."
+  },
+  "scale_udysrs": {
+    "LongName": "UDysRS",
+    "Description": "The run's initial assessment: its clinical scales, named as in the session files' scale_<name> columns. The stimulation columns hold the settings the patient arrived on."
+  }
+}

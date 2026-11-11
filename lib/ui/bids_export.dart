@@ -97,8 +97,9 @@ DatasetEntry notesEntry({
   ),
   acqTime: acqTime.isEmpty ? 'n/a' : acqTime,
   visit: const {},
+  initial: const {},
   participant: const {},
-  visitScales: const {},
+  initialScales: const {},
 );
 
 /// A [DatasetEntry] for one programming session, split into its `beh/` file,
@@ -132,8 +133,9 @@ DatasetEntry sessionEntry({
     ),
     acqTime: acqTime.isEmpty ? 'n/a' : acqTime,
     visit: tables.visit,
+    initial: tables.initial,
     participant: tables.participant,
-    visitScales: named(tables.visitColumns),
+    initialScales: named(tables.initialScales),
   );
 }
 

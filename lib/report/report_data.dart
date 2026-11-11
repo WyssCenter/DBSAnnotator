@@ -8,6 +8,7 @@ library;
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import '../core/bids.dart';
 import '../core/annotation.dart';
 import '../core/brand_palette.dart' show kBestFill, kSecondFill;
 import '../core/session/longitudinal.dart'
@@ -845,6 +846,13 @@ class SessionReportData {
   List<List<String>> get tableRows => hasTargets
       ? tableData
       : [for (final r in tableData) List.of(r)..removeAt(_indexColumn)];
+
+  /// The run of the visit, from [sourceFile]; empty for the first run or when
+  /// the file name does not say.
+  String get laterRun {
+    final run = BidsName.parse(sourceFile)?.run ?? '';
+    return run == BidsName.index('1') ? '' : run;
+  }
 
   /// The encounter, for the header/footer: "2026-06-26, 09:12-11:40", or
   /// "2026-06-26 22:10 to 2026-06-27 08:30" when it ends on a later day. ASCII on

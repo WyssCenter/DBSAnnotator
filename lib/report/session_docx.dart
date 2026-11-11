@@ -172,7 +172,10 @@ Uint8List buildSessionDocx({
   // (a) Title + patient + generated-on.
   body.write(docxPara('$appName - Session report', bold: true, size: 34));
   body.write(
-    docxPara('Patient: sub-$subjectId    Session: ${data.sessionStamp}'),
+    docxPara(
+      'Patient: sub-$subjectId    Session: ${data.sessionStamp}'
+      '${data.laterRun.isEmpty ? '' : '    Run: ${data.laterRun}'}',
+    ),
   );
   if (data.sessionDetails.isNotEmpty) {
     body.write(docxPara(data.sessionDetails));

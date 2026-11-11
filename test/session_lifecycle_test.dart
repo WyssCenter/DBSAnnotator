@@ -77,7 +77,7 @@ Future<(Directory, Directory)> _showNew(WidgetTester tester) async {
   await awaitRecoveryCheck(tester);
   await pumpUntilFound(tester, find.text(bids.path));
   await tester.enterText(find.widgetWithText(TextField, 'Patient ID'), '01');
-  await tester.tap(find.text('New session'));
+  await tapNew(tester);
   await pumpUntilFound(tester, find.textContaining(_newSnack));
   await tester.pumpAndSettle();
   return (dirs.working, bids);
@@ -95,7 +95,7 @@ Future<void> _toSetup(WidgetTester tester) async {
 Future<void> _pressNew(WidgetTester tester) async {
   await _toSetup(tester);
   await tester.enterText(find.widgetWithText(TextField, 'Patient ID'), '01');
-  await tester.tap(find.text('New session'));
+  await tapNew(tester);
   await pumpUntilFound(
     tester,
     find.byWidgetPredicate(

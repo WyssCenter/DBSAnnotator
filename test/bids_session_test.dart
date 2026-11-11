@@ -17,6 +17,7 @@ SessionTables _split(List<SessionRow> rows) =>
 List<SessionRow> _join(SessionTables t) => joinSession(
   behRows: parseTsvRecords(behTsv(t)),
   visit: t.visit,
+  initial: t.initial,
   participant: t.participant,
   scaleNames: t.scaleNames,
 );
@@ -55,10 +56,30 @@ void main() {
     final t = _split(rows);
     expect(t.visit['session_id'], 'ses-20260203');
     expect(t.visit['left_electrode_model'], electrodeModelIn(rows));
+    expect(t.visit.keys, isNot(contains('medications')));
     expect(
       t.participant['dbs_indication'],
       sessionValueIn(rows, (r) => r.pathology),
     );
+  });
+
+  test("the run's initial assessment is its own, not the visit's", () {
+    final t = _split(rows);
+    final first = rows.firstWhere((r) => isInitialValue(r.isInitial));
+    expect(t.initial['medications'], first.medications);
+    expect(t.initial['notes'], first.notes);
+    expect(t.initialScales, isNotEmpty);
+  });
+
+  test('a file written before runs had their own row still reads', () {
+    final t = _split(rows);
+    final legacy = joinSession(
+      behRows: parseTsvRecords(behTsv(t)),
+      visit: {...t.visit, ...t.initial},
+      participant: t.participant,
+      scaleNames: t.scaleNames,
+    );
+    expect(legacy.map(_meaning).toList(), rows.map(_meaning).toList());
   });
 
   test('splitting and joining gives the same rows back', () {

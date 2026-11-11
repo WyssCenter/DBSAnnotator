@@ -1,0 +1,23 @@
+{
+  "session_id": {
+    "Description": "Session label as ses-<label>: one row per visit of this participant."
+  },
+  "acq_time": {
+    "Description": "When the visit began, in ISO-8601 with its UTC offset: the start of its first run."
+  },
+  "target": {
+    "Description": "Anatomical target of the leads at this visit (e.g. STN, GPi, VIM). Kept per visit, because a reimplantation can change it."
+  },
+  "left_electrode_model": {
+    "Description": "Left lead model at this visit, as named in schema/electrode_models.json."
+  },
+  "right_electrode_model": {
+    "Description": "Right lead model, as named in schema/electrode_models.json. The same as the left when both leads are the same model."
+  },
+  "left_ipg_model": {
+    "Description": "Implanted pulse generator driving the left lead at this visit, as named in schema/electrode_models.json or typed. Recorded only: the app does not change any setting from it."
+  },
+  "right_ipg_model": {
+    "Description": "Implanted pulse generator driving the right lead. The same as the left when one device drives both leads."
+  }
+}

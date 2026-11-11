@@ -151,7 +151,7 @@ Future<void> _pressNew(WidgetTester tester) async {
       .state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger))
       .clearSnackBars();
   await _toSetup(tester);
-  await tester.tap(find.text('New session'));
+  await tapNew(tester);
   await pumpUntilFound(
     tester,
     find.byWidgetPredicate(
@@ -411,7 +411,7 @@ void main() {
         find.widgetWithText(TextField, 'Patient ID'),
         '01',
       );
-      await tester.tap(find.text('New session'));
+      await tapNew(tester);
       await pumpUntilFound(tester, find.textContaining(_newSnack));
       await tester.pumpAndSettle();
     }

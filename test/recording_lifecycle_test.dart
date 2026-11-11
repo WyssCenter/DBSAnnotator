@@ -90,7 +90,7 @@ Future<void> _newVisit(
   if (session != null) {
     await tester.enterText(find.widgetWithText(TextField, 'Visit'), session);
   }
-  await tester.tap(find.text('New session'));
+  await tapNew(tester);
   await pumpUntilFound(tester, find.textContaining(_newSnack));
   await tester.pumpAndSettle();
 }
@@ -431,7 +431,7 @@ void main() {
       await _newVisit(tester, dataset);
 
       expect(
-        find.text('$_newSnack It is saved there from the first save.'),
+        find.text('$_newSnack Run 01 is saved there from the first save.'),
         findsOneWidget,
       );
       expect(_behTsvs(dataset), isEmpty);

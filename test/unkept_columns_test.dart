@@ -312,7 +312,7 @@ void main() {
       await openIt(tester);
       await toSetup(tester);
       await pumpUntilFound(tester, find.text(bids.path));
-      await tester.tap(find.text('New session'));
+      await tapNew(tester);
       await pumpUntilFound(tester, find.textContaining('New session in '));
       await tester.pumpAndSettle();
 

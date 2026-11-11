@@ -208,14 +208,12 @@ void main() {
     }
   });
 
-  testWidgets('New asks for the patient ID before anything else', (
+  testWidgets('Next starts the first session; New appears once one is open', (
     tester,
   ) async {
     await pumpWizard(tester, open: false);
-    await tester.tap(find.text('New session'));
-    await tester.pump();
-    expect(find.text('Enter the patient ID first.'), findsOneWidget);
-    expect(find.textContaining('Where should'), findsNothing);
+    expect(find.text('New session'), findsNothing);
+    expect(find.text('Open saved session'), findsOneWidget);
   });
 
   testWidgets('wizard: setup, the initial assessment saves itself on Next, '

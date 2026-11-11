@@ -61,14 +61,17 @@ unless you name another), an optional **Acquisition**, and the **Run** number. T
 make is shown under the fields, so you can see what will be written before anything is. Like every
 BIDS label, they keep letters and digits only. See :doc:`the output format <../output_format>`.
 
-**New session** starts the visit in the chosen folder and creates ``derivatives/sub-<id>/`` for
-the patient there. Pressing **Next** with a patient ID entered does the same. When the visit's
-file name is already taken, the visit is saved under the next free run (``run-02``, ``run-03``)
-and the **Run** field changes to match. Nothing is overwritten. The visit is written into the
-folder at the first save and kept up to date at every save after that: its ``beh/`` file, its row
-in the patient's ``sessions.tsv``, the patient's row in ``participants.tsv`` and the session's
-``scans.tsv`` (see :ref:`where-values-live`). A line under the buttons says which patient and
-visit the session was started for.
+Pressing **Next** with a patient ID entered starts the visit in the chosen folder and creates
+``derivatives/sub-<id>/`` for the patient there. When the patient already has a run on that day,
+the visit is saved as the next run (``run-02``, ``run-03``) and the **Run** field changes to
+match; nothing is overwritten. The initial assessment of the new run opens filled in from the
+earlier run, so you only change what differs, such as notes taken after a dose; each run keeps its
+own. The visit is written into the folder at the first save and kept up to date at every save
+after that: its ``beh/`` file, the run's row in the session's ``scans.tsv``, the visit's row in
+the patient's ``sessions.tsv`` and the patient's row in ``participants.tsv`` (see
+:ref:`where-values-live`). A line under the buttons says which patient, visit and run the session
+was started for. Once a session is open, a **New session** button appears to start another one
+without closing the app.
 
 **Open saved session** continues a visit already saved, or opens a session file from an earlier
 version of the app, which is saved in the current form from the next save. Opening a file also
@@ -191,8 +194,8 @@ the one the contact diagrams will use, so a lead added here can be checked befor
 Step 3: Initial assessment
 --------------------------
 
-How the patient is on arrival, before anything is changed. The step is saved as the visit's
-initial assessment, and as its row in ``sessions.tsv``, when you press **Next**.
+How the patient is on arrival, before anything is changed. The step is saved as the run's
+initial assessment, in its row of the session's ``scans.tsv``, when you press **Next**.
 
 .. figure:: ../_static/screenshots/session_step1_config.png
    :alt: Initial assessment: clinical scales, medications and notes at the top; the active

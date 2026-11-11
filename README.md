@@ -79,9 +79,11 @@ or a BIDS folder. A side menu holds the settings.
 ## Output
 
 Every session is saved in a BIDS folder: a `_beh.tsv` with one row per
-configuration and one `scale_<name>` column per scale, the visit's details and
-initial assessment in `sessions.tsv`, and the DBS indication in
-`participants.tsv`, each with a JSON sidecar documenting every column:
+configuration and one `scale_<name>` column per scale, each run's initial
+assessment in `scans.tsv`, the visit's target, leads and IPGs in
+`sessions.tsv`, and the DBS indication in `participants.tsv`, each with a JSON
+sidecar documenting every column. A synthetic example folder is in
+[`test/fixtures/bids`](test/fixtures/bids):
 
 ```python
 df = pd.read_csv(path, sep="\t", na_values=["n/a"])
