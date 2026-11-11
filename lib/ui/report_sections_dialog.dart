@@ -172,7 +172,7 @@ Future<ReportAttestation?> askAttestation(
               controller: recorded,
               autofocus: true,
               decoration: const InputDecoration(
-                labelText: 'Recorded by (optional)',
+                labelText: 'Documented by (optional)',
               ),
             ),
             if (rated) ...[

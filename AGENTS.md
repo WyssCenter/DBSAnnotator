@@ -31,7 +31,8 @@ lib/report/          PDF and Word reports, filed in a patient record
 lib/ui/              screens and widgets
 schema/              the output contract, bundled by the app
 test/                unit and widget tests
-test/fixtures/       synthetic sessions from tool/generate_fixtures.dart
+test/fixtures/       synthetic sessions from tool/generate_fixtures.dart; bids/ is
+                     the same visits as a BIDS folder, from test/bids_fixture_test.dart
 test/docs/           generates the docs screenshots
 integration_test/    docs video flows, desktop only
 tool/                fixture, screenshot, video and brand-asset scripts
@@ -59,7 +60,8 @@ sphinx-build -W docs docs/_build/html
 ```
 
 - One file: `flutter test test/bids_test.dart`.
-- After a format change, regenerate the fixtures: `dart run tool/generate_fixtures.dart`.
+- After a format change, regenerate the fixtures: `dart run tool/generate_fixtures.dart`,
+  then the BIDS folder with `FIXTURES_WRITE=1 flutter test test/bids_fixture_test.dart`.
 - `pre-commit run --all-files` sees only tracked files: `git add -N` new files first, and
   `git reset` them afterwards if the maintainer stages by hand.
 - `integration_test/` needs a desktop build and is not part of the routine checks.

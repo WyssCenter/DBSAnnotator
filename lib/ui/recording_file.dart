@@ -89,6 +89,9 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
 
   /// Where the file is kept: the chosen file, the dataset, or the app's copy.
   String? get savedLocation => _savePath ?? _datasetRoot ?? _workingPath;
+
+  /// The BIDS folder this visit is filed into, when there is one.
+  String? get datasetRoot => _datasetRoot;
   bool get savePathIsSandboxCopy => _savePathIsSandboxCopy;
   BidsName? get datasetName => _datasetName;
 
@@ -467,8 +470,8 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
       context,
       title: words.recoveryTitle,
       message:
-          '$name was left open with ${recoveredCount(restored)} recorded. '
-          'They were saved as you went, and can be reopened here.',
+          '$name was left open, ${recoveredCount(restored)}. It was saved '
+          'as you went, and can be reopened here.',
     );
     if (!mounted || keep == null) return;
     if (!keep) {

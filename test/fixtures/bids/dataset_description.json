@@ -1,0 +1,12 @@
+{
+  "Name": "DBS programming sessions",
+  "BIDSVersion": "1.10.0",
+  "DatasetType": "raw",
+  "GeneratedBy": [
+    {
+      "Name": "Wyss DBS Annotator",
+      "Version": "0.6.0",
+      "CodeURL": "https://github.com/neuromodulation/DBSAnnotator"
+    }
+  ]
+}

@@ -45,7 +45,7 @@ void main() {
     final rows = a.addInsert(
       isInitial: true,
       stim: stim,
-      scales: const [(name: 'UPDRS-III', value: '32')],
+      scales: const [(name: 'MDS-UPDRS Part III', value: '32')],
       programId: 'A',
       leftElectrodeModel: 'SenSight B33005',
       rightElectrodeModel: 'SenSight B33005',
@@ -53,7 +53,7 @@ void main() {
       at: stamp,
     );
     expect(rows.single.isInitial, '1');
-    expect(rows.single.scaleName, 'UPDRS-III');
+    expect(rows.single.scaleName, 'MDS-UPDRS Part III');
     expect(rows.single.scaleValue, '32');
     expect(rows.single.programId, 'A');
   });
@@ -63,7 +63,7 @@ void main() {
     a.addInsert(
       isInitial: true,
       stim: stim,
-      scales: const [(name: 'UPDRS-III', value: '32')],
+      scales: const [(name: 'MDS-UPDRS Part III', value: '32')],
       at: stamp,
     );
     a.addInsert(isInitial: false, stim: stim, at: stamp);
@@ -71,7 +71,7 @@ void main() {
       isInitial: true,
       stim: stim,
       scales: const [
-        (name: 'UPDRS-III', value: '30'),
+        (name: 'MDS-UPDRS Part III', value: '30'),
         (name: 'PDQ-39', value: '41'),
       ],
       at: stamp,
@@ -131,7 +131,7 @@ void main() {
     a.addInsert(
       isInitial: true,
       stim: stim,
-      scales: const [(name: 'UPDRS-III', value: '32')],
+      scales: const [(name: 'MDS-UPDRS Part III', value: '32')],
       leftElectrodeModel: 'Cartesia X',
       rightElectrodeModel: 'Cartesia X',
       notes: 'multi\nline\twith tab',

@@ -12,7 +12,7 @@ library;
 
 import 'dart:typed_data';
 
-import '../app_info.dart' show appName, appVersion;
+import '../app_info.dart' show appName, appVersion, kNotice;
 import 'attestation.dart';
 import 'docx_ooxml.dart';
 import '../core/brand_palette.dart';
@@ -107,9 +107,9 @@ String? _ratedNote(SessionReportData data) {
   if (counts.length < 2) return null;
   final lo = counts.reduce((a, b) => a < b ? a : b);
   final hi = counts.reduce((a, b) => a > b ? a : b);
-  return 'Scales rated per block: $lo-$hi. The index averages only the scales '
-      'rated at each block, so blocks with different rated sets are not '
-      'directly comparable.';
+  return 'Ratings per configuration: $lo-$hi. The index averages only the '
+      'scales rated at each configuration, so configurations with different '
+      'rated sets are not directly comparable.';
 }
 
 /// Legend + scale targets + disclaimer under the session-data table, mirroring
@@ -172,7 +172,10 @@ Uint8List buildSessionDocx({
   // (a) Title + patient + generated-on.
   body.write(docxPara('$appName - Session report', bold: true, size: 34));
   body.write(
-    docxPara('Patient: sub-$subjectId    Session: ${data.sessionStamp}'),
+    docxPara(
+      'Patient: sub-$subjectId    Session: ${data.sessionStamp}'
+      '${data.laterRun.isEmpty ? '' : '    Run: ${data.laterRun}'}',
+    ),
   );
   if (data.sessionDetails.isNotEmpty) {
     body.write(docxPara(data.sessionDetails));
@@ -185,6 +188,7 @@ Uint8List buildSessionDocx({
       size: 18,
     ),
   );
+  body.write(docxPara(kNotice, size: 18));
   if (data.lastConfig.isNotEmpty) {
     // Same page-1 summary as the PDF, in the same words.
     body.write(
@@ -259,7 +263,7 @@ Uint8List buildSessionDocx({
       body.write(docxPara(data.figureCaption, size: 16));
     }
     if (wantsTable && !data.hasRecording) {
-      body.write(docxPara('No recording blocks in this session.'));
+      body.write(docxPara('No configurations tested in this session.'));
     } else if (wantsTable) {
       // Green shading for the best / second-best blocks, and a 3 pt rule on
       // the first row of each block (tableData holds L then R per block).
@@ -429,6 +433,6 @@ Uint8List buildSessionDocx({
     createdDate: data.generatedOn,
     footerPrefix:
         'sub-$subjectId  |  ${data.sessionStamp}  |  '
-        '$appName v$appVersion  |  Page ',
+        '$appName v$appVersion  |  Not a medical device  |  Page ',
   );
 }

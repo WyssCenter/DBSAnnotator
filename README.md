@@ -4,7 +4,10 @@
 [![Docs](https://readthedocs.org/projects/dbs-annotator/badge/?version=latest)](https://dbs-annotator.readthedocs.io/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Record deep brain stimulation programming visits, and get analysis-ready data
+> [!IMPORTANT]
+> Wyss DBS Annotator is not a medical device. It is for annotating and documenting what happens during deep brain stimulation programming visits. It does not diagnose or decide stimulation settings: clinical decisions remain with the clinical team.
+
+Annotate deep brain stimulation programming visits, and get analysis-ready data
 out.
 
 Once the electrodes are implanted, the patient comes back to see a neurologist or
@@ -67,18 +70,20 @@ clone builds and tests immediately.
 
 ## What it does
 
-The app opens on **Annotate programming session**: record a programming visit,
-with stimulation parameters, electrode contacts, clinical and session scales and
-notes, into a BIDS folder. Its Setup step also imports earlier sessions and
-exports a session report, a report across visits, a combined table or a BIDS
-folder. A side menu holds the settings.
+The app opens on **Annotate programming session**: annotate a programming visit,
+with stimulation parameters, contacts, clinical scales, symptom and side effect
+ratings and notes, into a BIDS folder. Its Session step also imports earlier
+sessions and exports a session report, a report across visits, a combined table
+or a BIDS folder. A side menu holds the settings.
 
 ## Output
 
 Every session is saved in a BIDS folder: a `_beh.tsv` with one row per
-configuration and one `scale_<name>` column per scale, the visit's details and
-initial assessment in `sessions.tsv`, and the DBS indication in
-`participants.tsv`, each with a JSON sidecar documenting every column:
+configuration and one `scale_<name>` column per scale, each run's initial
+assessment in `scans.tsv`, the visit's target, leads and IPGs in
+`sessions.tsv`, and the DBS indication in `participants.tsv`, each with a JSON
+sidecar documenting every column. A synthetic example folder is in
+[`test/fixtures/bids`](test/fixtures/bids):
 
 ```python
 df = pd.read_csv(path, sep="\t", na_values=["n/a"])

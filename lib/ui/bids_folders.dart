@@ -63,7 +63,7 @@ Future<void> showBidsFoldersDialog(
       }
 
       return AlertDialog(
-        title: const Text('BIDS folders'),
+        title: const Text('Storage folders (BIDS)'),
         scrollable: true,
         content: SizedBox(
           width: 520,
@@ -138,7 +138,6 @@ Future<String?> _askName(BuildContext context, String suggested) {
         autofocus: true,
         decoration: const InputDecoration(
           labelText: 'Name, for example the cohort',
-          border: OutlineInputBorder(),
         ),
         onSubmitted: (v) => Navigator.pop(context, v.trim()),
       ),

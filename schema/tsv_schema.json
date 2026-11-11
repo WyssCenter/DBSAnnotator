@@ -117,7 +117,7 @@
       {
         "name": "acq_time",
         "type": "string",
-        "description": "When the initial assessment was recorded, in ISO-8601 with its UTC offset; the first configuration's time when there was none."
+        "description": "When the visit began, in ISO-8601 with its UTC offset: the start of its first run."
       },
       {
         "name": "target",
@@ -143,11 +143,25 @@
         "name": "right_ipg_model",
         "type": "string",
         "description": "Implanted pulse generator driving the right lead. The same as the left when one device drives both leads."
+      }
+    ]
+  },
+  "scans_tsv": {
+    "columns": [
+      {
+        "name": "filename",
+        "type": "string",
+        "description": "The run's ``beh/`` file, relative to the session folder. One row per run, so each run of a visit keeps its own initial assessment."
+      },
+      {
+        "name": "acq_time",
+        "type": "string",
+        "description": "When the initial assessment of this run was annotated, in ISO-8601 with its UTC offset; the first configuration's time when there was none."
       },
       {
         "name": "medications",
         "type": "string",
-        "description": "Medications at this visit, as recorded in the initial assessment, free text."
+        "description": "Medications at this run, as noted in its initial assessment, free text."
       },
       {
         "name": "program_id",
@@ -211,13 +225,13 @@
       {
         "name": "notes",
         "type": "string",
-        "description": "Free-text note from the initial assessment."
+        "description": "Notes of the initial assessment of this run."
       }
     ],
     "scale_columns": {
       "pattern": "scale_<name>",
       "type": "float",
-      "description": "The initial assessment's clinical scales, named as in the session files' ``scale_<name>`` columns. The stimulation columns hold the settings the patient arrived on."
+      "description": "The run's initial assessment: its clinical scales, named as in the session files' ``scale_<name>`` columns. The stimulation columns hold the settings the patient arrived on."
     }
   },
   "participants_tsv": {

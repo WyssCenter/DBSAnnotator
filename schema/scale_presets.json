@@ -48,7 +48,7 @@
     ],
     "PD": [
       "MDS-UPDRS",
-      "UPDRS-III",
+      "MDS-UPDRS Part III",
       "PDQ-39",
       "UDysRS"
     ],
@@ -119,6 +119,10 @@
     "TS-CGI": [
       "1",
       "7"
+    ],
+    "MDS-UPDRS Part III": [
+      "0",
+      "132"
     ]
   },
   "session": {
@@ -196,28 +200,28 @@
         "1"
       ],
       [
-        "MDS-UPDRS 3.4 Finger tapping R",
+        "MDS-UPDRS 3.4 Finger tapping RUE",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "MDS-UPDRS 3.4 Finger tapping L",
+        "MDS-UPDRS 3.4 Finger tapping LUE",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "MDS-UPDRS 3.15 Postural tremor R",
+        "MDS-UPDRS 3.15 Postural tremor RUE",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "MDS-UPDRS 3.15 Postural tremor L",
+        "MDS-UPDRS 3.15 Postural tremor LUE",
         "0",
         "4",
         "min",

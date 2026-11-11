@@ -1,32 +1,32 @@
 date	time	timezone	block_ID	session_ID	is_initial	scale_name	scale_value	electrode_model	program_ID	left_stim_freq	left_anode	left_cathode	left_amplitude	left_pulse_width	right_stim_freq	right_anode	right_cathode	right_amplitude	right_pulse_width	notes
-2026-02-03	09:00:00	UTC +00:00	0	1	1	UPDRS-III	38	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	4.0	60	assessed before any change, one hour after the morning dose
+2026-02-03	09:00:00	UTC +00:00	0	1	1	MDS-UPDRS Part III	38	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	4.0	60	assessed before any change, one hour after the morning dose
 2026-02-03	09:00:00	UTC +00:00	0	1	1	PDQ-39	31	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	4.0	60	assessed before any change, one hour after the morning dose
 2026-02-03	09:00:00	UTC +00:00	0	1	1	UDysRS	14	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	4.0	60	assessed before any change, one hour after the morning dose
 2026-02-03	09:03:20	UTC +00:00	1	1	0	MDS-UPDRS 3.3 Rigidity RUE	3	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	4.0	60	starting configuration carried over from the last visit
-2026-02-03	09:03:20	UTC +00:00	1	1	0	MDS-UPDRS 3.4 Finger tapping R	3	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	4.0	60	starting configuration carried over from the last visit
+2026-02-03	09:03:20	UTC +00:00	1	1	0	MDS-UPDRS 3.4 Finger tapping RUE	3	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	4.0	60	starting configuration carried over from the last visit
 2026-02-03	09:03:20	UTC +00:00	1	1	0	MDS-UPDRS 3.17 Rest tremor RUE	2	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	4.0	60	starting configuration carried over from the last visit
 2026-02-03	09:03:20	UTC +00:00	1	1	0	MDS-UPDRS 3.10 Gait	2	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	4.0	60	starting configuration carried over from the last visit
 2026-02-03	09:05:05	UTC +00:00	2	1	0	MDS-UPDRS 3.3 Rigidity RUE	2	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	5.0	60	NaN
-2026-02-03	09:05:05	UTC +00:00	2	1	0	MDS-UPDRS 3.4 Finger tapping R	2	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	5.0	60	NaN
+2026-02-03	09:05:05	UTC +00:00	2	1	0	MDS-UPDRS 3.4 Finger tapping RUE	2	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	5.0	60	NaN
 2026-02-03	09:05:05	UTC +00:00	2	1	0	MDS-UPDRS 3.17 Rest tremor RUE	2	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	5.0	60	NaN
 2026-02-03	09:05:05	UTC +00:00	2	1	0	MDS-UPDRS 3.10 Gait	2	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	5.0	60	NaN
 2026-02-03	09:07:40	UTC +00:00	3	1	0	MDS-UPDRS 3.3 Rigidity RUE	2	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	6.0	60	NaN
-2026-02-03	09:07:40	UTC +00:00	3	1	0	MDS-UPDRS 3.4 Finger tapping R	3	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	6.0	60	NaN
+2026-02-03	09:07:40	UTC +00:00	3	1	0	MDS-UPDRS 3.4 Finger tapping RUE	3	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	6.0	60	NaN
 2026-02-03	09:07:40	UTC +00:00	3	1	0	MDS-UPDRS 3.17 Rest tremor RUE	2	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	6.0	60	NaN
 2026-02-03	09:07:40	UTC +00:00	3	1	0	MDS-UPDRS 3.10 Gait	2	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	6.0	60	NaN
 2026-02-03	09:09:15	UTC +00:00	4	1	0	MDS-UPDRS 3.3 Rigidity RUE	2	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E2a_E2b_E2c	2.0_2.0_2.0	60	transient tingling in the left hand, settled within a minute
-2026-02-03	09:09:15	UTC +00:00	4	1	0	MDS-UPDRS 3.4 Finger tapping R	3	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E2a_E2b_E2c	2.0_2.0_2.0	60	transient tingling in the left hand, settled within a minute
+2026-02-03	09:09:15	UTC +00:00	4	1	0	MDS-UPDRS 3.4 Finger tapping RUE	3	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E2a_E2b_E2c	2.0_2.0_2.0	60	transient tingling in the left hand, settled within a minute
 2026-02-03	09:09:15	UTC +00:00	4	1	0	MDS-UPDRS 3.17 Rest tremor RUE	2	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E2a_E2b_E2c	2.0_2.0_2.0	60	transient tingling in the left hand, settled within a minute
 2026-02-03	09:09:15	UTC +00:00	4	1	0	MDS-UPDRS 3.10 Gait	2	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E2a_E2b_E2c	2.0_2.0_2.0	60	transient tingling in the left hand, settled within a minute
 2026-02-03	09:11:50	UTC +00:00	5	1	0	MDS-UPDRS 3.3 Rigidity RUE	3	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E2a_E2b_E2c	2.5_2.5_2.5	60	slurred speech and unsteady gait; amplitude reduced
-2026-02-03	09:11:50	UTC +00:00	5	1	0	MDS-UPDRS 3.4 Finger tapping R	3	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E2a_E2b_E2c	2.5_2.5_2.5	60	slurred speech and unsteady gait; amplitude reduced
+2026-02-03	09:11:50	UTC +00:00	5	1	0	MDS-UPDRS 3.4 Finger tapping RUE	3	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E2a_E2b_E2c	2.5_2.5_2.5	60	slurred speech and unsteady gait; amplitude reduced
 2026-02-03	09:11:50	UTC +00:00	5	1	0	MDS-UPDRS 3.17 Rest tremor RUE	3	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E2a_E2b_E2c	2.5_2.5_2.5	60	slurred speech and unsteady gait; amplitude reduced
 2026-02-03	09:11:50	UTC +00:00	5	1	0	MDS-UPDRS 3.10 Gait	3	Medtronic SenSight B33005	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E2a_E2b_E2c	2.5_2.5_2.5	60	slurred speech and unsteady gait; amplitude reduced
 2026-02-03	09:14:30	UTC +00:00	6	1	0	MDS-UPDRS 3.3 Rigidity RUE	2	Medtronic SenSight B33005	B	130	case	E1c	4.0	60	130	case	E3	5.0	60	tremor gone at rest, rigidity much reduced
-2026-02-03	09:14:30	UTC +00:00	6	1	0	MDS-UPDRS 3.4 Finger tapping R	1	Medtronic SenSight B33005	B	130	case	E1c	4.0	60	130	case	E3	5.0	60	tremor gone at rest, rigidity much reduced
+2026-02-03	09:14:30	UTC +00:00	6	1	0	MDS-UPDRS 3.4 Finger tapping RUE	1	Medtronic SenSight B33005	B	130	case	E1c	4.0	60	130	case	E3	5.0	60	tremor gone at rest, rigidity much reduced
 2026-02-03	09:14:30	UTC +00:00	6	1	0	MDS-UPDRS 3.17 Rest tremor RUE	1	Medtronic SenSight B33005	B	130	case	E1c	4.0	60	130	case	E3	5.0	60	tremor gone at rest, rigidity much reduced
 2026-02-03	09:14:30	UTC +00:00	6	1	0	MDS-UPDRS 3.10 Gait	2	Medtronic SenSight B33005	B	130	case	E1c	4.0	60	130	case	E3	5.0	60	tremor gone at rest, rigidity much reduced
 2026-02-03	09:14:39	UTC +00:00	7	1	0	MDS-UPDRS 3.3 Rigidity RUE	1	Medtronic SenSight B33005	B	130	case	E1c	4.0	60	130	case	E3	5.0	60	re-rated on the same setting
-2026-02-03	09:14:39	UTC +00:00	7	1	0	MDS-UPDRS 3.4 Finger tapping R	1	Medtronic SenSight B33005	B	130	case	E1c	4.0	60	130	case	E3	5.0	60	re-rated on the same setting
+2026-02-03	09:14:39	UTC +00:00	7	1	0	MDS-UPDRS 3.4 Finger tapping RUE	1	Medtronic SenSight B33005	B	130	case	E1c	4.0	60	130	case	E3	5.0	60	re-rated on the same setting
 2026-02-03	09:14:39	UTC +00:00	7	1	0	MDS-UPDRS 3.17 Rest tremor RUE	0	Medtronic SenSight B33005	B	130	case	E1c	4.0	60	130	case	E3	5.0	60	re-rated on the same setting
 2026-02-03	09:14:39	UTC +00:00	7	1	0	MDS-UPDRS 3.10 Gait	2	Medtronic SenSight B33005	B	130	case	E1c	4.0	60	130	case	E3	5.0	60	re-rated on the same setting

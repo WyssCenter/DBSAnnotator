@@ -52,6 +52,8 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
     await tester.tap(
       find.widgetWithText(DropdownMenu<String>, 'DBS indication'),
     );

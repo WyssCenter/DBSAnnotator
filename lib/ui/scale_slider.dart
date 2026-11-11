@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'theme.dart';
 import 'painter_font.dart';
 
 /// A rating bar snapping to [step], with chevrons and an X that marks the scale
@@ -15,6 +14,7 @@ class ScaleSlider extends StatelessWidget {
     required this.onChanged,
     required this.onOmitToggle,
     this.step = 0.25,
+    this.quality,
   });
 
   final double value;
@@ -25,6 +25,13 @@ class ScaleSlider extends StatelessWidget {
   final VoidCallback onOmitToggle;
   final double step;
 
+  /// How good the value is for this scale's target, 0 worst to 1 best; the
+  /// bar shades from red to green. Null when the scale is not ranked.
+  final double? quality;
+
+  /// Darker than any track, so a scale not assessed reads apart at a glance.
+  static const omittedTrack = Color(0xFF5F5F5F);
+
   bool get _discrete => step >= 1;
 
   double _snap(double v) =>
@@ -32,26 +39,18 @@ class ScaleSlider extends StatelessWidget {
 
   void _bump(double delta) => onChanged(_snap(value + delta));
 
-  Widget _chevron(IconData icon, String tip, VoidCallback onTap) => Tooltip(
-    message: tip,
-    child: InkResponse(
-      onTap: onTap,
-      radius: 18,
-      child: SizedBox(width: 26, height: 24, child: Icon(icon, size: 18)),
-    ),
+  Widget _chevron(IconData icon, String tip, VoidCallback onTap) => IconButton(
+    icon: Icon(icon),
+    tooltip: tip,
+    constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+    onPressed: onTap,
   );
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
-        if (!_discrete)
-          _chevron(
-            Icons.keyboard_double_arrow_left,
-            '-${step * 2}',
-            () => _bump(-step * 2),
-          ),
         _chevron(Icons.keyboard_arrow_left, '-$step', () => _bump(-step)),
         Expanded(
           child: LayoutBuilder(
@@ -77,7 +76,19 @@ class ScaleSlider extends StatelessWidget {
                           ? ''
                           : value.toStringAsFixed(_discrete ? 0 : 2),
                       omitted: omitted,
-                      dark: dark,
+                      scheme: scheme,
+                      fill: switch (quality) {
+                        null => scheme.primaryContainer,
+                        final q => HSVColor.fromAHSV(
+                          1,
+                          120 * q.clamp(0.0, 1.0),
+                          0.55,
+                          0.92,
+                        ).toColor(),
+                      },
+                      fillInk: quality == null
+                          ? scheme.onPrimaryContainer
+                          : const Color(0xFF1B1B1B),
                       segments: _discrete ? ((max - min) / step).round() : 0,
                     ),
                   ),
@@ -87,12 +98,6 @@ class ScaleSlider extends StatelessWidget {
           ),
         ),
         _chevron(Icons.keyboard_arrow_right, '+$step', () => _bump(step)),
-        if (!_discrete)
-          _chevron(
-            Icons.keyboard_double_arrow_right,
-            '+${step * 2}',
-            () => _bump(step * 2),
-          ),
         Tooltip(
           message: omitted ? 'Include (assessed)' : 'Omit (not assessed)',
           child: IconButton(
@@ -111,14 +116,18 @@ class _BarPainter extends CustomPainter {
     required this.fraction,
     required this.label,
     required this.omitted,
-    required this.dark,
+    required this.scheme,
+    required this.fill,
+    required this.fillInk,
     required this.segments,
   });
 
   final double fraction;
   final String label;
   final bool omitted;
-  final bool dark;
+  final ColorScheme scheme;
+  final Color fill;
+  final Color fillInk;
   final int segments;
 
   @override
@@ -128,56 +137,47 @@ class _BarPainter extends CustomPainter {
       const Radius.circular(8),
     );
 
-    // Track (flat gray when omitted, else the theme surface).
     canvas.drawRRect(
       rrect,
       Paint()
         ..color = omitted
-            ? const Color(0xFFF5F5F5)
-            : (dark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+            ? ScaleSlider.omittedTrack
+            : scheme.surfaceContainerHighest,
     );
 
-    // Green gradient fill up to the value.
     if (!omitted && fraction > 0) {
-      final fillRect = Rect.fromLTWH(0, 0, size.width * fraction, size.height);
       canvas.save();
       canvas.clipRRect(rrect);
       canvas.drawRect(
-        fillRect,
-        Paint()
-          ..shader = LinearGradient(colors: DbsColors.scaleFill(dark))
-              .createShader(fillRect),
+        Rect.fromLTWH(0, 0, size.width * fraction, size.height),
+        Paint()..color = fill,
       );
       canvas.restore();
     }
 
     final tick = Paint()
       ..strokeWidth = 1
-      ..color = dark ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
+      ..color = scheme.outlineVariant;
     for (var i = 1; i < segments; i++) {
       final x = size.width * i / segments;
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), tick);
     }
 
-    // Border.
     canvas.drawRRect(
       rrect,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2
-        ..color = omitted
-            ? const Color(0xFFCCCCCC)
-            : (dark ? const Color(0xFF475569) : const Color(0xFFCBD5E1)),
+        ..color = scheme.outlineVariant,
     );
 
-    // Value text centred on the bar.
     if (label.isNotEmpty) {
       final tp = TextPainter(
         text: TextSpan(
           text: label,
           style: TextStyle(
             fontFamily: debugPainterFontFamily,
-            color: dark ? Colors.white : const Color(0xFF0F172A),
+            color: fraction >= 0.5 ? fillInk : scheme.onSurface,
             fontWeight: FontWeight.bold,
             fontSize: 12,
           ),
@@ -196,6 +196,8 @@ class _BarPainter extends CustomPainter {
       o.fraction != fraction ||
       o.label != label ||
       o.omitted != omitted ||
-      o.dark != dark ||
+      o.scheme != scheme ||
+      o.fill != fill ||
+      o.fillInk != fillInk ||
       o.segments != segments;
 }

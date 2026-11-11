@@ -178,7 +178,7 @@ void main() {
           attestation: (recordedBy: 'J. Doe', ratedBy: ''),
         ),
       );
-      expect(named, contains('Recorded by: J. Doe'));
+      expect(named, contains('Documented by: J. Doe'));
       expect(named, contains('Rated by: ${'_' * 26}'));
       expect(named, isNot(contains('Reviewed by')));
       expect(named, isNot(contains('Date: _')));

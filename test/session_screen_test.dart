@@ -1,19 +1,22 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dbs_annotator/app_info.dart' show kNotice, kNoticeShort;
 import 'package:dbs_annotator/core/electrode/electrode_model.dart';
+import 'package:dbs_annotator/core/schema_columns.dart' show isInitialValue;
 import 'package:dbs_annotator/core/session/authoring.dart';
 import 'package:dbs_annotator/core/session/scale_presets.dart';
 import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:dbs_annotator/ui/electrode_view.dart';
 import 'package:dbs_annotator/ui/scale_slider.dart';
 import 'package:dbs_annotator/ui/session_screen.dart';
+import 'package:dbs_annotator/main.dart';
 import 'package:dbs_annotator/ui/stim_params_form.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Headless tests for the Complete-Workflow 4-step wizard. Contracts are
+/// Headless tests for the programming session's five steps. Contracts are
 /// injected from the repo-root schema files (like electrode_catalog_test),
 /// so no asset bundle or platform channel is touched; Open/Export are never
 /// tapped. A [SessionAuthoring] is injected so inserted rows can be
@@ -115,23 +118,107 @@ void main() {
       'why', (tester) async {
     await pumpWizard(tester, open: false);
     await tapNext(tester);
-    expect(
-      find.textContaining('press New, or open a saved session'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Enter or choose the patient ID'), findsWidgets);
     expect(find.text('Patient ID'), findsOneWidget);
     expect(find.text('Frequency'), findsNothing);
   });
 
-  testWidgets('Setup is where a visit starts and where files come in and go '
+  testWidgets('Session is where a visit starts and where files come in and go '
       'out', (tester) async {
     await pumpWizard(tester, open: false);
     expect(find.text('Annotate programming session'), findsOneWidget);
     expect(find.text('BIDS folder'), findsWidgets);
     expect(find.byTooltip('Add a BIDS folder'), findsOneWidget);
-    expect(find.text('Import and export other sessions'), findsOneWidget);
+    expect(find.text('Other sessions'), findsOneWidget);
+    expect(find.text('DBS indication'), findsNothing);
     expect(find.text('Import session files'), findsOneWidget);
     expect(find.text('Import from a BIDS folder'), findsOneWidget);
+  });
+
+  testWidgets('research file naming is folded away; an empty patient ID is '
+      'marked on the field', (tester) async {
+    await pumpWizard(tester, open: false);
+    expect(find.text('Patient ID'), findsOneWidget);
+    expect(find.text('Visit'), findsOneWidget);
+    expect(find.text('Task'), findsNothing);
+    expect(find.text('Run'), findsNothing);
+
+    await tapNext(tester);
+    expect(find.text('Enter or choose the patient ID'), findsOneWidget);
+
+    await tester.tap(find.text('Research file naming'));
+    await tester.pumpAndSettle();
+    expect(find.text('Task'), findsOneWidget);
+    expect(find.text('Run'), findsOneWidget);
+    expect(find.textContaining('File name: sub-'), findsOneWidget);
+  });
+
+  testWidgets('unsaved changes are flagged, and a saved configuration can be '
+      'edited in place and deleted', (tester) async {
+    final authoring = SessionAuthoring();
+    await pumpWizard(tester, authoring: authoring);
+    await tapNext(tester, 3);
+    expect(find.text('Save configuration'), findsOneWidget);
+    expect(find.text('Not saved yet'), findsNothing);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Notes'), 'first');
+    await tester.pump();
+    expect(find.text('Not saved yet'), findsOneWidget);
+    await tester.tap(find.text('Save configuration'));
+    await tester.pumpAndSettle();
+    expect(find.text('Not saved yet'), findsNothing);
+    final id = authoring.rows
+        .firstWhere((r) => !isInitialValue(r.isInitial))
+        .blockId;
+
+    final edit = find.byTooltip('Edit configuration #$id');
+    await tester.ensureVisible(edit);
+    await tester.tap(edit);
+    await tester.pumpAndSettle();
+    expect(find.text('Editing configuration #$id'), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextField, 'Notes'), 'second');
+    await tester.pump();
+    expect(find.text('Editing configuration #$id, not saved'), findsOneWidget);
+    await tester.tap(find.text('Save changes'));
+    await tester.pumpAndSettle();
+    final tested = [
+      for (final r in authoring.rows)
+        if (!isInitialValue(r.isInitial)) r,
+    ];
+    expect(tested.map((r) => r.blockId).toSet(), {id});
+    expect(tested.every((r) => r.notes == 'second'), isTrue);
+
+    final delete = find.byTooltip('Delete configuration #$id');
+    await tester.ensureVisible(delete);
+    await tester.tap(delete);
+    await tester.pumpAndSettle();
+    expect(find.text('Delete configuration #$id?'), findsOneWidget);
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(authoring.rows.where((r) => !isInitialValue(r.isInitial)), isEmpty);
+  });
+
+  testWidgets('every step says the app is not a medical device', (
+    tester,
+  ) async {
+    await pumpWizard(tester);
+    for (var step = 0; step < 4; step++) {
+      expect(find.text(kNoticeShort), findsOneWidget);
+      await tapNext(tester);
+    }
+  });
+
+  testWidgets('every launch shows the notice before the session', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const DbsAnnotatorApp());
+    expect(find.text(kNotice), findsOneWidget);
+    expect(find.text('Annotate programming session'), findsNothing);
+    await tester.tap(find.text('I understand'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text(kNotice), findsNothing);
+    expect(find.text('Annotate programming session'), findsOneWidget);
   });
 
   testWidgets('the side menu holds the settings for every session', (
@@ -141,14 +228,14 @@ void main() {
     await tester.tap(find.byTooltip('Open navigation menu'));
     await tester.pumpAndSettle();
     for (final entry in [
-      'BIDS folders',
+      'Storage folders (BIDS)',
       'DBS indications',
       'Anatomical targets',
       'Leads and IPGs',
       'Stimulation defaults',
       'Programs',
       'Clinical scales',
-      'Session ratings',
+      'Symptom and side effect ratings',
       'Scale targets',
       'Report sections',
       'Dark theme',
@@ -167,14 +254,12 @@ void main() {
     }
   });
 
-  testWidgets('New asks for the patient ID before anything else', (
+  testWidgets('Next starts the first session; New appears once one is open', (
     tester,
   ) async {
     await pumpWizard(tester, open: false);
-    await tester.tap(find.text('New session'));
-    await tester.pump();
-    expect(find.text('Enter the patient ID first.'), findsOneWidget);
-    expect(find.textContaining('Where should'), findsNothing);
+    expect(find.text('New session'), findsNothing);
+    expect(find.text('Open saved session'), findsOneWidget);
   });
 
   testWidgets('wizard: setup, the initial assessment saves itself on Next, '
@@ -184,7 +269,8 @@ void main() {
 
     expect(find.text('Annotate programming session'), findsOneWidget);
     for (final step in [
-      'Setup',
+      'Session',
+      'Indication and devices',
       'Initial assessment',
       'Programming',
       'Finish',
@@ -193,11 +279,21 @@ void main() {
     }
     expect(find.text('Ratings'), findsNothing);
 
-    // Setup: patient and run, New / Open, and the electrode; no stimulation.
+    // Session: patient and run, New / Open; no devices, no stimulation.
     expect(find.text('Patient ID'), findsOneWidget);
     expect(find.text('New session'), findsOneWidget);
     expect(find.text('Open saved session'), findsOneWidget);
+    expect(find.text('Same lead on both sides'), findsNothing);
+    expect(find.text('Frequency'), findsNothing);
+
+    // Indication and devices: the indication, target, leads and IPG.
+    await tapNext(tester);
     expect(find.text('Same lead on both sides'), findsOneWidget);
+    expect(
+      find.widgetWithText(DropdownMenu<String>, 'DBS indication'),
+      findsOneWidget,
+    );
+    expect(find.text('Patient ID'), findsNothing);
     expect(find.text('Frequency'), findsNothing);
 
     // Initial assessment: L/R stimulation and clinical scales, no buttons
@@ -254,22 +350,18 @@ void main() {
     expect(find.text('For the patient record'), findsOneWidget);
     expect(find.text('Report (PDF)'), findsOneWidget);
     expect(find.text('Report (Word)'), findsOneWidget);
-    expect(find.text('A4'), findsOneWidget);
+    expect(find.text('A4'), findsWidgets);
     expect(find.text('For research'), findsOneWidget);
     expect(find.text('BIDS folder (zip)'), findsOneWidget);
-    expect(find.text('Next'), findsOneWidget);
-    expect(
-      tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Next'))
-          .onPressed,
-      isNull,
-    );
+    expect(find.text('Next'), findsNothing);
+    expect(find.text('Close'), findsOneWidget);
   });
 
   testWidgets('setup details reach every row, medications the initial '
       'assessment, and stars any configuration', (tester) async {
     final authoring = SessionAuthoring();
     await pumpWizard(tester, authoring: authoring);
+    await tapNext(tester);
 
     await tester.tap(
       find.widgetWithText(DropdownMenu<String>, 'DBS indication'),
@@ -335,23 +427,23 @@ void main() {
       isTrue,
     );
 
-    // Once recorded, the session's pathology can no longer be changed.
-    await tester.tap(find.textContaining('PD  ·  STN'));
+    // Corrected after the entries, the target is rewritten on every row.
+    await tester.tap(find.text('Indication and devices'));
     await tester.pumpAndSettle();
-    expect(
-      tester
-          .widget<DropdownMenu<String>>(
-            find.widgetWithText(DropdownMenu<String>, 'DBS indication'),
-          )
-          .enabled,
-      isFalse,
+    await tester.tap(
+      find.widgetWithText(DropdownMenu<String>, 'Anatomical target'),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('GPi').last);
+    await tester.pumpAndSettle();
+    expect(authoring.rows.every((r) => r.target == 'GPi'), isTrue);
   });
 
-  testWidgets('stim - / + steppers move by step1 and the clear X empties '
+  testWidgets('stim - / + steppers move by the fine step, the coarse on a '
+      'long press, and the clear X empties '
       'the field', (tester) async {
     await pumpWizard(tester);
-    await tapNext(tester); // Step 1.
+    await tapNext(tester, 2);
 
     String leftFreqText() => tester
         .widget<TextField>(
@@ -372,30 +464,35 @@ void main() {
         .controller!
         .text;
 
-    Future<void> tapButton(String tooltip) async {
+    Future<void> tapButton(String tooltip, {bool long = false}) async {
       final button = find.byTooltip(tooltip).first;
       await tester.ensureVisible(button);
-      await tester.tap(button);
+      long ? await tester.longPress(button) : await tester.tap(button);
       await tester.pump();
     }
 
-    // Frequency: step1 = 10.
+    String plus(num base, double step) =>
+        presetLabel(double.parse((base + step).toStringAsFixed(4)));
+
+    // A tap moves by the fine step, a long press by the coarse one.
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Frequency').first,
       '100',
     );
     await tapButton('Increase Frequency');
-    expect(leftFreqText(), '110');
+    expect(leftFreqText(), plus(100, limits.frequencyFineStep));
     await tapButton('Decrease Frequency');
     expect(leftFreqText(), '100');
+    await tapButton('Increase Frequency', long: true);
+    expect(leftFreqText(), plus(100, limits.frequencyStep));
 
-    // Amplitude: step1 = 1, keeping the contract decimals (1.5 -> 2.5).
+    // Amplitude keeps the contract decimals.
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Amplitude').first,
       '1.5',
     );
-    await tapButton('Increase Amplitude');
-    expect(leftAmpText(), '2.5');
+    await tapButton('Increase Amplitude', long: true);
+    expect(leftAmpText(), plus(1.5, limits.amplitudeStep));
 
     // Clear X empties the field; stepping from blank starts at min.
     await tapButton('Clear Frequency');
@@ -416,7 +513,7 @@ void main() {
       'open and unsaved', (tester) async {
     final authoring = SessionAuthoring();
     await pumpWizard(tester, authoring: authoring);
-    await tapNext(tester); // Step 1.
+    await tapNext(tester, 2);
 
     // First TextFormField with the "Hz" suffix is the Left frequency.
     await tester.enterText(
@@ -438,6 +535,7 @@ void main() {
     tester,
   ) async {
     await pumpWizard(tester);
+    await tapNext(tester);
     await choosePathology(tester, 'PD');
     await tapNext(tester);
 
@@ -468,10 +566,11 @@ void main() {
     expect(text('Amplitude', 0), '2');
   });
 
-  testWidgets('the pathology chosen in Setup sets the ratings; an omitted '
+  testWidgets('the indication chosen sets the ratings; an omitted '
       'scale is inserted as "n/a"', (tester) async {
     final authoring = SessionAuthoring();
     await pumpWizard(tester, authoring: authoring);
+    await tapNext(tester);
     await choosePathology(tester, 'PD');
     await tapNext(tester, 2);
 
@@ -511,7 +610,7 @@ void main() {
     expect(byName['Paresthesia'], '0');
 
     // The recording rows appear in the inserted-entries review table.
-    expect(find.text('Rec'), findsWidgets);
+    expect(find.text('Test'), findsWidgets);
     expect(find.text('No entries inserted yet.'), findsNothing);
 
     // The session's own pathology shows its ratings ticked; ticking another

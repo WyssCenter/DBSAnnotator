@@ -154,7 +154,7 @@ class _AmplitudeSplitState extends State<AmplitudeSplit> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Amplitude split',
+            'Current fractionalization',
             style: Theme.of(context).textTheme.labelMedium
                 ?.copyWith(color: muted),
           ),
@@ -171,7 +171,7 @@ class _AmplitudeSplitState extends State<AmplitudeSplit> {
                     ),
                   ),
                   SizedBox(
-                    width: 60,
+                    width: 96,
                     child: TextField(
                       controller: _ctrls[i],
                       // The last row is the read-only remainder.

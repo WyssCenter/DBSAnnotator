@@ -494,7 +494,13 @@ class _SeriesKey extends StatelessWidget {
         ),
       ),
       const SizedBox(width: 4),
-      Text(name, style: Theme.of(context).textTheme.bodySmall),
+      Flexible(
+        child: Text(
+          name,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ),
     ],
   );
 }
@@ -600,7 +606,7 @@ class _PanelPainter extends CustomPainter {
         if (i < 0) continue;
         canvas.drawRect(
           Rect.fromLTRB(xPos(i - 0.42), 0, xPos(i + 0.42), size.height),
-          Paint()..color = Color(argb).withValues(alpha: 0.45),
+          Paint()..color = Color(argb).withValues(alpha: 0.25),
         );
       }
     }

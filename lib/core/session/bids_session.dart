@@ -1,6 +1,7 @@
-/// One programming session as the three BIDS tables it is stored in: its
-/// `beh/` file (one row per configuration), its row in `sessions.tsv` (the
-/// visit and its initial assessment) and its row in `participants.tsv`.
+/// One programming session as the BIDS tables it is stored in: its `beh/`
+/// file (one row per configuration), its row in `scans.tsv` (the run's initial
+/// assessment), its visit's row in `sessions.tsv` (target, leads, IPGs) and its
+/// row in `participants.tsv`.
 library;
 
 import '../schema_columns.dart';
@@ -12,8 +13,9 @@ import 'session_row.dart';
 typedef SessionTables = ({
   List<String> behColumns,
   List<Map<String, String>> behRows,
-  List<String> visitColumns,
   Map<String, String> visit,
+  Map<String, String> initial,
+  List<String> initialScales,
   Map<String, String> participant,
   Map<String, String> scaleNames,
 });
@@ -57,7 +59,9 @@ SessionTables splitSession(
   }
 
   final initial = initialId == null ? null : blocks[initialId]!;
-  final visitScales = initial == null ? <String, String>{} : scalesOf(initial);
+  final initialScales = initial == null
+      ? <String, String>{}
+      : scalesOf(initial);
   final behScaleCols = <String>[];
   final behRows = <Map<String, String>>[];
   for (final e in blocks.entries) {
@@ -90,11 +94,13 @@ SessionTables splitSession(
     'right_electrode_model': fixed((r) => r.rightElectrodeModel),
     'left_ipg_model': fixed((r) => r.leftIpgModel),
     'right_ipg_model': fixed((r) => r.rightIpgModel),
+  };
+  final initialRow = <String, String>{
     'medications': i0?.medications ?? fixed((r) => r.medications),
     'program_id': i0?.programId ?? '',
     if (i0 != null) ...stimOf(i0),
     'notes': i0?.notes ?? '',
-    ...visitScales,
+    ...initialScales,
   };
 
   List<String> withScales(List<String> fixedColumns, Iterable<String> scales) =>
@@ -107,8 +113,9 @@ SessionTables splitSession(
   return (
     behColumns: withScales(sessionColumns, behScaleCols),
     behRows: behRows,
-    visitColumns: withScales(visitColumns, visitScales.keys),
     visit: visit,
+    initial: initialRow,
+    initialScales: initialScales.keys.toList(),
     participant: {
       'participant_id': participantId,
       'dbs_indication': fixed((r) => r.pathology),
@@ -121,13 +128,16 @@ SessionTables splitSession(
 String behTsv(SessionTables tables) =>
     writeTsvRecords(tables.behColumns, tables.behRows);
 
-/// Join the BIDS tables of one session back into long-form rows: the visit's
+/// Join the BIDS tables of one session back into long-form rows: the run's
 /// initial assessment as block 0 when it holds anything, then one block per
-/// `beh/` row. [scaleNames] maps a scale column to its name, from the
-/// sidecars; a column it does not list is named after its slug.
+/// `beh/` row. [initial] is the run's `scans.tsv` row; a file written before
+/// runs had their own row keeps its initial assessment in [visit] instead.
+/// [scaleNames] maps a scale column to its name, from the sidecars; a column
+/// it does not list is named after its slug.
 List<SessionRow> joinSession({
   required List<Map<String, String>> behRows,
   Map<String, String> visit = const {},
+  Map<String, String> initial = const {},
   Map<String, String> participant = const {},
   Map<String, String> scaleNames = const {},
 }) {
@@ -178,28 +188,33 @@ List<SessionRow> joinSession({
     blockId++;
   }
 
-  final hasInitial =
+  bool holdsAssessment(Map<String, String> row) =>
       [
         'medications',
         'program_id',
         'notes',
         ...stimColumns,
-      ].any((c) => (visit[c] ?? '').isNotEmpty) ||
-      visit.keys.any((c) => c.startsWith(scalePrefix));
-  if (hasInitial) {
+      ].any((c) => (row[c] ?? '').isNotEmpty) ||
+      row.keys.any((c) => c.startsWith(scalePrefix));
+  final assessment = holdsAssessment(initial)
+      ? initial
+      : holdsAssessment(visit)
+      ? visit
+      : null;
+  if (assessment != null) {
     addBlock(
       {
-        'acq_time': visit['acq_time'] ?? '',
+        'acq_time': assessment['acq_time'] ?? visit['acq_time'] ?? '',
         'append_id': '1',
         'is_final': '0',
         'is_starred': '0',
-        'medications': visit['medications'] ?? '',
-        'program_id': visit['program_id'] ?? '',
-        for (final c in stimColumns) c: visit[c] ?? '',
-        'notes': visit['notes'] ?? '',
+        'medications': assessment['medications'] ?? '',
+        'program_id': assessment['program_id'] ?? '',
+        for (final c in stimColumns) c: assessment[c] ?? '',
+        'notes': assessment['notes'] ?? '',
       },
       initial: true,
-      source: visit,
+      source: assessment,
     );
   }
   for (final row in behRows) {

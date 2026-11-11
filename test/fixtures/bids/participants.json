@@ -1,0 +1,8 @@
+{
+  "participant_id": {
+    "Description": "Pseudonymous subject label typed by the clinician, as sub-<label>."
+  },
+  "dbs_indication": {
+    "Description": "Condition the stimulation treats, from the app's list (PD, ET, Dystonia, OCD, MDD, TS) or typed."
+  }
+}

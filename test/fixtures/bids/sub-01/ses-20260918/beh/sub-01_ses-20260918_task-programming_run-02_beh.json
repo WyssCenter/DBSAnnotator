@@ -1,0 +1,96 @@
+{
+  "TaskName": "programming",
+  "TaskDescription": "Deep brain stimulation programming. Stimulation configurations are set, tried and rated during a clinical visit, one row per configuration tried.",
+  "GeneratedBy": [
+    {
+      "Name": "Wyss DBS Annotator",
+      "Version": "0.6.0"
+    }
+  ],
+  "SchemaVersion": "0.7.0",
+  "MissingValueCode": "n/a",
+  "acq_time": {
+    "LongName": "Acq time",
+    "Description": "The entry's instant in ISO-8601 with its UTC offset (e.g. 2026-02-03T09:00:00+00:00). The only timestamp a row carries, and BIDS' own name for it: pd.to_datetime(df.acq_time) reads it offset-aware in one step. Older files that split the instant across date, time and a free-text timezone are read and folded into this column; only acq_time is ever written."
+  },
+  "append_id": {
+    "LongName": "Append id",
+    "Description": "Data-entry episode within this file: increments each time the file is reopened to add rows. File-scoped, so equal values in different files are unrelated. Deliberately not called session_id, which BIDS uses for the ses- label in sessions.tsv; one name for both meanings would mislead every reader of a combined table."
+  },
+  "is_final": {
+    "LongName": "Is final",
+    "Description": "1 on the configuration the patient was left on at the end of the visit, as marked by the clinician; 0 elsewhere. No row is 1 when the clinician did not mark one."
+  },
+  "is_starred": {
+    "LongName": "Is starred",
+    "Description": "1 on a configuration the clinician starred during the visit as a particularly good one; 0 elsewhere. Any number of rows may be starred. A star records a clinical impression, not a ranking."
+  },
+  "program_id": {
+    "LongName": "Program id",
+    "Description": "Stimulation program label (e.g., A, B)."
+  },
+  "left_stim_freq": {
+    "LongName": "Left stim freq",
+    "Description": "Left stimulation frequency.",
+    "Units": "Hz"
+  },
+  "left_anode": {
+    "LongName": "Left anode",
+    "Description": "Left anode contact(s) in the contact grammar: case for the can, E2 for a ring, E2b for one segment, _ joining several."
+  },
+  "left_cathode": {
+    "LongName": "Left cathode",
+    "Description": "Left cathode contact(s), same grammar as left_anode."
+  },
+  "left_amplitude": {
+    "LongName": "Left amplitude",
+    "Description": "Left amplitude in mA. A single value, or per-contact values joined by _ in left_cathode order when current is steered (3.3_2.2 is 5.5 mA split 60/40). It carries no Units because a steered value is not a single number; sum the parts for the delivered current."
+  },
+  "left_pulse_width": {
+    "LongName": "Left pulse width",
+    "Description": "Left pulse width.",
+    "Units": "us"
+  },
+  "right_stim_freq": {
+    "LongName": "Right stim freq",
+    "Description": "Right stimulation frequency.",
+    "Units": "Hz"
+  },
+  "right_anode": {
+    "LongName": "Right anode",
+    "Description": "Right anode contact(s), same grammar as left_anode."
+  },
+  "right_cathode": {
+    "LongName": "Right cathode",
+    "Description": "Right cathode contact(s), same grammar as left_anode."
+  },
+  "right_amplitude": {
+    "LongName": "Right amplitude",
+    "Description": "Right amplitude in mA, same shape as left_amplitude."
+  },
+  "right_pulse_width": {
+    "LongName": "Right pulse width",
+    "Description": "Right pulse width.",
+    "Units": "us"
+  },
+  "notes": {
+    "LongName": "Notes",
+    "Description": "Free-text note recorded with this configuration."
+  },
+  "scale_mds_updrs_3_3_rigidity_rue": {
+    "LongName": "MDS-UPDRS 3.3 Rigidity RUE",
+    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, MDS-UPDRS 3.10 Gait is scale_mds_updrs_3_10_gait); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
+  },
+  "scale_mds_updrs_3_4_finger_tapping_rue": {
+    "LongName": "MDS-UPDRS 3.4 Finger tapping RUE",
+    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, MDS-UPDRS 3.10 Gait is scale_mds_updrs_3_10_gait); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
+  },
+  "scale_mds_updrs_3_17_rest_tremor_rue": {
+    "LongName": "MDS-UPDRS 3.17 Rest tremor RUE",
+    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, MDS-UPDRS 3.10 Gait is scale_mds_updrs_3_10_gait); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
+  },
+  "scale_mds_updrs_3_10_gait": {
+    "LongName": "MDS-UPDRS 3.10 Gait",
+    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, MDS-UPDRS 3.10 Gait is scale_mds_updrs_3_10_gait); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
+  }
+}

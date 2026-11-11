@@ -19,7 +19,7 @@ List<(String, String)> attestationFields(
   ReportAttestation a, {
   required bool rated,
 }) => [
-  ('Recorded by', a.recordedBy.trim()),
+  ('Documented by', a.recordedBy.trim()),
   if (rated) ('Rated by', a.ratedBy.trim()),
 ];
 

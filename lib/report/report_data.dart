@@ -8,6 +8,7 @@ library;
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import '../core/bids.dart';
 import '../core/annotation.dart';
 import '../core/brand_palette.dart' show kBestFill, kSecondFill;
 import '../core/session/longitudinal.dart'
@@ -163,7 +164,7 @@ String _valuesText(
   return byValue.entries
       .map(
         (e) =>
-            '${e.key} $unit (block${e.value.length == 1 ? '' : 's'} '
+            '${e.key} $unit (configuration${e.value.length == 1 ? '' : 's'} '
             '${_blockRuns(e.value)})',
       )
       .join(', ');
@@ -386,14 +387,12 @@ String _scalesCell(Iterable<SessionRow> rows) =>
 
 /// Column headers for the lateral session-data table (shared by both reports).
 const sessionTableHeaders = [
-  'Block',
+  '#',
   // Without the clock the dose-response reading of this table is
   // unfalsifiable: two "different" configurations 9 s apart on identical
   // settings are invisible until the time is printed.
   'Time',
   'Side',
-  // "Group" is the vendor's word for a stimulation programme; "Prog" read as
-  // an abbreviation of nothing in particular.
   'Group',
   'Freq (Hz)',
   '+',
@@ -434,11 +433,11 @@ const sessionTableColumnWeights = <double>[
 String _signed(double d) => d == 0 ? '0' : '${d > 0 ? '+' : ''}${_num(d)}';
 
 /// The final configuration's heading when the clinician marked it.
-const kLeftOnTitle = 'Left on (marked by the clinician)';
+const kLeftOnTitle = 'Final settings (marked by the clinician)';
 
 /// The final configuration's heading otherwise: the last block in the file,
 /// which a setting tried and rejected would occupy just the same.
-const kLastRecordedTitle = 'Last recorded configuration';
+const kLastRecordedTitle = 'Last configuration tested';
 
 /// Two decimals, as every rating in the reports is printed.
 String _num(double v) => v.toStringAsFixed(2);
@@ -486,12 +485,13 @@ const kStarredLegend =
 /// from the desktop (`report_common.add_table_legend`). Deliberately not
 /// paraphrased, and shared so both formats carry it identically.
 const kRankingDisclaimer =
-    'Note: The highlighted rows are derived exclusively from the recorded '
-    'session scale values and represent a computational ranking intended '
+    'Note: The highlighted rows are derived exclusively from the annotated '
+    'symptom and side effect ratings and represent a computational ranking '
+    'intended '
     'solely as a reference. This color-coded indication does not constitute '
     'clinical guidance. The ranking does not account for side effects, '
     'tolerability, or the observations in the Notes column, and is not a '
-    'recommendation to programme these settings.';
+    'recommendation to program these settings.';
 
 /// Everything needed to draw the scales-timeline chart, so the PDF and Word
 /// renderers share one source of truth. Mirrors the desktop
@@ -726,7 +726,7 @@ class SessionReportData {
   /// bands all of them and a reader would otherwise look for one winner.
   String get bestSettingText => bestBlocks.length <= 1
       ? ''
-      : 'Blocks ${bestBlocks.join(', ')} share the highest index.';
+      : 'Configurations ${bestBlocks.join(', ')} share the highest index.';
 
   /// The configuration in force at the START of the session, same shape as
   /// [lastConfig]. From the baseline row: the state the patient arrived in.
@@ -755,7 +755,7 @@ class SessionReportData {
   /// Caption for the session-scales figure. The chart is one click out of a
   /// .docx, so it has to carry its own n and explain its green bands.
   String get figureCaption =>
-      'Figure 1. Session scales by rated block. '
+      'Figure 1. Symptom and side effect ratings by rated configuration. '
       '${hasTargets ? 'Middle panel: aggregate index (0-1; 1 = best); green '
                 'bands mark the highest and second-highest.' : 'No scale '
                 'targets were set, so no ranking is shown.'}'
@@ -782,7 +782,7 @@ class SessionReportData {
 
   /// The size of the session, as label and value.
   List<List<String>> get extentRows => [
-    ['Annotation span (first to last entry)', span],
+    ['Annotation span (first to last configuration)', span],
     ['Configurations tested', configCountText(this)],
   ];
 
@@ -790,7 +790,8 @@ class SessionReportData {
   /// the equal weighting invisible, and equal weighting is a clinical
   /// judgement: in OCD, Mood and Energy are side-effect monitors, not outcomes.
   String get indexMethod =>
-      'Aggregate index: unweighted mean over the scales rated at that block of '
+      'Aggregate index: unweighted mean over the scales rated at that '
+      'configuration of '
       'each value normalised into its declared range and oriented by its '
       'target, clipped to 0-1; 1 = best.';
 
@@ -846,6 +847,13 @@ class SessionReportData {
       ? tableData
       : [for (final r in tableData) List.of(r)..removeAt(_indexColumn)];
 
+  /// The run of the visit, from [sourceFile]; empty for the first run or when
+  /// the file name does not say.
+  String get laterRun {
+    final run = BidsName.parse(sourceFile)?.run ?? '';
+    return run == BidsName.index('1') ? '' : run;
+  }
+
   /// The encounter, for the header/footer: "2026-06-26, 09:12-11:40", or
   /// "2026-06-26 22:10 to 2026-06-27 08:30" when it ends on a later day. ASCII on
   /// purpose: with no Unicode TTF bundled the PDF falls back to Helvetica,
@@ -872,7 +880,7 @@ ScalesChartSpec buildScalesChartSpec({
   Map<String, Map<int, double>> amplitude = const {},
   Map<String, Map<int, double>> frequency = const {},
   Map<String, Map<int, double>> pulseWidth = const {},
-  String xLabel = 'Block',
+  String xLabel = 'Configuration',
   String yLabel = 'Scale Value',
 }) {
   final xs = <int>{};

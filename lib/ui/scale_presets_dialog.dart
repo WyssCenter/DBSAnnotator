@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
 
 import '../core/session/scale_presets.dart';
@@ -70,7 +72,7 @@ Future<Map<String, List<List<String>>>?> showSessionPresetsDialog(
   return showDialog<Map<String, List<List<String>>>>(
     context: context,
     builder: (_) => _ScalePresetsDialog(
-      title: 'Session scales settings',
+      title: 'Symptom and side effect ratings',
       isSession: true,
       groups: groups,
     ),
@@ -212,10 +214,12 @@ class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
   @override
   Widget build(BuildContext context) {
     final error = _error;
+    final screen = MediaQuery.sizeOf(context);
     return AlertDialog(
       title: Text(widget.title),
+      constraints: widget.isSession ? const BoxConstraints() : null,
       content: SizedBox(
-        width: 560,
+        width: widget.isSession ? min(880, screen.width - 112) : 560,
         height: 460,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -326,7 +330,7 @@ class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
 
   Widget _rowEditor(_ScaleRow r, _Group g) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
           Expanded(
@@ -342,6 +346,25 @@ class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
           SizedBox(width: 64, child: _numField(r.min, 'Min')),
           const SizedBox(width: 8),
           SizedBox(width: 64, child: _numField(r.max, 'Max')),
+          if (widget.isSession) ...[
+            const SizedBox(width: 8),
+            Tooltip(
+              message:
+                  'Discrete: whole points only, as the MDS-UPDRS items. '
+                  'Continuous: any value on the bar.',
+              child: SegmentedButton<bool>(
+                showSelectedIcon: false,
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                segments: const [
+                  ButtonSegment(value: true, label: Text('Discrete')),
+                  ButtonSegment(value: false, label: Text('Continuous')),
+                ],
+                selected: {r.step.isNotEmpty},
+                onSelectionChanged: (v) =>
+                    setState(() => r.step = v.first ? '1' : ''),
+              ),
+            ),
+          ],
           IconButton(
             icon: const Icon(Icons.remove_circle_outline),
             tooltip: 'Remove scale',

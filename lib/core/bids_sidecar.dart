@@ -128,7 +128,10 @@ String aggregateSidecarJson(
     'participants_tsv',
     appVersion: appVersion,
   );
-  final visit = buildSidecar(contract, 'sessions_tsv', appVersion: appVersion);
+  final visit = {
+    ...buildSidecar(contract, 'sessions_tsv', appVersion: appVersion),
+    ...buildSidecar(contract, 'scans_tsv', appVersion: appVersion),
+  }..remove('filename');
   final session = buildSidecar(
     contract,
     'session_tsv',

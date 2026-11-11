@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
 
 import '../core/electrode/electrode_model.dart';
@@ -78,6 +80,11 @@ class _DevicesDialogState extends State<_DevicesDialog> {
   int _selected = 0;
   _Lead? _designing;
 
+  /// The content width of the dialog with no lead open, kept when one is, and
+  /// the width added beside it for the lead design.
+  static const _listsWidth = 552.0;
+  static const _designerWidth = 420.0;
+
   @override
   void dispose() {
     for (final m in _makers) {
@@ -111,10 +118,14 @@ class _DevicesDialogState extends State<_DevicesDialog> {
   @override
   Widget build(BuildContext context) {
     final lead = _designing;
+    final screen = MediaQuery.sizeOf(context);
     return AlertDialog(
       title: const Text('Devices settings'),
+      constraints: lead == null ? null : const BoxConstraints(),
       content: SizedBox(
-        width: lead == null ? 760 : 1120,
+        width: lead == null
+            ? 760
+            : min(_listsWidth + 16 + _designerWidth, screen.width - 112),
         height: 560,
         child: LayoutBuilder(
           builder: (context, c) => Row(
@@ -127,7 +138,7 @@ class _DevicesDialogState extends State<_DevicesDialog> {
               Expanded(child: _editor()),
               if (lead != null) ...[
                 const VerticalDivider(width: 16),
-                SizedBox(width: 300, child: _designer(lead)),
+                SizedBox(width: _designerWidth, child: _designer(lead)),
               ],
             ],
           ),
@@ -273,90 +284,96 @@ class _DevicesDialogState extends State<_DevicesDialog> {
     final d = lead.design;
     void redesign(ElectrodeModel next) => setState(() => lead.design = next);
     final levels = d.levelDirectional;
-    return ListView(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: ListenableBuilder(
-                listenable: lead.model,
-                builder: (context, _) => Text(
-                  lead.model.text.isEmpty ? 'New lead' : lead.model.text,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.close),
-              tooltip: 'Close lead design',
-              onPressed: () => setState(() => _designing = null),
-            ),
-          ],
-        ),
-        SizedBox(
-          height: 240,
-          child: IgnorePointer(
-            child: ElectrodeView(
-              key: ValueKey(d.toJson().toString()),
-              model: d,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            const Expanded(child: Text('Levels')),
-            IconButton(
-              icon: const Icon(Icons.remove),
-              tooltip: 'Fewer levels',
-              onPressed: levels.length > 1
-                  ? () => redesign(
-                      d.redesigned(
-                        levelDirectional: levels.sublist(0, levels.length - 1),
-                      ),
-                    )
-                  : null,
-            ),
-            Text('${levels.length}'),
-            IconButton(
-              icon: const Icon(Icons.add),
-              tooltip: 'More levels',
-              onPressed: levels.length < 8
-                  ? () => redesign(
-                      d.redesigned(levelDirectional: [...levels, false]),
-                    )
-                  : null,
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        const Text('Directional levels, split into three contacts'),
-        const SizedBox(height: 4),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            for (var i = levels.length - 1; i >= 0; i--)
-              FilterChip(
-                label: Text('E$i'),
-                selected: levels[i],
-                onSelected: (on) => redesign(
-                  d.redesigned(
-                    levelDirectional: [
-                      for (final (j, v) in levels.indexed) j == i ? on : v,
-                    ],
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: ListenableBuilder(
+                  listenable: lead.model,
+                  builder: (context, _) => Text(
+                    lead.model.text.isEmpty ? 'New lead' : lead.model.text,
+                    style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
               ),
-          ],
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Contact at the tip'),
-          value: d.tipContact,
-          onChanged: (on) => redesign(d.redesigned(tipContact: on)),
-        ),
-      ],
+              IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Close lead design',
+                onPressed: () => setState(() => _designing = null),
+              ),
+            ],
+          ),
+          SizedBox(
+            height: 360,
+            child: IgnorePointer(
+              child: ElectrodeView(
+                key: ValueKey(d.toJson().toString()),
+                model: d,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Expanded(child: Text('Levels')),
+              IconButton(
+                icon: const Icon(Icons.remove),
+                tooltip: 'Fewer levels',
+                onPressed: levels.length > 1
+                    ? () => redesign(
+                        d.redesigned(
+                          levelDirectional: levels.sublist(
+                            0,
+                            levels.length - 1,
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+              Text('${levels.length}'),
+              IconButton(
+                icon: const Icon(Icons.add),
+                tooltip: 'More levels',
+                onPressed: levels.length < 8
+                    ? () => redesign(
+                        d.redesigned(levelDirectional: [...levels, false]),
+                      )
+                    : null,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text('Directional levels, split into three contacts'),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (var i = levels.length - 1; i >= 0; i--)
+                FilterChip(
+                  label: Text('E$i'),
+                  selected: levels[i],
+                  onSelected: (on) => redesign(
+                    d.redesigned(
+                      levelDirectional: [
+                        for (final (j, v) in levels.indexed) j == i ? on : v,
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Contact at the tip'),
+            value: d.tipContact,
+            onChanged: (on) => redesign(d.redesigned(tipContact: on)),
+          ),
+        ],
+      ),
     );
   }
 }

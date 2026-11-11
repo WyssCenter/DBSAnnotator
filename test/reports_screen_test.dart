@@ -14,7 +14,7 @@ Widget _host(ImportExportPanel panel, {Key? key}) => MaterialApp(
 );
 
 void main() {
-  testWidgets('with nothing imported, every action is offered but disabled', (
+  testWidgets('with nothing imported, the actions wait for a session', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1600));
@@ -24,6 +24,29 @@ void main() {
 
     expect(find.text('Import session files'), findsOneWidget);
     expect(find.text('No files imported.'), findsOneWidget);
+    expect(find.textContaining('appear once a session is imported'), findsOne);
+    expect(find.text('Single session report'), findsNothing);
+    final load = tester.widget<ButtonStyleButton>(
+      find.ancestor(
+        of: find.text('Import from a BIDS folder'),
+        matching: find.bySubtype<ButtonStyleButton>(),
+      ),
+    );
+    expect(load.onPressed, isNotNull);
+  });
+
+  testWidgets('every action explains itself once a session is imported', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const name = 'sub-01_ses-20260203_task-programming_run-01_beh.tsv';
+    final upload = classifyUpload(
+      name,
+      File('test/fixtures/$name').readAsStringSync(),
+    ).file!;
+    await tester.pumpWidget(_host(ImportExportPanel(initialFiles: [upload])));
+    await tester.pump();
     for (final label in const [
       'Single session report',
       'Report across visits',
@@ -32,19 +55,6 @@ void main() {
       'Add to a BIDS folder',
     ]) {
       expect(find.text(label), findsWidgets, reason: label);
-    }
-    expect(find.text('Import a session first.'), findsNWidgets(5));
-    final load = tester.widget<ButtonStyleButton>(
-      find.ancestor(
-        of: find.text('Import from a BIDS folder'),
-        matching: find.bySubtype<ButtonStyleButton>(),
-      ),
-    );
-    expect(load.onPressed, isNotNull);
-    for (final button in tester.widgetList<OutlinedButton>(
-      find.byType(OutlinedButton),
-    )) {
-      expect(button.onPressed, isNull, reason: 'no action is tappable yet');
     }
 
     expect(find.byTooltip('About this export'), findsNWidgets(5));

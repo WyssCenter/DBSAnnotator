@@ -72,9 +72,9 @@ void main() {
       ),
     );
     await typeInto(tester, 'Patient ID', '01');
+    await tapText(tester, 'Next');
     await tapText(tester, 'DBS indication');
     await tap(tester, find.text('OCD').last);
-    await tapText(tester, 'New session');
     await tapText(tester, 'Next');
 
     // Stimulation first: OCD defaults on the left, typed on the right.
@@ -88,7 +88,7 @@ void main() {
     // Then the clinical scores the pathology loaded.
     await typeInto(tester, 'Score', '28');
     await typeInto(tester, 'Score', '15', at: 1);
-    await typeInto(tester, 'Notes', 'Baseline on admission settings.');
+    await typeInto(tester, 'Notes', 'Settings on arrival.');
     await tapText(tester, 'Next');
     await pause(tester, 1500);
 
@@ -106,9 +106,9 @@ void main() {
     await typeInto(tester, 'Notes', 'Left frequency down to 100 Hz.');
     await tapText(tester, 'Save configuration');
 
-    await center(tester, find.textContaining('Inserted entries'));
+    await center(tester, find.textContaining('Configurations tested'));
     await pause(tester, 2500);
-    await center(tester, find.textContaining('Table of all entries'));
+    await center(tester, find.textContaining('All configurations'));
     await pause(tester, 2500);
     await endVideo(tester);
   });

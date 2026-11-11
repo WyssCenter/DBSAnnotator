@@ -68,6 +68,8 @@ Future<ExportOutcome> shareOrSaveFile(
   Size screen = const Size(768, 1024),
   required ConfirmReplace confirmReplace,
   AvoidFile? avoid,
+  String? initialDirectory,
+  void Function(String path)? onSaved,
 }) async {
   if (_isMobile) {
     try {
@@ -101,7 +103,13 @@ Future<ExportOutcome> shareOrSaveFile(
   }
   final String? saved;
   try {
-    saved = await _saveToDisk(file, filename, avoid, confirmReplace);
+    saved = await _saveToDisk(
+      file,
+      filename,
+      avoid,
+      confirmReplace,
+      initialDirectory,
+    );
   } on SameFileException catch (refused) {
     messenger.showSnackBar(
       SnackBar(
@@ -131,6 +139,7 @@ Future<ExportOutcome> shareOrSaveFile(
       ),
     ),
   );
+  if (saved != null) onSaved?.call(saved);
   return saved != null ? ExportOutcome.saved : ExportOutcome.notDelivered;
 }
 
@@ -151,6 +160,11 @@ Future<ExportOutcome> exportFile(
   GlobalKey? anchor,
   String failureLabel = 'Export failed',
   AvoidFile? avoid,
+
+  /// Where a desktop Save-As dialog opens, and what to call with the saved
+  /// path, such as to remember the folder.
+  String? initialDirectory,
+  void Function(String path)? onSaved,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
   final screen = MediaQuery.sizeOf(context);
@@ -174,6 +188,8 @@ Future<ExportOutcome> exportFile(
       screen: screen,
       avoid: avoid,
       confirmReplace: (name) => askReplace(context, name),
+      initialDirectory: initialDirectory,
+      onSaved: onSaved,
     );
     final warning = payload.warning;
     if (warning != null) {
@@ -228,6 +244,7 @@ Future<String?> _saveToDisk(
   String filename,
   AvoidFile? avoid,
   ConfirmReplace confirmReplace,
+  String? initialDirectory,
 ) async {
   if (debugSaveDir case final dir?) {
     final dest = '${dir.path}/$filename';
@@ -244,6 +261,7 @@ Future<String?> _saveToDisk(
         extension: _ext(filename).replaceFirst('.', '').toLowerCase(),
         confirmReplace: confirmReplace,
         avoid: avoid,
+        initialDirectory: initialDirectory,
       );
     } on SaveDialogUnavailable {
       return _saveToKnownFolder(file, filename, avoid);

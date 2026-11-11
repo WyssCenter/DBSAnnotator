@@ -66,7 +66,7 @@ typedef _Block = ({
 
 const List<String> _sessionScales = [
   'MDS-UPDRS 3.3 Rigidity RUE',
-  'MDS-UPDRS 3.4 Finger tapping R',
+  'MDS-UPDRS 3.4 Finger tapping RUE',
   'MDS-UPDRS 3.17 Rest tremor RUE',
   'MDS-UPDRS 3.10 Gait',
 ];
@@ -141,7 +141,7 @@ const List<_Block> _blocks = [
 
 /// The initial assessment: clinical instruments, before any change.
 const List<ScaleEntry> _clinicalScales = [
-  (name: 'UPDRS-III', value: '38'),
+  (name: 'MDS-UPDRS Part III', value: '38'),
   (name: 'PDQ-39', value: '31'),
   (name: 'UDysRS', value: '14'),
 ];

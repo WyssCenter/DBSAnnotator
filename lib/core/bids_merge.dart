@@ -62,7 +62,9 @@ String? _indexKey(String path) {
 }
 
 bool _isIndexSidecar(String path) =>
-    path == 'participants.json' || path.endsWith('_sessions.json');
+    path == 'participants.json' ||
+    path.endsWith('_sessions.json') ||
+    path.endsWith('_scans.json');
 
 /// What a chosen folder or zip holds, before anything is added to it.
 enum DatasetFolderKind { dataset, empty, other }
@@ -332,8 +334,9 @@ String? _runOfSameRecording(
       sidecar: e.sidecar,
       acqTime: e.acqTime,
       visit: e.visit,
+      initial: e.initial,
       participant: e.participant,
-      visitScales: e.visitScales,
+      initialScales: e.initialScales,
     ));
   }
   return (entries: out, renumbered: renumbered);

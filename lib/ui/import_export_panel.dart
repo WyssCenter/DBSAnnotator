@@ -1,4 +1,4 @@
-/// Import and export on the Setup step: import session files or a BIDS
+/// Import and export on the Session step: import session files or a BIDS
 /// folder, then produce whatever they support.
 ///
 /// The actions are always listed, and the ones the imported files cannot
@@ -39,6 +39,7 @@ import '../report/session_pdf.dart';
 import '../report/upload_actions.dart';
 import 'bids_export.dart';
 import 'bids_merge_ui.dart';
+import 'import_drop_zone.dart';
 import 'report_action_row.dart';
 import 'report_images.dart';
 import 'report_sections_dialog.dart';
@@ -126,8 +127,8 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
   }
 
   /// Load the recorded TSVs of a dataset, for the participants chosen.
-  Future<void> _loadDataset() async {
-    final loaded = await loadDatasetTsvs(context, _snack);
+  Future<void> _loadDataset({String? folder}) async {
+    final loaded = await loadDatasetTsvs(context, _snack, folder: folder);
     if (loaded == null || !mounted) return;
     final added = _add(loaded.files);
     if (loaded.root case final root? when added.isNotEmpty) {
@@ -271,6 +272,12 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
       filename: '${_reportBase}_report.${docx ? 'docx' : 'pdf'}',
       anchor: _exportKey,
       failureLabel: 'Report export failed',
+      initialDirectory: reportFolderFor(
+        _prefs,
+        root: _datasetSource?.root,
+        subject: BidsName.parse(_source)?.subject ?? '',
+      ),
+      onSaved: (path) => rememberReportFolder(_prefs, path),
       build: () => _buildSessionReport(
         docx: docx,
         sections: sections,
@@ -376,6 +383,12 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
       filename: name,
       anchor: _exportKey,
       failureLabel: 'Report export failed',
+      initialDirectory: reportFolderFor(
+        _prefs,
+        root: _datasetSource?.root,
+        subject: data.patientId,
+      ),
+      onSaved: (path) => rememberReportFolder(_prefs, path),
       build: () async {
         final clinical = await _chartPng(data.clinicalChart);
         final session = await _chartPng(data.sessionChart);
@@ -694,12 +707,27 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _uploadBar(theme),
+        ImportDropZone(
+          onFiles: _add,
+          onFolder: (folder) => _loadDataset(folder: folder),
+          say: _snack,
+          child: _uploadBar(theme),
+        ),
         if (_files.isNotEmpty) ...[const SizedBox(height: 8), _fileList(theme)],
         const SizedBox(height: 12),
-        _actions(theme),
-        const Divider(height: 24),
-        _preview(theme),
+        if (_files.isEmpty)
+          Text(
+            'Reports, the combined table and the BIDS export appear once a '
+            'session is imported.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          )
+        else ...[
+          _actions(theme),
+          const Divider(height: 24),
+          _preview(theme),
+        ],
       ],
     );
   }
@@ -707,6 +735,7 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
   Widget _uploadBar(ThemeData theme) => Wrap(
     spacing: 8,
     runSpacing: 8,
+    alignment: WrapAlignment.center,
     crossAxisAlignment: WrapCrossAlignment.center,
     children: [
       FilledButton.icon(
@@ -716,7 +745,7 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
         label: const Text('Import session files'),
       ),
       FilledButton.icon(
-        onPressed: _loadDataset,
+        onPressed: () => _loadDataset(),
         icon: const Icon(Icons.folder_open),
         label: const Text('Import from a BIDS folder'),
       ),
@@ -776,7 +805,7 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
             title: Text(f.name, style: theme.textTheme.bodyMedium),
             subtitle: Text(
               f.kind == TsvKind.programming
-                  ? '${blockCount(f.rows)} blocks'
+                  ? '${testedCount(f.rows)} configurations'
                   : '${f.notes.length} notes',
             ),
             trailing: IconButton(
@@ -852,18 +881,6 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
   static const _shown = ReportAction.values;
 
   Widget _preview(ThemeData theme) {
-    if (_files.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 48),
-        child: Text(
-          'Import one or more session files to see what can be produced from them.',
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: theme.disabledColor,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
     if (_sessions.length == 1) {
       final rows = _sessions.single.rows;
       return Column(
@@ -873,7 +890,7 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
             children: [
               Expanded(
                 child: Text(
-                  '${blockCount(rows)} blocks, '
+                  '${testedCount(rows)} configurations, '
                   '${electrodeModelIn(rows).isEmpty ? 'no model named' : electrodeModelIn(rows)}',
                   style: theme.textTheme.titleSmall,
                 ),

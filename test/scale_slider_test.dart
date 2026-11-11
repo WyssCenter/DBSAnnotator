@@ -44,6 +44,5 @@ void main() {
     final seen = await dragAcross(tester, 0.25);
     expect(seen.any((v) => v != v.roundToDouble()), isTrue);
     expect(seen.every((v) => (v * 4) == (v * 4).roundToDouble()), isTrue);
-    expect(find.byIcon(Icons.keyboard_double_arrow_left), findsOneWidget);
   });
 }

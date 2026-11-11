@@ -130,7 +130,7 @@ void main() {
     await tester.tap(find.text('leave'));
     await tester.pumpAndSettle();
     expect(
-      find.textContaining('A save is still running, so the latest entries'),
+      find.textContaining('A save is still running, so the latest changes'),
       findsOneWidget,
     );
     expect(find.textContaining('last save failed'), findsNothing);
@@ -202,7 +202,7 @@ void main() {
       entriesUnsaved: true,
     );
     expect(
-      find.textContaining('This copy is missing the latest entries'),
+      find.textContaining('This copy is missing the latest changes'),
       findsOneWidget,
     );
   });
@@ -388,7 +388,7 @@ void main() {
         workingFailed: true,
         fileFailed: true,
       );
-      expect(find.text('Entries could not be saved'), findsOneWidget);
+      expect(find.text('Changes could not be saved'), findsOneWidget);
       expect(
         find.textContaining('unless you exported or shared them'),
         findsOneWidget,
@@ -405,7 +405,7 @@ void main() {
         fileFailed: false,
         stillSaving: true,
       );
-      expect(find.text('Entries not saved yet'), findsOneWidget);
+      expect(find.text('Changes not saved yet'), findsOneWidget);
       expect(find.textContaining('A save is still running'), findsOneWidget);
       await tester.tap(find.text('Stay'));
       await tester.pumpAndSettle();
@@ -423,7 +423,7 @@ void main() {
       );
       expect(find.text('Delete the only copy'), findsOneWidget);
       expect(
-        find.textContaining('latest entries may not be on disk yet'),
+        find.textContaining('latest changes may not be on disk yet'),
         findsOneWidget,
       );
     });

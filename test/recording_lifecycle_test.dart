@@ -24,7 +24,7 @@ const _newSnack = 'New session in Cohort.';
 
 String _planted(String text) => sessionTsv(notes: text);
 String _blank() => sessionTsv().split('\n').first;
-String _opened(String file) => 'Opened $file (1 rows, next block 1, append 2).';
+String _opened(String file) => 'Opened $file (0 configurations tested so far).';
 
 Future<void> _show(WidgetTester tester) async {
   await pumpScreen(tester, sessionScreen());
@@ -35,7 +35,9 @@ Finder _entryStep() => find.text('Save configuration').hitTestable();
 Finder _setupStep() => find.text('Open saved session').hitTestable();
 
 String _field(WidgetTester tester, String label) => tester
-    .widget<TextField>(find.widgetWithText(TextField, label))
+    .widget<TextField>(
+      find.widgetWithText(TextField, label, skipOffstage: false),
+    )
     .controller!
     .text;
 
@@ -86,9 +88,9 @@ Future<void> _newVisit(
   await pumpUntilFound(tester, find.text(dataset.path));
   await tester.enterText(find.widgetWithText(TextField, 'Patient ID'), '01');
   if (session != null) {
-    await tester.enterText(find.widgetWithText(TextField, 'Session'), session);
+    await tester.enterText(find.widgetWithText(TextField, 'Visit'), session);
   }
-  await tester.tap(find.text('New session'));
+  await tapNew(tester);
   await pumpUntilFound(tester, find.textContaining(_newSnack));
   await tester.pumpAndSettle();
 }
@@ -130,7 +132,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.text(
-          '$_recoveredName was left open with 1 blocks recorded. They were '
+          '$_recoveredName was left open, 0 configurations tested. It was '
           'saved as you went, and can be reopened here.',
         ),
         findsOneWidget,
@@ -429,7 +431,7 @@ void main() {
       await _newVisit(tester, dataset);
 
       expect(
-        find.text('$_newSnack It is saved there from the first entry.'),
+        find.text('$_newSnack Run 01 is saved there from the first save.'),
         findsOneWidget,
       );
       expect(_behTsvs(dataset), isEmpty);
@@ -526,7 +528,7 @@ void main() {
       expect(_behTsvs(dataset), hasLength(1));
       expect(filed.path, contains('ses-visitA'));
       await _toSetup(tester);
-      expect(_field(tester, 'Session'), '20260204');
+      expect(_field(tester, 'Visit'), '20260204');
     });
   });
 
@@ -605,7 +607,7 @@ void main() {
       await tester.tap(save);
       await pumpUntilFound(
         tester,
-        find.textContaining('This entry is not saved anywhere yet.'),
+        find.textContaining('This change is not saved anywhere yet.'),
       );
       await tester.pumpAndSettle();
 
@@ -615,11 +617,11 @@ void main() {
       );
 
       await tester.binding.handlePopRoute();
-      await pumpUntilFound(tester, find.text('Entries could not be saved'));
+      await pumpUntilFound(tester, find.text('Changes could not be saved'));
       await tester.pumpAndSettle();
       expect(
         find.textContaining(
-          'The entries in this session could not be saved to disk and '
+          'The changes in this session could not be saved to disk and '
           'will be lost if you leave',
         ),
         findsOneWidget,

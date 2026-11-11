@@ -2,7 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:pdf/pdf.dart' show PdfPageFormat;
+import 'package:window_manager/window_manager.dart';
 
 import 'dart:io';
 
@@ -23,7 +25,12 @@ import '../core/session/bids_session.dart';
 import '../core/session/scale_presets.dart';
 import '../core/session/tsv_kind.dart';
 import '../core/session/scale_scoring.dart'
-    show ScaleMode, ScalePref, scaleModeFromString;
+    show
+        ScaleMode,
+        ScalePref,
+        computeAggregateIndex,
+        parseScaleTargets,
+        scaleModeFromString;
 import '../core/session/session_row.dart';
 import '../core/timestamps.dart' show recordedTime;
 import '../report/entry_charts.dart';
@@ -34,6 +41,7 @@ import '../report/session_pdf.dart';
 import '../app_info.dart';
 import 'amplitude_split.dart';
 import 'bids_export.dart';
+import 'bids_merge_ui.dart' show canWriteChosenFolder;
 import 'electrode_view.dart';
 import 'list_editor_dialog.dart';
 import 'report_images.dart';
@@ -54,8 +62,8 @@ import 'wizard_parts.dart';
 import 'stim_params_form.dart';
 import 'theme.dart';
 
-/// A programming session in four steps: Setup, Initial assessment,
-/// Programming and Finish, written as a `task-programming` TSV.
+/// A programming session in five steps, from the session files to Finish,
+/// saved into a BIDS folder.
 class SessionScreen extends StatefulWidget {
   const SessionScreen({
     super.key,
@@ -187,18 +195,25 @@ class _SideInputs {
   }
 }
 
-const _stepNames = ['Setup', 'Initial assessment', 'Programming', 'Finish'];
-const _finishStep = 3;
+const _stepNames = [
+  'Session',
+  'Indication and devices',
+  'Initial assessment',
+  'Programming',
+  'Finish',
+];
+const _assessmentStep = 2;
+const _programmingStep = 3;
+const _finishStep = 4;
 
 const RecordingWords _words = (
-  entry: 'entry',
+  entry: 'change',
   what: 'this visit',
   thing: 'the session',
   staysInApp: 'This visit stays in the app.',
   exportUnderOtherRun: 'Export it under a different run.',
   savedInApp: 'The visit is saved in the app.',
-  filedOnFirstEntry:
-      'The visit is filed there as soon as the first block is inserted.',
+  filedOnFirstEntry: 'The visit is filed there from the first save.',
   newDialogTitle: 'Create new session file',
   newFileSaid: 'New session',
   recoveryTitle: 'Unfinished session found',
@@ -240,6 +255,9 @@ class _SessionScreenState extends State<SessionScreen>
   final _removedSession = <_SessionScaleEdit>[];
 
   int _currentStep = 0;
+
+  /// Shown on the Patient ID field when a session is started without one.
+  String? _subjectError;
   String? _modelName;
 
   /// The right lead's model when it differs from the left one; null while
@@ -251,6 +269,12 @@ class _SessionScreenState extends State<SessionScreen>
 
   /// Whether the block about to be inserted is starred.
   bool _starNext = false;
+
+  /// The saved configuration being edited, when one is.
+  String? _editingBlock;
+
+  /// The Programming inputs as last saved or loaded, to tell unsaved changes.
+  String _savedSignature = '';
   // The indication whose scales are loaded.
   String? _selectedClinicalPreset;
   // Selected program name (desktop program combo).
@@ -270,6 +294,11 @@ class _SessionScreenState extends State<SessionScreen>
   void initState() {
     super.initState();
     _contracts = _loadContracts();
+    _ids.subject.addListener(() {
+      if (_subjectError != null && _ids.subject.text.trim().isNotEmpty) {
+        setState(() => _subjectError = null);
+      }
+    });
     loadUserPrefs().then((p) {
       if (!mounted) return;
       setState(() {
@@ -357,7 +386,9 @@ class _SessionScreenState extends State<SessionScreen>
     scalePrefs: _scalePrefs(),
     // Provenance: the report prints which file it came from, so it can be
     // tied back to one run among several of the same session.
-    sourceFile: savePath == null ? '' : pickedBasename(savePath!),
+    sourceFile: savePath == null
+        ? _ids.name.filename
+        : pickedBasename(savePath!),
   );
 
   /// Report paper size from the user preference, applied to BOTH formats so the
@@ -571,6 +602,29 @@ class _SessionScreenState extends State<SessionScreen>
     rightIpg: (_sameIpg ? _leftIpgCtrl : _rightIpgCtrl).text.trim(),
   );
 
+  /// Write the indication, target, leads and IPGs into every saved row when
+  /// they were changed after the first entry, and save.
+  void _syncVisitDetails() {
+    if (_authoring.rows.isEmpty) return;
+    final d = _sessionDetails;
+    final cells = {
+      'dbs_indication': d.pathology,
+      'target': d.target,
+      'left_ipg_model': d.leftIpg,
+      'right_ipg_model': d.rightIpg,
+      'left_electrode_model': _modelName ?? '',
+      'right_electrode_model': _rightModelName ?? _modelName ?? '',
+    };
+    final changed = _authoring.rows.any((r) {
+      final m = r.toMap();
+      return cells.entries.any((e) => m[e.key] != e.value);
+    });
+    if (!changed) return;
+    _authoring.setOnEveryRow(cells);
+    _invalidateEntryCharts();
+    autosave();
+  }
+
   /// Fill pathology, target and IPG from an opened or recovered file.
   void _fillSessionDetails(List<SessionRow> rows) {
     _pathologyCtrl.text = sessionValueIn(rows, (r) => r.pathology);
@@ -603,32 +657,55 @@ class _SessionScreenState extends State<SessionScreen>
   Future<void> _goTo(int step) async {
     if (step == _currentStep) return;
     if (step > 0 && !_started) {
-      _snack(
-        'Enter the patient ID and press New, or open a saved session, '
-        'so the data has somewhere to be saved.',
-      );
-      return;
+      if (_ids.subject.text.trim().isEmpty) {
+        setState(() => _subjectError = 'Enter or choose the patient ID');
+        _snack(
+          'Enter or choose the patient ID, or open a saved session, so the '
+          'data has somewhere to be saved.',
+        );
+        return;
+      }
+      if (!await _newSession() || !mounted) return;
     }
-    if (_currentStep == 1) {
+    if (_currentStep == _assessmentStep) {
       final (rawCatalog, limits, _) = await _contracts;
       final catalog = rawCatalog.withDevices(_prefs.devices);
       if (!mounted || !_saveInitial(catalog, limits)) return;
     }
     if (step == _finishStep && !await _confirmLeftOn()) return;
-    if (step == 1) {
+    if (step == _assessmentStep) {
       final limits = (await _contracts).$2.withDefaults(_prefs.stimDefaults);
       _fillStimDefaults(limits.defaults[_pathologyCtrl.text.trim()]);
     }
     if (!mounted) return;
     setState(() {
-      if (step == 2 && !_recSeeded) {
+      if (step == _programmingStep && !_recSeeded) {
         _copySide(_leftInit, _leftRec);
         _copySide(_rightInit, _rightRec);
         _recSeeded = true;
+        _savedSignature = _recSignature();
       }
       _currentStep = step;
     });
   }
+
+  /// Everything the Programming step would save, as one comparable string.
+  String _recSignature() => [
+    for (final s in [_leftRec, _rightRec]) ...[
+      s.freq.text,
+      s.amp.text,
+      s.pulseWidth.text,
+      s.enabled,
+      s.caseState,
+      ...[for (final e in s.states.entries) '${e.key}=${e.value}']..sort(),
+      ...s.ampSplit,
+    ],
+    for (final s in _sessionScales) ...[s.name.text, s.value, s.omitted],
+    _notesRecCtrl.text,
+    _selectedProgram,
+    _starNext,
+    _leavesOn,
+  ].join('|');
 
   /// Start both initial sides from the indication's [defaults], unless any
   /// stimulation value is already there.
@@ -652,7 +729,12 @@ class _SessionScreenState extends State<SessionScreen>
   void _insertRecording(ElectrodeCatalog catalog, StimLimits limits) {
     if (!_stimInRange(limits, _leftRec, _rightRec)) return;
     _invalidateEntryCharts();
+    final editing = _editingBlock;
+    final previous = editing == null
+        ? null
+        : _authoring.rows.firstWhere((r) => r.blockId == editing);
     final inserted = _authoring.addInsert(
+      replacing: editing == null ? null : int.parse(editing),
       isInitial: false,
       stim: _stimCells(catalog, _leftRec, _rightRec),
       scales: [
@@ -674,17 +756,115 @@ class _SessionScreenState extends State<SessionScreen>
       starred: _starNext,
       notes: _notesRecCtrl.text.trim(),
     );
-    if (_leavesOn) _authoring.markFinalBlock(inserted.first.blockId);
+    final id = inserted.first.blockId;
+    if (previous != null) {
+      _authoring.setOnBlock(id, {
+        'acq_time': previous.acqTime,
+        'append_id': previous.appendId,
+      });
+    }
+    if (_leavesOn) {
+      _authoring.markFinalBlock(id);
+    } else if (previous?.isFinal == '1') {
+      _authoring.markFinalBlock(null);
+    }
     setState(() {
       _notesRecCtrl.clear();
       _leavesOn = false;
       _starNext = false;
+      _editingBlock = null;
+      _savedSignature = _recSignature();
     });
     autosave();
     _snack(
-      'Inserted recording block ${inserted.first.blockId} '
-      '(${inserted.length} row${inserted.length == 1 ? '' : 's'}).',
+      editing == null
+          ? 'Configuration #$id saved.'
+          : 'Changes to configuration #$id saved.',
     );
+  }
+
+  /// Load a saved configuration into the Programming inputs, to change it and
+  /// save it in place.
+  Future<void> _editBlock(String blockId) async {
+    final (rawCatalog, rawLimits, _) = await _contracts;
+    if (!mounted) return;
+    final limits = rawLimits.withDefaults(_prefs.stimDefaults);
+    final leads = _leads(rawCatalog.withDevices(_prefs.devices));
+    final block = [
+      for (final r in _authoring.rows)
+        if (r.blockId == blockId) r,
+    ];
+    if (block.isEmpty) return;
+    final first = block.first;
+    setState(() {
+      _fillSide(_leftRec, first, left: true, model: leads.left);
+      _fillSide(_rightRec, first, left: false, model: leads.right);
+      for (final scale in _sessionScales) {
+        final rated = block
+            .where((r) => r.scaleName.trim() == scale.name.text.trim())
+            .firstOrNull;
+        final value = double.tryParse(rated?.scaleValue ?? '');
+        scale.omitted =
+            value == null || rated!.scaleValue == limits.sessionScaleOmittedTsv;
+        if (value != null) scale.value = value;
+      }
+      _notesRecCtrl.text = first.notes;
+      if (_programs.contains(first.programId)) {
+        _selectedProgram = first.programId;
+      }
+      _starNext = first.isStarred == '1';
+      _leavesOn = first.isFinal == '1';
+      _editingBlock = blockId;
+      _savedSignature = _recSignature();
+    });
+  }
+
+  /// Stop editing without saving; the configuration stays as it was saved.
+  void _cancelEdit() => setState(() {
+    _editingBlock = null;
+    _notesRecCtrl.clear();
+    _starNext = false;
+    _leavesOn = false;
+    _savedSignature = _recSignature();
+  });
+
+  /// Delete a saved configuration after asking.
+  Future<void> _deleteBlock(String blockId) async {
+    final isFinal = _authoring.rows.any(
+      (r) => r.blockId == blockId && r.isFinal == '1',
+    );
+    final yes =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Delete configuration #$blockId?'),
+            content: Text(
+              'Its stimulation settings, ratings and notes are removed from '
+              'this session and from the reports. This cannot be undone.'
+              '${isFinal ? '\n\nThis is the configuration the patient leaves '
+                        'on.' : ''}',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!yes || !mounted) return;
+    setState(() {
+      _authoring.removeBlock(blockId);
+      if (_editingBlock == blockId) _editingBlock = null;
+    });
+    _invalidateEntryCharts();
+    autosave();
+    _snack('Configuration #$blockId deleted.');
   }
 
   void _toggleStar(String blockId) {
@@ -730,12 +910,11 @@ class _SessionScreenState extends State<SessionScreen>
 
   @override
   String recoveredCount(SessionAuthoring content) =>
-      '${blockCount(content.rows)} blocks';
+      _configurations(testedCount(content.rows));
 
   @override
   String openedSummary(SessionAuthoring content) =>
-      '${content.rows.length} rows, next block ${content.blockId}, '
-      'append ${content.appendId}';
+      '${_configurations(testedCount(content.rows))} so far';
 
   @override
   void show(SessionAuthoring content, {required bool reopened}) {
@@ -745,7 +924,9 @@ class _SessionScreenState extends State<SessionScreen>
     _initialSaved = null;
     _fillSessionDetails(content.rows);
     _selectedClinicalPreset = null;
-    if (reopened) _currentStep = 2;
+    if (reopened) _currentStep = _programmingStep;
+    _editingBlock = null;
+    _savedSignature = _recSignature();
   }
 
   @override
@@ -802,7 +983,7 @@ class _SessionScreenState extends State<SessionScreen>
         child: ListView(
           children: [
             heading('Saving'),
-            item(Icons.folder_outlined, 'BIDS folders', () async {
+            item(Icons.folder_outlined, 'Storage folders (BIDS)', () async {
               await showBidsFoldersDialog(context, _prefs);
               if (!mounted) return;
               final kept = _prefs.bidsFolders ?? const <BidsFolder>[];
@@ -811,7 +992,7 @@ class _SessionScreenState extends State<SessionScreen>
               });
               _loadPatients();
             }),
-            heading('Lists offered in Setup'),
+            heading('Picklists'),
             item(
               Icons.medical_information_outlined,
               'DBS indications',
@@ -860,7 +1041,7 @@ class _SessionScreenState extends State<SessionScreen>
             ),
             item(
               Icons.star_rate_outlined,
-              'Session ratings',
+              'Symptom and side effect ratings',
               presets == null ? null : () => _editSessionPresets(presets),
             ),
             item(Icons.flag_outlined, 'Scale targets', _editScaleTargets),
@@ -930,15 +1111,16 @@ class _SessionScreenState extends State<SessionScreen>
     _loadPathologyScales();
   }
 
-  /// Start a new visit saved into the chosen BIDS folder.
-  Future<void> _newSession() async {
+  /// Start a new visit in the chosen BIDS folder; true when it started.
+  Future<bool> _newSession() async {
     final subject = _ids.subject.text.trim();
     if (subject.isEmpty) {
+      setState(() => _subjectError = 'Enter or choose the patient ID');
       _snack('Enter the patient ID first.');
-      return;
+      return false;
     }
     final folder = _folder ?? await addBidsFolder(context, _prefs);
-    if (folder == null || !mounted) return;
+    if (folder == null || !mounted) return false;
     if (_folder == null) setState(() => _folder = folder);
     final root = folder.path;
     final dir = Directory(root);
@@ -952,17 +1134,17 @@ class _SessionScreenState extends State<SessionScreen>
     };
     final hidden = RegExp(r'(^|/)\.');
     if (!taken.contains('dataset_description.json') &&
-        taken.any((p) => !hidden.hasMatch(p))) {
+        taken.any((p) => !hidden.hasMatch(p) && !p.startsWith('derivatives'))) {
       _snack(
         '$root has other content and is not a BIDS folder. Choose an empty '
         'folder or one this app saved into.',
       );
-      return;
+      return false;
     }
     final name = nextFreeRun(_ids.name, taken);
     final history = await patientHistory(root, subject);
     final indication = _pathologyCtrl.text.trim();
-    if (!mounted) return;
+    if (!mounted) return false;
     if (history.indication.isNotEmpty &&
         indication.isNotEmpty &&
         history.indication != indication &&
@@ -972,38 +1154,93 @@ class _SessionScreenState extends State<SessionScreen>
               'Saving this visit changes it to $indication.',
           'Change it',
         )) {
-      return;
+      return false;
     }
-    final visit = await visitRow(root, name);
-    if (!mounted) return;
-    if (visit.isNotEmpty &&
-        !await _confirm(
-          'This visit is already in the folder',
-          'Session ${name.session} of $subject has an earlier run. This run '
-              'is saved as run ${name.run}; an initial assessment recorded '
-              "here replaces the visit's values in its sessions.tsv.",
-          'Continue',
-        )) {
-      return;
-    }
-    if (!mounted) return;
+    final earlier = await earlierInitial(root, name);
+    final catalog = (await _contracts).$1.withDevices(_prefs.devices);
+    if (!mounted) return false;
     final started = await newInFolder(
       root: root,
       name: name,
       start: () {
         _invalidateEntryCharts();
         _authoring = SessionAuthoring();
+        _editingBlock = null;
         _ids.run.text = name.run;
         _initialBlock = null;
         _initialSaved = null;
       },
     );
     if (started) {
+      try {
+        await Directory('$root/derivatives/sub-${name.subject}')
+            .create(recursive: true);
+      } on FileSystemException catch (e) {
+        _snack('Could not create the derivatives folder: ${e.message}');
+      }
+      if (!mounted) return started;
+      if (earlier.isNotEmpty) setState(() => _prefillInitial(earlier, catalog));
       _snack(
-        'New session in ${folder.name}. It is saved there from the first '
-        'entry.',
+        'New session in ${folder.name}. Run ${name.run} is saved there from '
+        'the first save.'
+        '${earlier.isEmpty ? '' : ' The initial assessment is filled in from '
+                  'the earlier run; check it before Next.'}',
       );
     }
+    return started;
+  }
+
+  /// Fill one side's inputs from the stimulation [row] holds for it.
+  void _fillSide(
+    _SideInputs s,
+    SessionRow row, {
+    required bool left,
+    required ElectrodeModel? model,
+  }) {
+    final amp = left ? row.leftAmplitude : row.rightAmplitude;
+    final parsed = parseAmplitude(amp);
+    s.freq.text = left ? row.leftStimFreq : row.rightStimFreq;
+    s.pulseWidth.text = left ? row.leftPulseWidth : row.rightPulseWidth;
+    s.amp.text = amp.isEmpty ? '' : presetLabel(parsed.total);
+    s.ampSplit = parsed.percentages.length > 1 ? parsed.percentages : const [];
+    if (model != null) {
+      final decoded = decodeTokens(
+        left ? row.leftAnode : row.rightAnode,
+        left ? row.leftCathode : row.rightCathode,
+        model,
+      );
+      s.states = decoded.states;
+      s.caseState = decoded.caseState;
+    }
+  }
+
+  /// Fill the initial assessment with an earlier run's [rows], to check and
+  /// change; nothing is saved until Next.
+  void _prefillInitial(List<SessionRow> rows, ElectrodeCatalog catalog) {
+    final initial = [
+      for (final r in rows)
+        if (isInitialValue(r.isInitial)) r,
+    ];
+    if (initial.isEmpty) return;
+    final first = initial.first;
+    final leads = _leads(catalog);
+    _fillSide(_leftInit, first, left: true, model: leads.left);
+    _fillSide(_rightInit, first, left: false, model: leads.right);
+    _medicationsCtrl.text = first.medications;
+    _notesInitCtrl.text = first.notes;
+    if (_programs.contains(first.programId)) _selectedProgram = first.programId;
+    for (final scale in _clinicalScales) {
+      scale.dispose();
+    }
+    _clinicalScales
+      ..clear()
+      ..addAll([
+        for (final r in initial)
+          if (r.scaleName.trim().isNotEmpty)
+            _ClinicalScaleEdit()
+              ..name.text = r.scaleName
+              ..score.text = r.scaleValue,
+      ]);
   }
 
   Future<bool> _confirm(String title, String message, String yes) async =>
@@ -1084,7 +1321,7 @@ class _SessionScreenState extends State<SessionScreen>
   /// patients actually need.
   Future<void> _exportBids() async {
     if (_authoring.rows.isEmpty) {
-      _snack('Insert at least one block before exporting.');
+      _snack('Save the initial assessment or a configuration first.');
       return;
     }
     final Map<String, dynamic> contract;
@@ -1116,7 +1353,10 @@ class _SessionScreenState extends State<SessionScreen>
   /// section selection, so they cannot disagree about content.
   Future<void> _exportReport(_Leads leads, {required bool docx}) async {
     if (_authoring.rows.isEmpty) {
-      _snack('Insert at least one block before exporting a report.');
+      _snack(
+        'Save the initial assessment or a configuration before exporting a '
+        'report.',
+      );
       return;
     }
     final sections = await _askSections();
@@ -1136,6 +1376,12 @@ class _SessionScreenState extends State<SessionScreen>
       anchor: exportKey,
       avoid: exportAvoid,
       failureLabel: 'Report export failed',
+      initialDirectory: reportFolderFor(
+        _prefs,
+        root: datasetRoot ?? _folder?.path,
+        subject: l.subject,
+      ),
+      onSaved: (path) => rememberReportFolder(_prefs, path),
       build: () async {
         final data = _reportData();
         // Only rasterise what the chosen sections will actually embed.
@@ -1183,10 +1429,7 @@ class _SessionScreenState extends State<SessionScreen>
 
   /// The last step: what was recorded, then the exports grouped by reader.
   Widget _finishView(_Leads leads) {
-    final configs = {
-      for (final r in _authoring.rows)
-        if (!isInitialValue(r.isInitial)) r.blockId,
-    }.length;
+    final configs = testedCount(_authoring.rows);
     final leftOn = finalBlockIn(_authoring.rows);
     final saved = savedLocation;
     Widget action(IconData icon, String label, VoidCallback onTap) =>
@@ -1199,15 +1442,15 @@ class _SessionScreenState extends State<SessionScreen>
       key: exportKey,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        GroupCard(
+        TitledSection(
           title: 'Session summary',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Configurations tested: $configs'),
               Text(
-                'Patient leaves on: '
-                '${leftOn == null ? 'not recorded' : 'block $leftOn'}',
+                'Final settings: '
+                '${leftOn == null ? 'not noted' : 'configuration $leftOn'}',
               ),
               if (saved != null) Text('Saved to: $saved'),
               if (savePathIsSandboxCopy)
@@ -1223,8 +1466,8 @@ class _SessionScreenState extends State<SessionScreen>
             padding: const EdgeInsets.only(top: 12),
             child: Text(notice, style: Theme.of(context).textTheme.bodySmall),
           ),
-        const SizedBox(height: 12),
-        GroupCard(
+        const Divider(height: 48),
+        TitledSection(
           title: 'For the patient record',
           child: Wrap(
             spacing: 12,
@@ -1241,26 +1484,12 @@ class _SessionScreenState extends State<SessionScreen>
                 'Report (Word)',
                 () => _exportReport(leads, docx: true),
               ),
-              DropdownButton<String>(
-                value: _prefs.reportPageSize ?? kDefaultReportPageSize,
-                items: [
-                  for (final size in kReportPageSizes)
-                    DropdownMenuItem(
-                      value: size,
-                      child: Text(size == 'letter' ? 'US Letter' : 'A4'),
-                    ),
-                ],
-                onChanged: (size) {
-                  if (size == null) return;
-                  setState(() => _prefs.reportPageSize = size);
-                  saveUserPrefs(_prefs);
-                },
-              ),
+              _pageSizeMenu(),
             ],
           ),
         ),
-        const SizedBox(height: 12),
-        GroupCard(
+        const Divider(height: 48),
+        TitledSection(
           title: 'For research',
           child: Wrap(
             spacing: 12,
@@ -1339,18 +1568,17 @@ class _SessionScreenState extends State<SessionScreen>
       Map<String, List<String>> groups, {
       String? value,
       TextEditingController? controller,
-      bool enabled = true,
       ValueChanged<String>? onSelected,
     }) => DropdownMenu<String>(
       key: controller == null ? ValueKey('$label $value') : null,
       controller: controller,
       initialSelection: value,
       label: Text(label),
-      enabled: enabled,
       expandedInsets: EdgeInsets.zero,
       requestFocusOnTap: false,
       onSelected: (name) {
         if (name != null) onSelected?.call(name);
+        _syncVisitDetails();
       },
       dropdownMenuEntries: [
         for (final group in groups.entries) ...[
@@ -1380,7 +1608,12 @@ class _SessionScreenState extends State<SessionScreen>
           contentPadding: EdgeInsets.zero,
           controlAffinity: ListTileControlAffinity.leading,
           title: Text(title),
-          onChanged: onChanged == null ? null : (v) => onChanged(v ?? true),
+          onChanged: onChanged == null
+              ? null
+              : (v) {
+                  onChanged(v ?? true);
+                  _syncVisitDetails();
+                },
         );
 
     Widget heading(String text) => Padding(
@@ -1389,90 +1622,80 @@ class _SessionScreenState extends State<SessionScreen>
     );
 
     final same = _rightModelName == null;
-    final ipgLocked =
-        sessionValueIn(_authoring.rows, (r) => r.leftIpgModel) != '';
-    return GroupCard(
+    return TitledSection(
       title: 'Devices',
       action: IconButton(
-        icon: const Icon(Icons.settings),
+        icon: const Icon(Icons.edit_note),
         tooltip: 'Devices settings',
         onPressed: () => _editDevices(catalog),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            heading('Leads'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          heading('Leads'),
+          menu(
+            same ? 'Lead model' : 'Left lead model',
+            catalog.manufacturers,
+            value: _modelName,
+            onSelected: (name) => setState(() {
+              _modelName = name;
+              reset(
+                same
+                    ? [_leftInit, _rightInit, _leftRec, _rightRec]
+                    : [_leftInit, _leftRec],
+              );
+            }),
+          ),
+          sameBox(
+            'Same lead on both sides',
+            same,
+            (v) => setState(() => _rightModelName = v ? null : _modelName),
+          ),
+          if (!same)
             menu(
-              same ? 'Lead model' : 'Left lead model',
+              'Right lead model',
               catalog.manufacturers,
-              value: _modelName,
+              value: _rightModelName,
               onSelected: (name) => setState(() {
-                _modelName = name;
-                reset(
-                  same
-                      ? [_leftInit, _rightInit, _leftRec, _rightRec]
-                      : [_leftInit, _leftRec],
-                );
+                _rightModelName = name;
+                reset([_rightInit, _rightRec]);
               }),
             ),
-            sameBox(
-              'Same lead on both sides',
-              same,
-              (v) => setState(() => _rightModelName = v ? null : _modelName),
-            ),
-            if (!same)
-              menu(
-                'Right lead model',
-                catalog.manufacturers,
-                value: _rightModelName,
-                onSelected: (name) => setState(() {
-                  _rightModelName = name;
-                  reset([_rightInit, _rightRec]);
-                }),
-              ),
-            const Divider(height: 24),
-            heading('Implanted pulse generator (IPG)'),
-            menu(
-              _sameIpg ? 'IPG model' : 'Left IPG model',
-              catalog.ipgs,
-              controller: _leftIpgCtrl,
-              enabled: !ipgLocked,
-            ),
-            sameBox(
-              'Same IPG on both sides',
-              _sameIpg,
-              ipgLocked ? null : (v) => setState(() => _sameIpg = v),
-            ),
-            if (!_sameIpg)
-              menu(
-                'Right IPG model',
-                catalog.ipgs,
-                controller: _rightIpgCtrl,
-                enabled: !ipgLocked,
-              ),
-          ],
-        ),
+          const Divider(height: 24),
+          heading('Implanted pulse generator (IPG)'),
+          menu(
+            _sameIpg ? 'IPG model' : 'Left IPG model',
+            catalog.ipgs,
+            controller: _leftIpgCtrl,
+          ),
+          sameBox(
+            'Same IPG on both sides',
+            _sameIpg,
+            (v) => setState(() => _sameIpg = v),
+          ),
+          if (!_sameIpg)
+            menu('Right IPG model', catalog.ipgs, controller: _rightIpgCtrl),
+        ],
       ),
     );
   }
 
-  /// A pick-only field offering [options], [locked] once the session's rows
-  /// record a value.
+  /// A pick-only field offering [options]. A change after the first entry is
+  /// written into every saved row.
   Widget _choiceField({
     required TextEditingController controller,
     required String label,
     required List<String> options,
-    required bool locked,
     ValueChanged<String?>? onSelected,
   }) => DropdownMenu<String>(
     controller: controller,
     label: Text(label),
-    enabled: !locked,
     expandedInsets: EdgeInsets.zero,
     requestFocusOnTap: false,
-    onSelected: onSelected,
+    onSelected: (v) {
+      onSelected?.call(v);
+      _syncVisitDetails();
+    },
     dropdownMenuEntries: [
       for (final o in options) DropdownMenuEntry(value: o, label: o),
     ],
@@ -1514,7 +1737,7 @@ class _SessionScreenState extends State<SessionScreen>
                       RadioListTile<String>(
                         value: e.key,
                         dense: true,
-                        title: Text('Block ${e.key}'),
+                        title: Text('Configuration ${e.key}'),
                         subtitle: e.value.isEmpty ? null : Text(e.value),
                       ),
                     const RadioListTile<String>(
@@ -1556,35 +1779,31 @@ class _SessionScreenState extends State<SessionScreen>
   Widget _programCard() {
     final items = _programs;
     final value = items.contains(_selectedProgram) ? _selectedProgram : null;
-    return GroupCard(
-      title: 'Program',
-      child: Row(
-        children: [
-          Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: value,
-                isExpanded: true,
-                isDense: true,
-                hint: const Text('Select program'),
-                items: [
-                  for (final p in items)
-                    DropdownMenuItem<String>(value: p, child: Text(p)),
-                ],
-                onChanged: (p) => setState(() => _selectedProgram = p),
-              ),
-            ),
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownMenu<String>(
+            key: ValueKey(value),
+            initialSelection: value,
+            label: const Text('Active program (group)'),
+            hintText: 'Not specified',
+            expandedInsets: EdgeInsets.zero,
+            requestFocusOnTap: false,
+            dropdownMenuEntries: [
+              for (final p in items) DropdownMenuEntry(value: p, label: p),
+            ],
+            onSelected: (p) => setState(() => _selectedProgram = p),
           ),
-          IconButton(
-            icon: const Icon(Icons.settings, size: 18),
-            tooltip: 'Edit programs',
-            onPressed: () => _editList('Programs', _programs, (l) {
-              _prefs.programs = l;
-              if (!l.contains(_selectedProgram)) _selectedProgram = null;
-            }),
-          ),
-        ],
-      ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.edit_note),
+          tooltip: 'Edit programs',
+          onPressed: () => _editList('Programs', _programs, (l) {
+            _prefs.programs = l;
+            if (!l.contains(_selectedProgram)) _selectedProgram = null;
+          }),
+        ),
+      ],
     );
   }
 
@@ -1606,7 +1825,7 @@ class _SessionScreenState extends State<SessionScreen>
     ElectrodeModel? model,
     StimLimits limits,
   ) {
-    final card = GroupCard(
+    final card = TitledSection(
       title: side.enabled ? title : '$title (off)',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1654,7 +1873,7 @@ class _SessionScreenState extends State<SessionScreen>
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.settings, size: 18),
+              icon: const Icon(Icons.edit_note),
               tooltip: 'Default settings per DBS indication',
               onPressed: () => _editStimDefaults(limits),
             ),
@@ -1703,14 +1922,18 @@ class _SessionScreenState extends State<SessionScreen>
           Icon(
             ok ? Icons.check_circle_outline : Icons.error_outline,
             size: 14,
-            color: ok ? DbsColors.valid : DbsColors.invalid,
+            color: ok
+                ? Theme.of(context).colorScheme.primary
+                : DbsColors.invalid,
           ),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
-              ok ? 'Configuration valid' : 'Invalid: ${side.validationError}',
+              ok ? 'Contacts set' : 'Invalid: ${side.validationError}',
               style: TextStyle(
-                color: ok ? DbsColors.valid : DbsColors.invalid,
+                color: ok
+                    ? Theme.of(context).colorScheme.primary
+                    : DbsColors.invalid,
                 fontSize: 12,
               ),
             ),
@@ -1791,20 +2014,16 @@ class _SessionScreenState extends State<SessionScreen>
       runSpacing: 4,
       children: [
         swatch(DbsColors.offBase, DbsColors.offBorder, 'Off'),
-        swatch(DbsColors.anodicBase, DbsColors.anodicBorder, 'Anodic (+)'),
-        swatch(
-          DbsColors.cathodicBase,
-          DbsColors.cathodicBorder,
-          'Cathodic (-)',
-        ),
+        swatch(DbsColors.anodicBase, DbsColors.anodicBorder, 'Anode (+)'),
+        swatch(DbsColors.cathodicBase, DbsColors.cathodicBorder, 'Cathode (-)'),
       ],
     );
   }
 
   /// Column 2: the two electrode canvases side by side + legend.
   Widget _electrodesColumn(_Leads leads, _SideInputs left, _SideInputs right) {
-    return GroupCard(
-      title: 'Electrodes',
+    return TitledSection(
+      title: 'Contacts',
       child: Column(
         children: [
           Row(
@@ -1836,297 +2055,292 @@ class _SessionScreenState extends State<SessionScreen>
         textAlignVertical: TextAlignVertical.top,
         decoration: const InputDecoration(
           labelText: 'Notes',
-          border: OutlineInputBorder(),
           alignLabelWithHint: true,
         ),
       ),
     );
   }
 
-  Widget _setupStep(
+  /// The visit's files: where it is saved, this session's exports, and the
+  /// import and export of other sessions.
+  Widget _setupStep(ElectrodeCatalog catalog) {
+    final started = _started;
+    final thisSession = TitledSection(
+      title: 'This session',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_patients.isNotEmpty && !started) ...[
+            const SizedBox(height: 8),
+            DropdownMenu<String>(
+              expandedInsets: EdgeInsets.zero,
+              label: const Text('Patient already in this folder'),
+              dropdownMenuEntries: [
+                for (final p in _patients)
+                  DropdownMenuEntry(value: p, label: p),
+              ],
+              onSelected: (p) {
+                if (p == null) return;
+                setState(() => _ids.subject.text = p);
+                _prefillFromHistory(p);
+              },
+            ),
+          ],
+          const SizedBox(height: 12),
+          BidsNameFields(entries: _ids, subjectError: _subjectError),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              if (started)
+                FilledButton.icon(
+                  onPressed: _newSession,
+                  icon: const Icon(Icons.note_add_outlined),
+                  label: const Text('New session'),
+                ),
+              OutlinedButton.icon(
+                onPressed: openFile,
+                icon: const Icon(Icons.folder_open),
+                label: const Text('Open saved session'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(
+                started ? Icons.check_circle_outline : Icons.info_outline,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  started
+                      ? 'Session started for patient ${_ids.name.subject}, '
+                            'visit ${_ids.name.session}'
+                            '${_ids.name.run == '01' ? '' : ', run ${_ids.name.run}'}'
+                      : 'Enter or choose the patient ID and press Next, or '
+                            'open a saved session.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
+          if (unkeptNotice case final notice?)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(notice, style: Theme.of(context).textTheme.bodySmall),
+            ),
+        ],
+      ),
+    );
+    final left = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        thisSession,
+        if (_authoring.rows.isNotEmpty) ...[
+          const Divider(height: 48),
+          TitledSection(
+            title: 'Export this session',
+            child: Wrap(
+              key: exportKey,
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _exportReport(_leads(catalog), docx: false),
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  label: const Text('Report (PDF)'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _exportReport(_leads(catalog), docx: true),
+                  icon: const Icon(Icons.description_outlined),
+                  label: const Text('Report (Word)'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _exportBids,
+                  icon: const Icon(Icons.folder_zip_outlined),
+                  label: const Text('BIDS folder (zip)'),
+                ),
+                _pageSizeMenu(),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+    final others = TitledSection(
+      title: 'Other sessions',
+      child: ImportExportPanel(catalog: catalog),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: DropdownMenu<String>(
+                key: ValueKey(_folder?.name),
+                expandedInsets: EdgeInsets.zero,
+                label: const Text('BIDS folder'),
+                enabled: !started,
+                initialSelection: _folder?.name,
+                dropdownMenuEntries: [
+                  for (final f in _prefs.bidsFolders ?? const <BidsFolder>[])
+                    DropdownMenuEntry(value: f.name, label: f.name),
+                ],
+                onSelected: (name) {
+                  setState(
+                    () => _folder = _prefs.bidsFolders
+                        ?.where((f) => f.name == name)
+                        .firstOrNull,
+                  );
+                  _loadPatients();
+                },
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.create_new_folder_outlined),
+              tooltip: 'Add a BIDS folder',
+              onPressed: started
+                  ? null
+                  : () async {
+                      final added = await addBidsFolder(context, _prefs);
+                      if (added == null || !mounted) return;
+                      setState(() => _folder = added);
+                      _loadPatients();
+                    },
+            ),
+          ],
+        ),
+        if (_folder case final f?)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 8),
+            child: Text(f.path, style: Theme.of(context).textTheme.bodySmall),
+          ),
+        const Divider(height: 48),
+        _twoColumns(left, others),
+      ],
+    );
+  }
+
+  /// The patient's DBS indication and target, and the implanted devices.
+  Widget _devicesStep(
     ElectrodeCatalog catalog,
     ScalePresets presets,
     StimLimits limits,
   ) {
     final pathologies = _prefs.pathologies ?? presets.pathologies;
     final targets = _prefs.targets ?? presets.targets;
-    final started = _started;
-    const field = InputDecoration(border: OutlineInputBorder());
     Widget gear(String tooltip, VoidCallback onPressed) => IconButton(
-      icon: const Icon(Icons.settings),
+      icon: const Icon(Icons.edit_note),
       tooltip: tooltip,
       onPressed: onPressed,
     );
-
-    final session = GroupCard(
-      title: 'Patient and session file',
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownMenu<String>(
-                    key: ValueKey(_folder?.name),
-                    expandedInsets: EdgeInsets.zero,
-                    label: const Text('BIDS folder'),
-                    enabled: !started,
-                    initialSelection: _folder?.name,
-                    dropdownMenuEntries: [
-                      for (final f
-                          in _prefs.bidsFolders ?? const <BidsFolder>[])
-                        DropdownMenuEntry(value: f.name, label: f.name),
-                    ],
-                    onSelected: (name) {
-                      setState(
-                        () => _folder = _prefs.bidsFolders
-                            ?.where((f) => f.name == name)
-                            .firstOrNull,
-                      );
-                      _loadPatients();
-                    },
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.create_new_folder_outlined),
-                  tooltip: 'Add a BIDS folder',
-                  onPressed: started
-                      ? null
-                      : () async {
-                          final added = await addBidsFolder(context, _prefs);
-                          if (added == null || !mounted) return;
-                          setState(() => _folder = added);
-                          _loadPatients();
-                        },
-                ),
-              ],
-            ),
-            if (_folder case final f?)
-              Padding(
-                padding: const EdgeInsets.only(top: 4, bottom: 8),
-                child: Text(
-                  f.path,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+    final clinical = TitledSection(
+      title: 'DBS indication and target',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_fromLastVisit)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                "Filled from this patient's last visit. Check each value: "
+                'a reimplantation changes the target, leads or IPG.',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
-            if (_patients.isNotEmpty && !started) ...[
-              const SizedBox(height: 8),
-              DropdownMenu<String>(
-                expandedInsets: EdgeInsets.zero,
-                label: const Text('Patient already in this folder'),
-                dropdownMenuEntries: [
-                  for (final p in _patients)
-                    DropdownMenuEntry(value: p, label: p),
-                ],
-                onSelected: (p) {
-                  if (p == null) return;
-                  setState(() => _ids.subject.text = p);
-                  _prefillFromHistory(p);
-                },
-              ),
-            ],
-            const SizedBox(height: 12),
-            BidsNameFields(entries: _ids, decoration: field),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                FilledButton.icon(
-                  onPressed: _newSession,
-                  icon: const Icon(Icons.note_add_outlined),
-                  label: const Text('New session'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: openFile,
-                  icon: const Icon(Icons.folder_open),
-                  label: const Text('Open saved session'),
-                ),
-              ],
             ),
-            if (_authoring.rows.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                key: exportKey,
-                spacing: 12,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () =>
-                        _exportReport(_leads(catalog), docx: false),
-                    icon: const Icon(Icons.picture_as_pdf_outlined),
-                    label: const Text('Report (PDF)'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => _exportReport(_leads(catalog), docx: true),
-                    icon: const Icon(Icons.description_outlined),
-                    label: const Text('Report (Word)'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _exportBids,
-                    icon: const Icon(Icons.folder_zip_outlined),
-                    label: const Text('BIDS folder (zip)'),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(
-                  started ? Icons.check_circle_outline : Icons.info_outline,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    started
-                        ? 'Session started: ${_ids.name.filename}'
-                        : 'Enter the patient ID, then start a new session '
-                              'or open a saved one.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-              ],
-            ),
-            if (unkeptNotice case final notice?)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  notice,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-
-    final clinical = GroupCard(
-      title: 'Clinical details',
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_fromLastVisit)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  "Filled from this patient's last visit. Check each value: "
-                  'a reimplantation changes the target, leads or IPG.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-            Row(
-              children: [
-                Expanded(
-                  child: _choiceField(
-                    controller: _pathologyCtrl,
-                    label: 'DBS indication',
-                    options: pathologies,
-                    locked:
-                        sessionValueIn(_authoring.rows, (r) => r.pathology) !=
-                        '',
-                    onSelected: (p) {
-                      if (p == null) return;
-                      setState(() {});
-                      if (_selectedClinicalPreset == null &&
-                          presets.buttons.contains(p)) {
-                        _applyClinicalPreset(p, presets, limits);
-                      }
-                    },
-                  ),
-                ),
-                gear(
-                  'Edit DBS indications',
-                  () => _editList(
-                    'DBS indications',
-                    pathologies,
-                    (l) => _prefs.pathologies = l,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _choiceField(
-                    controller: _targetCtrl,
-                    label: 'Anatomical target',
-                    options: targets,
-                    locked:
-                        sessionValueIn(_authoring.rows, (r) => r.target) != '',
-                  ),
-                ),
-                gear(
-                  'Edit targets',
-                  () => _editList(
-                    'Anatomical targets',
-                    targets,
-                    (l) => _prefs.targets = l,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-
-    final importExport = GroupCard(
-      title: 'Import and export other sessions',
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: ImportExportPanel(catalog: catalog),
-      ),
-    );
-    return LayoutBuilder(
-      builder: (context, c) {
-        if (c.maxWidth < 900) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          Row(
             children: [
-              session,
-              const SizedBox(height: 16),
-              clinical,
-              const SizedBox(height: 16),
-              _modelCard(catalog),
-              const SizedBox(height: 16),
-              importExport,
-            ],
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: session),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      clinical,
-                      const SizedBox(height: 16),
-                      _modelCard(catalog),
-                    ],
-                  ),
+              Expanded(
+                child: _choiceField(
+                  controller: _pathologyCtrl,
+                  label: 'DBS indication',
+                  options: pathologies,
+                  onSelected: (p) {
+                    if (p == null) return;
+                    setState(() {});
+                    if (_selectedClinicalPreset == null &&
+                        presets.buttons.contains(p)) {
+                      _applyClinicalPreset(p, presets, limits);
+                    }
+                  },
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            importExport,
-          ],
-        );
-      },
+              ),
+              gear(
+                'Edit DBS indications',
+                () => _editList(
+                  'DBS indications',
+                  pathologies,
+                  (l) => _prefs.pathologies = l,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _choiceField(
+                  controller: _targetCtrl,
+                  label: 'Anatomical target',
+                  options: targets,
+                ),
+              ),
+              gear(
+                'Edit targets',
+                () => _editList(
+                  'Anatomical targets',
+                  targets,
+                  (l) => _prefs.targets = l,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
+    return _twoColumns(clinical, _modelCard(catalog));
   }
+
+  /// [a] beside [b] on a wide window, [a] above [b] otherwise.
+  Widget _twoColumns(Widget a, Widget b) => LayoutBuilder(
+    builder: (context, c) => c.maxWidth < 900
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [a, const Divider(height: 48), b],
+          )
+        : Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: a),
+              const SizedBox(width: 48),
+              Expanded(child: b),
+            ],
+          ),
+  );
+
+  Widget _pageSizeMenu() => DropdownMenu<String>(
+    initialSelection: _prefs.reportPageSize ?? kDefaultReportPageSize,
+    label: const Text('Page size'),
+    width: 160,
+    requestFocusOnTap: false,
+    dropdownMenuEntries: [
+      for (final size in kReportPageSizes)
+        DropdownMenuEntry(
+          value: size,
+          label: size == 'letter' ? 'US Letter' : 'A4',
+        ),
+    ],
+    onSelected: (size) {
+      if (size == null) return;
+      setState(() => _prefs.reportPageSize = size);
+      saveUserPrefs(_prefs);
+    },
+  );
 
   /// Load the session pathology's clinical scales and ratings.
   void _applyClinicalPreset(
@@ -2266,154 +2480,130 @@ class _SessionScreenState extends State<SessionScreen>
   }
 
   Widget _clinicalScalesCard(ScalePresets presets, StimLimits limits) {
-    return Card(
-      color: DbsColors.assessmentFill(
-        Theme.of(context).brightness == Brightness.dark,
-      ),
-      elevation: 0,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
           children: [
-            Row(
+            Expanded(
+              child: Text(
+                'Clinical scales',
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit_note),
+              tooltip: 'Settings clinical scales',
+              onPressed: () => _editClinicalPresets(presets),
+            ),
+            _addScalesMenu(
+              presets: presets,
+              tooltip: 'Add clinical scales',
+              namesOf: (g) => clinicalRows(presets, g),
+              listed: (name) =>
+                  _clinicalScales.any((s) => s.name.text.trim() == name),
+              onToggle: (_, name, on) {
+                if (on) {
+                  _clinicalScales.add(_ClinicalScaleEdit()..name.text = name);
+                  return;
+                }
+                final gone = _clinicalScales
+                    .where((s) => s.name.text.trim() == name)
+                    .toList();
+                _clinicalScales.removeWhere(gone.contains);
+                _removedClinical.addAll(gone);
+              },
+              onEmpty: () =>
+                  setState(() => _clinicalScales.add(_ClinicalScaleEdit())),
+            ),
+          ],
+        ),
+        for (final scale in _clinicalScales)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    'Clinical scales',
-                    style: Theme.of(context).textTheme.titleMedium,
+                  flex: 2,
+                  child: TextField(
+                    controller: scale.name,
+                    decoration: const InputDecoration(
+                      labelText: 'Scale name',
+                      isDense: true,
+                    ),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.settings),
-                  tooltip: 'Settings clinical scales',
-                  onPressed: () => _editClinicalPresets(presets),
-                ),
-                _addScalesMenu(
-                  presets: presets,
-                  tooltip: 'Add clinical scales',
-                  namesOf: (g) => clinicalRows(presets, g),
-                  listed: (name) =>
-                      _clinicalScales.any((s) => s.name.text.trim() == name),
-                  onToggle: (_, name, on) {
-                    if (on) {
-                      _clinicalScales.add(
-                        _ClinicalScaleEdit()..name.text = name,
-                      );
-                      return;
-                    }
-                    final gone = _clinicalScales
-                        .where((s) => s.name.text.trim() == name)
-                        .toList();
-                    _clinicalScales.removeWhere(gone.contains);
-                    _removedClinical.addAll(gone);
-                  },
-                  onEmpty: () =>
-                      setState(() => _clinicalScales.add(_ClinicalScaleEdit())),
-                ),
-              ],
-            ),
-            for (final scale in _clinicalScales)
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
+                Expanded(
+                  flex: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 12),
                     child: TextField(
-                      controller: scale.name,
+                      controller: scale.score,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: const InputDecoration(
-                        labelText: 'Scale name',
+                        labelText: 'Score',
                         isDense: true,
                       ),
                     ),
                   ),
-                  Expanded(
-                    flex: 3,
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 12),
-                      child: TextField(
-                        controller: scale.score,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: 'Score',
-                          isDense: true,
-                        ),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.remove_circle_outline),
-                    tooltip: 'Remove clinical scale',
-                    onPressed: () => setState(() {
-                      _clinicalScales.remove(scale);
-                      _removedClinical.add(scale);
-                    }),
-                  ),
-                ],
-              ),
-            if (_clinicalScales.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Text(
-                  'No scales. The insert writes one scale-less '
-                  'row (like the desktop).',
                 ),
-              ),
-          ],
-        ),
-      ),
+                IconButton(
+                  icon: const Icon(Icons.remove_circle_outline),
+                  tooltip: 'Remove clinical scale',
+                  onPressed: () => setState(() {
+                    _clinicalScales.remove(scale);
+                    _removedClinical.add(scale);
+                  }),
+                ),
+              ],
+            ),
+          ),
+        if (_clinicalScales.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              'No scales. The insert writes one scale-less '
+              'row (like the desktop).',
+            ),
+          ),
+      ],
     );
   }
 
   Widget _initialStep(StimLimits limits, ScalePresets presets, _Leads leads) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: DbsColors.assessmentFill(
-          Theme.of(context).brightness == Brightness.dark,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _phaseHint(
+          'How the patient is on arrival, before any change. '
+          'Saved when you press Next.',
         ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _phaseHint(
-              'How the patient is on arrival, before any change. '
-              'Saved when you press Next.',
-            ),
-            _stepBody(
-              _paramsColumn(leads, limits, left: _leftInit, right: _rightInit),
-              _electrodesColumn(leads, _leftInit, _rightInit),
-              _clinicalScalesCard(presets, limits),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextField(
-                    controller: _medicationsCtrl,
-                    minLines: 3,
-                    maxLines: null,
-                    decoration: const InputDecoration(
-                      labelText: 'Medications',
-                      border: OutlineInputBorder(),
-                      alignLabelWithHint: true,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _notesField(_notesInitCtrl),
-                ],
+        _stepBody(
+          _paramsColumn(leads, limits, left: _leftInit, right: _rightInit),
+          _electrodesColumn(leads, _leftInit, _rightInit),
+          _clinicalScalesCard(presets, limits),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: _medicationsCtrl,
+                minLines: 3,
+                maxLines: null,
+                decoration: const InputDecoration(
+                  labelText: 'Medications',
+                  alignLabelWithHint: true,
+                ),
               ),
-              observationsFirst: true,
-            ),
-          ],
+              const SizedBox(height: 12),
+              _notesField(_notesInitCtrl),
+            ],
+          ),
+          observationsFirst: true,
         ),
-      ),
+      ],
     );
   }
 
@@ -2475,6 +2665,23 @@ class _SessionScreenState extends State<SessionScreen>
               max: bounds.max,
               step: scale.step ?? 0.25,
               omitted: scale.omitted,
+              quality: scale.mode == ScaleMode.ignore
+                  ? null
+                  : computeAggregateIndex(
+                      {
+                        name: {0: bounds.value},
+                      },
+                      const [0],
+                      parseScaleTargets([
+                        (
+                          name: name,
+                          min: bounds.min,
+                          max: bounds.max,
+                          mode: scale.mode,
+                          custom: scale.custom,
+                        ),
+                      ]),
+                    )[0],
               onChanged: (v) => setState(() {
                 scale.value = v;
                 scale.omitted = false;
@@ -2489,76 +2696,57 @@ class _SessionScreenState extends State<SessionScreen>
   }
 
   Widget _ratingsCard(StimLimits limits, ScalePresets presets) {
-    return Card(
-      // Warm fill + outline to match GroupCard (dark-safe; no M3 blue).
-      color: DbsColors.cardFill(
-        Theme.of(context).brightness == Brightness.dark,
-      ),
-      elevation: 0,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Ratings for this configuration',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.settings),
-                  tooltip: 'Settings session scales',
-                  onPressed: () => _editSessionPresets(presets),
-                ),
-                _addScalesMenu(
-                  presets: presets,
-                  tooltip: 'Add ratings',
-                  namesOf: (g) => [
-                    for (final r in sessionRows(presets, g)) r.name,
-                  ],
-                  listed: (name) =>
-                      _sessionScales.any((s) => s.name.text.trim() == name),
-                  onToggle: (g, name, on) {
-                    if (on) {
-                      _sessionScales.add(
-                        _sessionScaleFrom(
-                          sessionRows(
-                            presets,
-                            g,
-                          ).firstWhere((r) => r.name == name),
-                          limits,
-                        ),
-                      );
-                      return;
-                    }
-                    final gone = _sessionScales
-                        .where((s) => s.name.text.trim() == name)
-                        .toList();
-                    _sessionScales.removeWhere(gone.contains);
-                    _removedSession.addAll(gone);
-                  },
-                ),
-              ],
+            Expanded(
+              child: Text(
+                'Symptom and side effect ratings',
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
             ),
-            const SizedBox(height: 8),
-            if (_sessionScales.isEmpty)
-              const Text(
-                'No ratings yet. Choose the pathology in Setup, or add '
-                'ratings with +.',
-              )
-            else
-              for (final scale in _sessionScales) _ratingRow(scale, limits),
+            IconButton(
+              icon: const Icon(Icons.edit_note),
+              tooltip: 'Settings session scales',
+              onPressed: () => _editSessionPresets(presets),
+            ),
+            _addScalesMenu(
+              presets: presets,
+              tooltip: 'Add ratings',
+              namesOf: (g) => [for (final r in sessionRows(presets, g)) r.name],
+              listed: (name) =>
+                  _sessionScales.any((s) => s.name.text.trim() == name),
+              onToggle: (g, name, on) {
+                if (on) {
+                  _sessionScales.add(
+                    _sessionScaleFrom(
+                      sessionRows(presets, g).firstWhere((r) => r.name == name),
+                      limits,
+                    ),
+                  );
+                  return;
+                }
+                final gone = _sessionScales
+                    .where((s) => s.name.text.trim() == name)
+                    .toList();
+                _sessionScales.removeWhere(gone.contains);
+                _removedSession.addAll(gone);
+              },
+            ),
           ],
         ),
-      ),
+        const SizedBox(height: 8),
+        if (_sessionScales.isEmpty)
+          const Text(
+            'No ratings yet. Choose the DBS indication in Indication '
+            'and devices, or add ratings with +.',
+          )
+        else
+          for (final scale in _sessionScales) _ratingRow(scale, limits),
+      ],
     );
   }
 
@@ -2580,37 +2768,12 @@ class _SessionScreenState extends State<SessionScreen>
           _ratingsCard(limits, presets),
           _notesField(_notesRecCtrl),
         ),
-        const SizedBox(height: 12),
-        SwitchListTile(
-          value: _starNext,
-          onChanged: (v) => setState(() => _starNext = v),
-          secondary: Icon(_starNext ? Icons.star : Icons.star_border),
-          title: const Text('Star this configuration'),
-          subtitle: const Text(
-            'Marks it as particularly good. Any number can be starred, '
-            'earlier ones too, from the table below.',
-          ),
-        ),
-        SwitchListTile(
-          value: _leavesOn,
-          onChanged: (v) => setState(() => _leavesOn = v),
-          title: const Text('Patient leaves on this'),
-          subtitle: const Text(
-            'Marks this block as the configuration the patient goes home with. '
-            'Confirmed when the session ends.',
-          ),
-        ),
-        FilledButton.icon(
-          onPressed: () => _insertRecording(catalog, limits),
-          icon: const Icon(Icons.add),
-          label: const Text('Save configuration'),
-        ),
         const Divider(height: 32),
         Row(
           children: [
             Expanded(
               child: Text(
-                'Inserted entries (append ${_authoring.appendId})',
+                'Configurations tested (${testedCount(_authoring.rows)})',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
@@ -2664,8 +2827,7 @@ class _SessionScreenState extends State<SessionScreen>
                   saveUserPrefs(_prefs);
                 },
                 title: Text(
-                  'Table of all entries '
-                  '(${blockCount(_authoring.rows)} blocks)',
+                  'All configurations',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 childrenPadding: const EdgeInsets.only(bottom: 8),
@@ -2673,6 +2835,8 @@ class _SessionScreenState extends State<SessionScreen>
                   SessionEntriesTable(
                     rows: _authoring.rows,
                     onToggleStar: _toggleStar,
+                    onEdit: _editBlock,
+                    onDelete: _deleteBlock,
                     bestBlocks: _entryCharts().bestXs,
                     secondBlocks: _entryCharts().secondXs,
                   ),
@@ -2726,7 +2890,8 @@ class _SessionScreenState extends State<SessionScreen>
           Widget when(int step, Widget Function() builder) =>
               _currentStep == step ? builder() : const SizedBox.shrink();
           final contents = <Widget Function()>[
-            () => _setupStep(catalog, presets, limits),
+            () => _setupStep(catalog),
+            () => _devicesStep(catalog, presets, limits),
             () => _initialStep(limits, presets, leads),
             () => _recordingStep(catalog, limits, presets, leads),
             () => _finishView(leads),
@@ -2735,11 +2900,13 @@ class _SessionScreenState extends State<SessionScreen>
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (_currentStep > 0)
+              if (_currentStep >= _assessmentStep)
                 SessionStrip(
                   parts: [
-                    'Patient ${l.subject}',
-                    'Run ${l.run}',
+                    _ids.subject.text.trim().isEmpty
+                        ? 'Patient ID not entered'
+                        : 'Patient ${l.subject}',
+                    if (l.run != '01') 'Run ${l.run}',
                     for (final detail in [
                       _sessionDetails.pathology,
                       _sessionDetails.target,
@@ -2757,23 +2924,31 @@ class _SessionScreenState extends State<SessionScreen>
                   onTap: () => _goTo(0),
                 ),
               Expanded(
-                child: LayoutBuilder(
-                  builder: (context, c) => Stepper(
-                    type: c.maxWidth >= 900
-                        ? StepperType.horizontal
-                        : StepperType.vertical,
-                    currentStep: _currentStep,
-                    onStepTapped: _goTo,
-                    controlsBuilder: (context, details) =>
-                        const SizedBox.shrink(),
-                    steps: [
-                      for (var i = 0; i < contents.length; i++)
-                        Step(
-                          title: Text(_stepNames[i]),
-                          isActive: _currentStep == i,
-                          content: when(i, contents[i]),
-                        ),
-                    ],
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1200),
+                    child: LayoutBuilder(
+                      builder: (context, c) => Stepper(
+                        type: c.maxWidth >= 900
+                            ? StepperType.horizontal
+                            : StepperType.vertical,
+                        currentStep: _currentStep,
+                        onStepTapped: _goTo,
+                        controlsBuilder: (context, details) =>
+                            const SizedBox.shrink(),
+                        steps: [
+                          for (var i = 0; i < contents.length; i++)
+                            Step(
+                              title: Text(
+                                _stepNames[i],
+                                style: Theme.of(context).textTheme.labelLarge,
+                              ),
+                              isActive: _currentStep == i,
+                              content: when(i, contents[i]),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -2781,16 +2956,136 @@ class _SessionScreenState extends State<SessionScreen>
           );
         },
       ),
-      bottomNavigationBar: StepControls(
-        label: _stepNames[_currentStep],
-        onBack: _currentStep > 0 ? () => _goTo(_currentStep - 1) : null,
-        onNext: _currentStep < _finishStep
-            ? () => _goTo(_currentStep + 1)
-            : null,
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_currentStep == _programmingStep) _saveBar(),
+          StepControls(
+            label: _stepNames[_currentStep],
+            onBack: _currentStep > 0 ? () => _goTo(_currentStep - 1) : null,
+            onNext: _currentStep < _finishStep
+                ? () => _goTo(_currentStep + 1)
+                : null,
+            onClose: _currentStep == _finishStep ? _closeApp : null,
+          ),
+        ],
       ),
     );
   }
+
+  /// Close the app after the usual question about the recovery copy. On the
+  /// desktop the window's close handler asks it.
+  Future<void> _closeApp() async {
+    if (canWriteChosenFolder) {
+      await windowManager.close();
+      return;
+    }
+    if (await mayLeave(closingWindow: true)) await SystemNavigator.pop();
+  }
+
+  /// Save the configuration on screen, always in reach while programming.
+  Widget _saveBar() => Material(
+    color: Theme.of(context).colorScheme.surfaceContainer,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ListenableBuilder(
+        listenable: Listenable.merge([
+          for (final s in [_leftRec, _rightRec]) ...[
+            s.freq,
+            s.amp,
+            s.pulseWidth,
+          ],
+          _notesRecCtrl,
+        ]),
+        builder: (context, _) => Row(
+          children: [
+            Expanded(child: _saveState(_recSignature() != _savedSignature)),
+            Flexible(flex: 3, child: _saveActions()),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  /// The left of the save bar: which configuration is being edited, and
+  /// whether what is on screen is saved.
+  Widget _saveState(bool unsaved) {
+    final editing = _editingBlock;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final style = Theme.of(context).textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w700,
+      color: dark ? const Color(0xFFFFC56B) : const Color(0xFF9A5B00),
+    );
+    final text = [
+      if (editing != null) 'Editing configuration #$editing',
+      if (unsaved) editing == null ? 'Not saved yet' : 'not saved',
+    ].join(', ');
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Row(
+      children: [
+        Icon(
+          unsaved ? Icons.error_outline : Icons.edit_outlined,
+          color: style?.color,
+        ),
+        const SizedBox(width: 8),
+        Flexible(child: Text(text, style: style)),
+        if (editing != null)
+          TextButton(onPressed: _cancelEdit, child: const Text('Cancel edit')),
+      ],
+    );
+  }
+
+  Widget _saveActions() => Wrap(
+    spacing: 12,
+    runSpacing: 8,
+    alignment: WrapAlignment.end,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: [
+      Tooltip(
+        message: "Clinician's impression; does not affect the ranking.",
+        child: FilterChip(
+          avatar: Icon(_starNext ? Icons.star : Icons.star_border),
+          showCheckmark: false,
+          label: const Text('Star this configuration'),
+          selected: _starNext,
+          onSelected: (v) => setState(() => _starNext = v),
+        ),
+      ),
+      Tooltip(
+        message: 'Confirmed when the session ends.',
+        child: FilterChip(
+          label: const Text('Final settings (patient goes home on this)'),
+          selected: _leavesOn,
+          onSelected: (v) => setState(() => _leavesOn = v),
+        ),
+      ),
+      FilledButton.icon(
+        onPressed: () async {
+          final (rawCatalog, rawLimits, _) = await _contracts;
+          if (!mounted) return;
+          _insertRecording(
+            rawCatalog.withDevices(_prefs.devices),
+            rawLimits.withDefaults(_prefs.stimDefaults),
+          );
+        },
+        style: FilledButton.styleFrom(
+          backgroundColor: DbsColors.green,
+          foregroundColor: DbsColors.black,
+          minimumSize: const Size(0, 52),
+          textStyle: Theme.of(context).textTheme.titleMedium,
+        ),
+        icon: Icon(_editingBlock == null ? Icons.add : Icons.save_outlined),
+        label: Text(
+          _editingBlock == null ? 'Save configuration' : 'Save changes',
+        ),
+      ),
+    ],
+  );
 }
+
+/// "1 configuration tested", "3 configurations tested".
+String _configurations(int n) => '$n configuration${n == 1 ? '' : 's'} tested';
 
 /// The left and right leads' models; either is null when none is selected.
 typedef _Leads = ({ElectrodeModel? left, ElectrodeModel? right});

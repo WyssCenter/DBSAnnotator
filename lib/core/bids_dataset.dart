@@ -28,13 +28,15 @@ typedef DatasetEntry = ({
   /// file has no dated rows.
   String acqTime,
 
-  /// The visit's row of `sessions.tsv` and the person's row of
-  /// `participants.tsv`; empty for a notes file.
+  /// The visit's row of `sessions.tsv`, the run's initial assessment for its
+  /// `scans.tsv` row, and the person's row of `participants.tsv`; empty for a
+  /// notes file.
   Map<String, String> visit,
+  Map<String, String> initial,
   Map<String, String> participant,
 
-  /// Each `scale_<name>` column of [visit], to its scale's name.
-  Map<String, String> visitScales,
+  /// Each `scale_<name>` column of [initial], to its scale's name.
+  Map<String, String> initialScales,
 });
 
 /// One file of the dataset: a path relative to the dataset root, and content.
@@ -92,24 +94,27 @@ List<DatasetFile> buildBidsDataset(
   }
   for (final subject in visits.keys.toList()..sort()) {
     final rows = <String, Map<String, String>>{};
-    final scales = <String, String>{};
     for (final e in visits[subject]!) {
-      rows[e.visit['session_id'] ?? ''] = e.visit;
-      scales.addAll(e.visitScales);
+      final id = e.visit['session_id'] ?? '';
+      final earlier = rows[id]?['acq_time'] ?? '';
+      final now = e.visit['acq_time'] ?? '';
+      rows[id] = {
+        ...e.visit,
+        'acq_time': earlier.isNotEmpty && earlier.compareTo(now) < 0
+            ? earlier
+            : now,
+      };
     }
     final ordered = rows.keys.toList()..sort();
-    final columns = [
-      ...visitColumns.take(visitColumns.length - 1),
-      ...scales.keys,
-      visitColumns.last,
-    ];
     files.add((
       path: 'sub-$subject/sub-${subject}_sessions.tsv',
-      content: writeTsvRecords(columns, [for (final k in ordered) rows[k]!]),
+      content: writeTsvRecords(visitColumns, [
+        for (final k in ordered) rows[k]!,
+      ]),
     ));
     files.add((
       path: 'sub-$subject/sub-${subject}_sessions.json',
-      content: _json(_describe(contract, 'sessions_tsv', scales: scales)),
+      content: _json(_describe(contract, 'sessions_tsv')),
     ));
   }
 
@@ -129,21 +134,32 @@ List<DatasetFile> buildBidsDataset(
   for (final sessionDir in scans.keys.toList()..sort()) {
     final group = scans[sessionDir]!;
     final first = group.first.name;
+    final stem =
+        '$sessionDir/sub-${BidsName.label(first.subject)}'
+        '_ses-${BidsName.label(first.session)}_scans';
+    final scales = <String, String>{for (final e in group) ...e.initialScales};
     files.add((
-      path:
-          '$sessionDir/sub-${BidsName.label(first.subject)}'
-          '_ses-${BidsName.label(first.session)}_scans.tsv',
+      path: '$stem.tsv',
       content: writeTsvRecords(
-        const ['filename', 'acq_time'],
+        [
+          ...scanColumns.take(scanColumns.length - 1),
+          ...scales.keys,
+          scanColumns.last,
+        ],
         [
           for (final e in group)
             {
+              ...e.initial,
               // scans.tsv paths are relative to the subject/session directory.
               'filename': '${BidsName.datatype}/${e.name.filename}',
               'acq_time': e.acqTime,
             },
         ],
       ),
+    ));
+    files.add((
+      path: '$stem.json',
+      content: _json(_describe(contract, 'scans_tsv', scales: scales)),
     ));
   }
 
@@ -294,8 +310,10 @@ Reports generated from this data are under `$reportsDerivativeDir/`.
 Programming sessions (`task-programming`): ${sessionColumns.join(', ')}, with
 the scale columns before `notes`.
 
-Visits (`sub-*_sessions.tsv`): ${visitColumns.join(', ')}, with the scale
-columns before `notes`.
+Visits (`sub-*_sessions.tsv`): ${visitColumns.join(', ')}.
+
+Runs (`sub-*_ses-*_scans.tsv`), one row per file with its initial assessment:
+${scanColumns.join(', ')}, with the scale columns before `notes`.
 
 Participants: ${participantColumns.join(', ')}.
 

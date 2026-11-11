@@ -14,6 +14,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:dbs_annotator/app_info.dart' show kNotice;
 import 'package:dbs_annotator/core/session/session_file.dart';
 import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:dbs_annotator/report/report_data.dart';
@@ -90,6 +91,10 @@ void main() {
     ]) {
       expect(docx, contains(heading), reason: 'Word is missing "$heading"');
     }
+  });
+
+  test('the report says the app is not a medical device', () {
+    expect(docx, contains(kNotice));
   });
 
   test('the retired notations never reach either document', () {

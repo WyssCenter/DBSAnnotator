@@ -22,6 +22,13 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show FontLoader, rootBundle;
 import 'package:flutter_test/flutter_test.dart';
 
+const _fixture = 'sub-01_ses-20260203_task-programming_run-01_beh.tsv';
+
+Uploaded _session() => classifyUpload(
+  _fixture,
+  File('test/fixtures/$_fixture').readAsStringSync(),
+).file!;
+
 const _root =
     r'C:\Users\clinician\Documents\Studies\DBS-OCD-multicentre\bids_dataset';
 
@@ -319,8 +326,10 @@ void main() {
                 .copyWith(textScaler: TextScaler.linear(scale)),
             child: child!,
           ),
-          home: const Scaffold(
-            body: SingleChildScrollView(child: ImportExportPanel()),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ImportExportPanel(initialFiles: [_session()]),
+            ),
           ),
         ),
       );

@@ -179,9 +179,9 @@ const kSeeSummary = 'As in the summary above';
   return (
     heading:
         'Latest visit, ${last.date.isEmpty ? 'date unknown' : last.date}: '
-        '${last.session.leftOnMarked ? 'left on, as marked by the clinician' : 'last recorded programme'}',
+        '${last.session.leftOnMarked ? 'left on, as marked by the clinician' : 'last program tested'}',
     lines: config.isEmpty
-        ? const ['No programme was recorded.']
+        ? const ['No program was annotated.']
         : [for (final e in config.entries) '${e.key}: ${e.value}'],
   );
 }
@@ -196,8 +196,8 @@ const kVisitRankingLegend =
 const longitudinalTableHeaders = [
   'Visit',
   'Date',
-  'Programme at visit end',
-  'Blocks',
+  'Program at visit end',
+  'Configurations',
   'Clinical scales',
 ];
 
@@ -564,7 +564,7 @@ LongitudinalReportData buildLongitudinalReportData({
       sessionSeries,
       sessionLabels,
       '',
-      'Block, by visit',
+      'Configuration, by visit',
       best: bestXs,
       second: secondXs,
       declaredBounds: true,

@@ -22,7 +22,7 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
-import '../app_info.dart' show appName, appVersion;
+import '../app_info.dart' show appName, appVersion, kNotice;
 import '../core/brand_palette.dart' show rankRowTint;
 import 'attestation.dart';
 import 'report_data.dart';
@@ -125,7 +125,7 @@ class LongNotes {
         .join(' ');
     return [
       if (prefix.isNotEmpty) prefix,
-      if (row.first.isNotEmpty) 'Block ${row.first}',
+      if (row.first.isNotEmpty) 'Configuration ${row.first}',
       if (time.isNotEmpty) time,
     ].join(', ');
   }
@@ -193,9 +193,9 @@ String? _ratedNote(SessionReportData data) {
   if (counts.length < 2) return null;
   final lo = counts.reduce((a, b) => a < b ? a : b);
   final hi = counts.reduce((a, b) => a > b ? a : b);
-  return 'Scales rated per block: $lo-$hi. The index averages only the scales '
-      'rated at each block, so blocks with different rated sets are not '
-      'directly comparable.';
+  return 'Ratings per configuration: $lo-$hi. The index averages only the '
+      'scales rated at each configuration, so configurations with different '
+      'rated sets are not directly comparable.';
 }
 
 /// One lead's configuration in words, for the caption under its drawing.
@@ -457,7 +457,7 @@ Future<ReportBytes> buildSessionPdf({
         margin: const pw.EdgeInsets.only(top: 6),
         child: pw.Text(
           'sub-${t(subjectId)}  |  ${data.sessionStamp}  |  '
-          '$appName v$appVersion  |  '
+          '$appName v$appVersion  |  Not a medical device  |  '
           'Page ${context.pageNumber} of ${context.pagesCount}',
           style: const pw.TextStyle(fontSize: 8, color: pdfInk),
         ),
@@ -475,7 +475,8 @@ Future<ReportBytes> buildSessionPdf({
         ),
         pw.Text(
           'Patient: sub-${t(subjectId)}    '
-          'Session: ${data.sessionStamp}',
+          'Session: ${data.sessionStamp}'
+          '${data.laterRun.isEmpty ? '' : '    Run: ${data.laterRun}'}',
         ),
         if (data.sessionDetails.isNotEmpty) pw.Text(t(data.sessionDetails)),
         pw.Text(
@@ -484,6 +485,7 @@ Future<ReportBytes> buildSessionPdf({
                     '${t(data.sourceFile)} (${data.rowCount} rows)'}',
           style: const pw.TextStyle(fontSize: 9, color: pdfInk),
         ),
+        pw.Text(kNotice, style: const pw.TextStyle(fontSize: 9, color: pdfInk)),
         pw.SizedBox(height: 8),
 
         // What the patient left on. Labelled "last recorded", not "final":
@@ -630,7 +632,7 @@ Future<ReportBytes> buildSessionPdf({
               style: const pw.TextStyle(fontSize: 8, color: pdfInk),
             ),
           if (wantsTable && !data.hasRecording)
-            pw.Text('No recording blocks in this session.')
+            pw.Text('No configurations tested in this session.')
           else if (wantsTable) ...[
             pw.TableHelper.fromTextArray(
               headerStyle: const pw.TextStyle(

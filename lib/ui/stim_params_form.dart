@@ -120,7 +120,7 @@ String? rangeError(String text, LimitRange range) {
   final v = double.tryParse(t);
   if (v == null || !v.isFinite) return 'Not a number';
   if (v < range.min || v > range.max) {
-    return 'Allowed: ${_fmt(range.min)}-${_fmt(range.max)}';
+    return 'Allowed: ${_fmt(range.min)} to ${_fmt(range.max)}';
   }
   return null;
 }
@@ -179,50 +179,30 @@ class StimParamsForm extends StatelessWidget {
     controller.text = steppedLabel(next, decimals);
   }
 
-  /// One tiny arrow button, styled like the desktop spin arrows.
-  Widget _arrowButton(IconData icon, String tooltip, VoidCallback onPressed) {
-    return Tooltip(
-      message: tooltip,
-      child: InkResponse(
-        onTap: onPressed,
-        radius: 16,
-        child: SizedBox(width: 22, height: 15, child: Icon(icon, size: 16)),
-      ),
-    );
-  }
-
-  /// A stacked up/down arrow column, coarse (`step1`) or fine (`step2`).
-  Widget _arrowColumn({
+  /// A 48 px minus or plus: a tap moves by the fine step, a long press by
+  /// the coarse one.
+  Widget _stepButton({
     required TextEditingController controller,
     required LimitRange range,
     required double step,
+    required double fineStep,
     required int decimals,
     required String label,
-    required bool coarse,
+    required int direction,
   }) {
-    // The fine column's tooltips are marked so both columns are addressable.
-    final suffix = coarse ? '' : ' (fine)';
-    void bump(int direction) => stepField(
+    void bump(double by) => stepField(
       controller: controller,
       range: range,
-      step: step,
+      step: by,
       decimals: decimals,
       direction: direction,
     );
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _arrowButton(
-          coarse ? Icons.keyboard_double_arrow_up : Icons.keyboard_arrow_up,
-          'Increase $label$suffix',
-          () => bump(1),
-        ),
-        _arrowButton(
-          coarse ? Icons.keyboard_double_arrow_down : Icons.keyboard_arrow_down,
-          'Decrease $label$suffix',
-          () => bump(-1),
-        ),
-      ],
+    return IconButton.filledTonal(
+      icon: Icon(direction > 0 ? Icons.add : Icons.remove),
+      tooltip: '${direction > 0 ? 'Increase' : 'Decrease'} $label',
+      constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+      onPressed: () => bump(fineStep),
+      onLongPress: () => bump(step),
     );
   }
 
@@ -235,8 +215,17 @@ class StimParamsForm extends StatelessWidget {
     required double fineStep,
     required int decimals,
   }) {
+    Widget button(int direction) => _stepButton(
+      controller: controller,
+      range: range,
+      step: step,
+      fineStep: fineStep,
+      decimals: decimals,
+      label: label,
+      direction: direction,
+    );
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: TextFormField(
@@ -250,76 +239,53 @@ class StimParamsForm extends StatelessWidget {
               suffixIcon: IconButton(
                 icon: const Icon(Icons.clear, size: 18),
                 tooltip: 'Clear $label',
-                visualDensity: VisualDensity.compact,
                 onPressed: controller.clear,
               ),
-              helperText: '${_fmt(range.min)}-${_fmt(range.max)}',
-              border: const OutlineInputBorder(),
-              isDense: true,
+              helperText: '${_fmt(range.min)} to ${_fmt(range.max)} $unit',
             ),
           ),
         ),
-        const SizedBox(width: 4),
-        // Fine then coarse, matching the desktop IncrementWidget's order.
-        _arrowColumn(
-          controller: controller,
-          range: range,
-          step: fineStep,
-          decimals: decimals,
-          label: label,
-          coarse: false,
-        ),
-        _arrowColumn(
-          controller: controller,
-          range: range,
-          step: step,
-          decimals: decimals,
-          label: label,
-          coarse: true,
-        ),
+        const SizedBox(width: 8),
+        button(-1),
+        const SizedBox(width: 8),
+        button(1),
       ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: _field(
-            controller: frequency,
-            label: 'Frequency',
-            unit: 'Hz',
-            range: limits.frequency,
-            step: limits.frequencyStep,
-            fineStep: limits.frequencyFineStep,
-            decimals: 0,
-          ),
+        _field(
+          controller: frequency,
+          label: 'Frequency',
+          unit: 'Hz',
+          range: limits.frequency,
+          step: limits.frequencyStep,
+          fineStep: limits.frequencyFineStep,
+          decimals: 0,
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _field(
-            controller: amplitude,
-            label: 'Amplitude',
-            unit: 'mA',
-            range: limits.amplitude,
-            step: limits.amplitudeStep,
-            fineStep: limits.amplitudeFineStep,
-            decimals: limits.amplitudeDecimals,
-          ),
+        const SizedBox(height: 16),
+        _field(
+          controller: amplitude,
+          label: 'Amplitude',
+          unit: 'mA',
+          range: limits.amplitude,
+          step: limits.amplitudeStep,
+          fineStep: limits.amplitudeFineStep,
+          decimals: limits.amplitudeDecimals,
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _field(
-            controller: pulseWidth,
-            label: 'Pulse width',
-            unit: 'µs',
-            range: limits.pulseWidth,
-            step: limits.pulseWidthStep,
-            fineStep: limits.pulseWidthFineStep,
-            decimals: 0,
-          ),
+        const SizedBox(height: 16),
+        _field(
+          controller: pulseWidth,
+          label: 'Pulse width',
+          unit: 'µs',
+          range: limits.pulseWidth,
+          step: limits.pulseWidthStep,
+          fineStep: limits.pulseWidthFineStep,
+          decimals: 0,
         ),
       ],
     );

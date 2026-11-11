@@ -77,7 +77,7 @@ Future<(Directory, Directory)> _showNew(WidgetTester tester) async {
   await awaitRecoveryCheck(tester);
   await pumpUntilFound(tester, find.text(bids.path));
   await tester.enterText(find.widgetWithText(TextField, 'Patient ID'), '01');
-  await tester.tap(find.text('New session'));
+  await tapNew(tester);
   await pumpUntilFound(tester, find.textContaining(_newSnack));
   await tester.pumpAndSettle();
   return (dirs.working, bids);
@@ -95,7 +95,7 @@ Future<void> _toSetup(WidgetTester tester) async {
 Future<void> _pressNew(WidgetTester tester) async {
   await _toSetup(tester);
   await tester.enterText(find.widgetWithText(TextField, 'Patient ID'), '01');
-  await tester.tap(find.text('New session'));
+  await tapNew(tester);
   await pumpUntilFound(
     tester,
     find.byWidgetPredicate(
@@ -193,6 +193,27 @@ void main() {
   });
 
   group('New', () {
+    testWidgets('Next with a patient ID starts the visit, as New does', (
+      tester,
+    ) async {
+      useTempDirs();
+      final bids = _useFolder();
+      await pumpScreen(tester, sessionScreen());
+      await awaitRecoveryCheck(tester);
+      await pumpUntilFound(tester, find.text(bids.path));
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Patient ID'),
+        '01',
+      );
+      await tester.tap(find.text('Next'));
+      await pumpUntilFound(tester, find.textContaining(_newSnack));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Same lead on both sides'), findsOneWidget);
+      expect(find.text('Patient ID'), findsNothing);
+      expect(Directory('${bids.path}/derivatives/sub-01').existsSync(), isTrue);
+    });
+
     testWidgets('after an entry asks, and Delete the only copy replaces it', (
       tester,
     ) async {
@@ -264,7 +285,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Discard copy'), findsOneWidget);
       await tester.tap(find.text('Keep copy'));
-      await pumpUntilFound(tester, find.textContaining('run-02_beh.tsv'));
+      await pumpUntilFound(tester, find.textContaining('run 02'));
       await tester.pumpAndSettle();
 
       await _add(tester, working, 'second visit');
@@ -305,7 +326,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.textContaining(
-          'A save is still running, so the latest entries may not be on disk '
+          'A save is still running, so the latest changes may not be on disk '
           'yet.',
         ),
         findsOneWidget,
@@ -352,8 +373,8 @@ void main() {
 
       expect(
         find.text(
-          'Opened sub-08_ses-20260204_task-x_beh.tsv (1 rows, next block 1, '
-          'append 2).',
+          'Opened sub-08_ses-20260204_task-x_beh.tsv (0 configurations tested '
+          'so far).',
         ),
         findsOneWidget,
       );
@@ -409,7 +430,7 @@ void main() {
       final (working, saved, _) = await _show(tester);
       await _add(tester, working, 'first visit');
 
-      await tester.tap(find.text('Setup'));
+      await tester.tap(find.text('Session'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('BIDS folder (zip)').first);
       await settleUntil(

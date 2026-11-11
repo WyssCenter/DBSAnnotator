@@ -106,6 +106,25 @@ class SessionAuthoring {
     }
   }
 
+  /// Remove every row of [blockId].
+  void removeBlock(String blockId) =>
+      rows.removeWhere((r) => r.blockId == blockId);
+
+  /// Write [cells] into every row of [blockId].
+  void setOnBlock(String blockId, Map<String, String> cells) {
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].blockId != blockId) continue;
+      rows[i] = SessionRow.fromMap({...rows[i].toMap(), ...cells});
+    }
+  }
+
+  /// Write [cells] into every row, such as a corrected lead or indication.
+  void setOnEveryRow(Map<String, String> cells) {
+    for (var i = 0; i < rows.length; i++) {
+      rows[i] = SessionRow.fromMap({...rows[i].toMap(), ...cells});
+    }
+  }
+
   /// The long-form document of the app's working copy.
   String serialize() => serializeSessionTsv(rows);
 }

@@ -67,7 +67,7 @@ const List<String> kEntryPanelIds = [
 /// Human titles per panel id, for a persisted order that no longer matches the
 /// default list.
 const Map<String, String> kEntryPanelTitles = {
-  'scales': 'Session scales',
+  'scales': 'Symptom and side effect ratings',
   'amplitude': 'Amplitude (mA)',
   'pulseWidth': 'Pulse width (µs)',
   'freq': 'Frequency (Hz)',

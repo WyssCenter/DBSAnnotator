@@ -73,7 +73,7 @@ void main() {
         byName.keys,
         containsAll([
           'MDS-UPDRS 3.3 Rigidity RUE',
-          'MDS-UPDRS 3.4 Finger tapping R',
+          'MDS-UPDRS 3.4 Finger tapping RUE',
           'MDS-UPDRS 3.17 Rest tremor RUE',
           'MDS-UPDRS 3.10 Gait',
         ]),
@@ -108,8 +108,11 @@ void main() {
       () {
         // A "5.0 - 7.0 mA" range hides that the right side went 5.0 -> 6.0 ->
         // 7.0 -> 5.0 -> 7.0 -> 6.0, implying a titration that never happened.
-        expect(data.ampL, '5.0 mA (blocks 1-5), 4.0 mA (blocks 6-7)');
-        expect(data.ampR, contains('5.0 mA (blocks 2, 6-7)'));
+        expect(
+          data.ampL,
+          '5.0 mA (configurations 1-5), 4.0 mA (configurations 6-7)',
+        );
+        expect(data.ampR, contains('5.0 mA (configurations 2, 6-7)'));
       },
     );
 

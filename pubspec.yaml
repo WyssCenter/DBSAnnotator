@@ -61,6 +61,7 @@ dependencies:
   # Primary-display work area, to clamp the window to the screen (transitive via
   # window_manager; pinned direct so main.dart can import it).
   screen_retriever: ^0.2.0
+  desktop_drop: ^0.8.4
 
 dev_dependencies:
   flutter_test:

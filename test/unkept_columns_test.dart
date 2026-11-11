@@ -312,7 +312,7 @@ void main() {
       await openIt(tester);
       await toSetup(tester);
       await pumpUntilFound(tester, find.text(bids.path));
-      await tester.tap(find.text('New session'));
+      await tapNew(tester);
       await pumpUntilFound(tester, find.textContaining('New session in '));
       await tester.pumpAndSettle();
 
@@ -352,7 +352,7 @@ void main() {
   });
 }
 
-const _summary = '1 rows, next block 1, append 2';
+const _summary = '0 configurations tested so far';
 
 /// Saves user prefs naming a new empty folder as the only BIDS folder.
 Directory _useFolder() {

@@ -40,7 +40,7 @@ void main() {
     test('produces exactly the four panels, in the default order', () {
       expect(data.panels.map((p) => p.id), kEntryPanelIds);
       expect(data.panels.map((p) => p.title), [
-        'Session scales',
+        'Symptom and side effect ratings',
         'Amplitude (mA)',
         'Pulse width (µs)',
         'Frequency (Hz)',
@@ -53,7 +53,7 @@ void main() {
         scales.series.keys,
         containsAll([
           'MDS-UPDRS 3.3 Rigidity RUE',
-          'MDS-UPDRS 3.4 Finger tapping R',
+          'MDS-UPDRS 3.4 Finger tapping RUE',
           'MDS-UPDRS 3.17 Rest tremor RUE',
           'MDS-UPDRS 3.10 Gait',
         ]),

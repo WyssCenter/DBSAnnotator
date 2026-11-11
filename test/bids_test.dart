@@ -152,8 +152,9 @@ void main() {
       sidecar: '{}\n',
       acqTime: '2026-02-03T09:00:00+00:00',
       visit: const {},
+      initial: const {},
       participant: const {},
-      visitScales: const {},
+      initialScales: const {},
     );
 
     List<String> pathsOf(List<DatasetFile> files) =>
@@ -247,7 +248,7 @@ void main() {
           .trim()
           .split('\n');
 
-      expect(scans.first, 'filename\tacq_time');
+      expect(scans.first, startsWith('filename\tacq_time\tmedications'));
       expect(scans, hasLength(3));
       expect(
         scans[1],

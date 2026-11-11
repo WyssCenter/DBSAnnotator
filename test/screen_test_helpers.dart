@@ -351,3 +351,12 @@ File plantWork(
   if (modified != null) file.setLastModifiedSync(modified);
   return file;
 }
+
+/// Start a visit as the app offers it: Next while no session is open, New once
+/// one is.
+Future<void> tapNew(WidgetTester tester) async {
+  final newSession = find.text('New session');
+  await tester.tap(
+    newSession.evaluate().isEmpty ? find.text('Next') : newSession,
+  );
+}

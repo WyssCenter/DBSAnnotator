@@ -45,26 +45,46 @@ path.
    ``_events.tsv`` and spell three columns ``block_ID``, ``session_ID`` and
    ``program_ID``. They open as they are.
 
+.. _example-bids-folder:
+
+An example BIDS folder
+----------------------
+
+The repository holds a complete, synthetic example: two visits of one patient
+with Parkinson's disease, written by the app's own export code, in
+`test/fixtures/bids <https://github.com/neuromodulation/DBSAnnotator/tree/main/test/fixtures/bids>`_.
+It is the folder the tests read back, so it always matches what the current
+version writes, and it is a convenient place to try an analysis before you
+have data of your own. No value in it comes from a real patient.
+
+.. include:: _generated/example_bids_tree.inc.rst
+
 .. _where-values-live:
 
 Where each value lives
 ----------------------
 
-A session is saved inside a BIDS folder as three tables, so that nothing is
+A session is saved inside a BIDS folder as four tables, so that nothing is
 repeated on every row:
 
 ``participants.tsv``, one row per patient
    The ``participant_id`` and the patient's ``dbs_indication``.
 
 ``sub-<label>/sub-<label>_sessions.tsv``, one row per visit
-   What belongs to the visit as a whole: the anatomical ``target``, the lead
-   and IPG models of each side, the ``medications``, and the whole **initial
-   assessment**, that is the stimulation the patient arrived on and the clinical
-   scales rated before any change. The leads and target are kept per visit, not
-   per patient, because a reimplantation can change them.
+   What cannot change within a visit: the anatomical ``target`` and the lead
+   and IPG models of each side. They are kept per visit, not per patient,
+   because a reimplantation can change them.
+
+``sub-<label>/ses-<label>/sub-<label>_ses-<label>_scans.tsv``, one row per run
+   The **initial assessment** of each run: the ``medications``, the
+   stimulation the patient arrived on, the clinical scales rated before any
+   change, and the initial notes. A visit can have more than one run on the
+   same day (``run-01``, ``run-02``), for example before and after a dose, and
+   each keeps its own assessment. Files written before this layout keep the
+   initial assessment in ``sessions.tsv``; the app still reads them.
 
 ``sub-<label>/ses-<label>/beh/..._beh.tsv``, one row per configuration
-   Each stimulation configuration tried during the visit, with its ratings.
+   Each stimulation configuration tried during the run, with its ratings.
 
 The ``beh/`` file is **wide: one row per configuration, one column per scale**.
 Each scale gets a ``scale_<name>`` column holding the rating alone:
@@ -204,6 +224,11 @@ Visit columns
 -------------
 
 .. include:: _generated/sessions_columns.inc.rst
+
+Run columns
+-----------
+
+.. include:: _generated/scans_columns.inc.rst
 
 Participant columns
 -------------------

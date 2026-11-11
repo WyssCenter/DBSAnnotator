@@ -112,6 +112,8 @@ void main() {
         ),
       );
       await tester.pump();
+      await tester.tap(find.text('Research file naming'));
+      await tester.pumpAndSettle();
       expect(taskText(tester), 'programming');
     });
   });

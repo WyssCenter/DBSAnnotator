@@ -13,11 +13,11 @@ enum LongitudinalSection {
   ),
   visits(
     'Visits table',
-    'Date, programme in force at the end of the visit, blocks, and every '
-        'clinical scale recorded at the visit.',
+    'Date, program in force at the end of the visit, configurations '
+        'tested, and every clinical scale annotated at the visit.',
   ),
   sessionChart(
-    'Session scales by visit and block',
+    'Symptom and side effect ratings by visit and configuration',
     'Every configuration of every visit, with the two best configurations '
         'across all visits banded when scale targets are set.',
   ),
