@@ -13,9 +13,12 @@ What leaves the device
 
 Nothing. The application makes **no network connection of any kind**: no
 telemetry, no crash reporting, no analytics, no licence check, no update check.
-It contains no HTTP client and opens no sockets. The repository URL and contact
-address shown in the *About* dialog are rendered as selectable text specifically so
-that the app has no reason to open a browser.
+It contains no HTTP client and opens no sockets. The links in the *About*
+dialog open your own browser or mail client only when you tap them, and pass
+nothing about you or your sessions.
+
+The developers receive nothing: no patient data, no session content, no usage
+statistics, not even a record that the app was opened.
 
 The practical consequence: the app works in a room with no network, and there is no
 data-processing agreement to sign, because no data is processed anywhere but on
@@ -31,7 +34,7 @@ only where you choose to save them, through the operating system's own file pick
 or share sheet. If you delete the file, the data is gone.
 
 **A working copy of the session in progress**, inside the app's own storage. Every
-entry is written to it as well as to your file, so a crash or a closed window loses
+save is written to it as well as to your file, so a crash or a closed window loses
 nothing; the next time you open the workflow the app offers it back. When you
 leave a session the app asks whether to keep this copy or discard it, and it is
 deleted only if you choose to discard it. The app never uploads it. Uninstalling
@@ -52,7 +55,7 @@ old. Two helper libraries keep copies of their own, outside the app's control:
   header file of a new session is also written there, named after the session,
   and is not deleted.
 
-On iOS and Android, entries you record after opening a file are autosaved into
+On iOS and Android, changes made after opening a file are autosaved into
 the picker's copy of that file in the app's cache or temporary folder, not into
 the file you opened.
 

@@ -30,7 +30,7 @@ Map<String, List<SessionRow>> _twoVisits() => {
       acqTime: '2026-01-01T09:00:00',
       blockId: '0',
       isInitial: '1',
-      scaleName: 'UPDRS-III',
+      scaleName: 'MDS-UPDRS Part III',
       scaleValue: '40',
     ),
     SessionRow(
@@ -61,7 +61,7 @@ Map<String, List<SessionRow>> _twoVisits() => {
       acqTime: '2026-06-15T10:00:00',
       blockId: '0',
       isInitial: '1',
-      scaleName: 'UPDRS-III',
+      scaleName: 'MDS-UPDRS Part III',
       scaleValue: '28',
     ),
     SessionRow(
@@ -91,7 +91,7 @@ void main() {
 
   test('visits are ordered by date and carry both kinds of scale', () {
     expect(data.visits.map((v) => v.date), ['2026-01-01', '2026-06-15']);
-    expect(data.visits.first.clinicalScales, {'UPDRS-III': 40.0});
+    expect(data.visits.first.clinicalScales, {'MDS-UPDRS Part III': 40.0});
     expect(data.visits.first.sessionScales['Tremor'], {1: 6.0, 2: 4.0});
     expect(data.visits.first.blocks, [1, 2]);
     expect(data.patientId, '07');
@@ -99,7 +99,7 @@ void main() {
 
   test('the clinical figure has one point per VISIT, labelled by date', () {
     final chart = data.clinicalChart;
-    expect(chart.series.keys, ['UPDRS-III']);
+    expect(chart.series.keys, ['MDS-UPDRS Part III']);
     // Two visits, so two x positions: not two blocks, and not a block index
     // concatenated across files.
     expect(chart.xs, [0, 1]);
@@ -108,7 +108,7 @@ void main() {
   });
 
   test('session targets bound the session figure, never the clinical one', () {
-    // A 0-10 session-scale range applied to UPDRS-III 40 drew an empty chart.
+    // A 0-10 session-scale range applied to MDS-UPDRS Part III 40 drew an empty chart.
     final ranked = buildLongitudinalReportData(
       files: _twoVisits(),
       scalePrefs: const [
@@ -180,8 +180,8 @@ void main() {
     expect(data.visitTable, hasLength(2));
     expect(data.visitTable[0][1], '2026-01-01');
     expect(data.visitTable[0][3], '2', reason: 'two blocks');
-    expect(data.visitTable[0][4], 'UPDRS-III: 40');
-    expect(data.visitTable[1][4], 'UPDRS-III: 28');
+    expect(data.visitTable[0][4], 'MDS-UPDRS Part III: 40');
+    expect(data.visitTable[1][4], 'MDS-UPDRS Part III: 28');
     // The latest visit's programme is the page-1 summary's, not repeated.
     expect(data.visitTable[1][2], kSeeSummary);
     final summary = latestVisitSummary(data)!;
@@ -230,7 +230,7 @@ void main() {
             acqTime: '2026-07-01T11:00:00',
             blockId: '0',
             isInitial: '1',
-            scaleName: 'UPDRS-III',
+            scaleName: 'MDS-UPDRS Part III',
             scaleValue: '30',
           ),
         ],
@@ -266,7 +266,7 @@ void main() {
       doc,
       contains('Symptom and side effect ratings by visit and configuration'),
     );
-    expect(doc, contains('UPDRS-III: 28'));
+    expect(doc, contains('MDS-UPDRS Part III: 28'));
     // Provenance is an appendix, not the content.
     expect(doc, contains('Source files'));
   });
@@ -291,7 +291,10 @@ void main() {
     );
     expect(real.visits, hasLength(1));
     expect(real.visits.first.blocks, [1, 2, 3, 4, 5, 6, 7]);
-    expect(real.visits.first.clinicalScales.keys, contains('UPDRS-III'));
+    expect(
+      real.visits.first.clinicalScales.keys,
+      contains('MDS-UPDRS Part III'),
+    );
     expect(real.sessionChart.xs, hasLength(7));
   });
 }

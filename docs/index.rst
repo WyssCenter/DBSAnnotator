@@ -50,7 +50,9 @@ At a glance
    * - Platforms
      - iPadOS, Android, Windows, macOS, Linux, from each platform's app store
    * - Data files
-     - BIDS ``_beh.tsv`` with a JSON sidecar, one row per (block, scale)
+     - A BIDS folder: ``_beh.tsv`` with one row per configuration, the visit in
+       ``sessions.tsv``, the patient in ``participants.tsv``, each with a JSON
+       sidecar
    * - Reports
      - PDF and Word, both built from the same numbers
    * - Connectivity

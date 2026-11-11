@@ -432,11 +432,11 @@ const sessionTableColumnWeights = <double>[
 String _signed(double d) => d == 0 ? '0' : '${d > 0 ? '+' : ''}${_num(d)}';
 
 /// The final configuration's heading when the clinician marked it.
-const kLeftOnTitle = 'Left on (marked by the clinician)';
+const kLeftOnTitle = 'Final settings (marked by the clinician)';
 
 /// The final configuration's heading otherwise: the last block in the file,
 /// which a setting tried and rejected would occupy just the same.
-const kLastRecordedTitle = 'Last recorded configuration';
+const kLastRecordedTitle = 'Last configuration tested';
 
 /// Two decimals, as every rating in the reports is printed.
 String _num(double v) => v.toStringAsFixed(2);

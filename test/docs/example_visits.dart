@@ -13,7 +13,7 @@ const exampleFixture =
 /// change column show a real change rather than a copy.
 const _followUp = {
   '2026-02-03': '2026-09-18',
-  '\tUPDRS-III\t38\t': '\tUPDRS-III\t29\t',
+  '\tMDS-UPDRS Part III\t38\t': '\tMDS-UPDRS Part III\t29\t',
   '\tPDQ-39\t31\t': '\tPDQ-39\t24\t',
   '\tUDysRS\t14\t': '\tUDysRS\t10\t',
   '\tMDS-UPDRS 3.3 Rigidity RUE\t3\t': '\tMDS-UPDRS 3.3 Rigidity RUE\t2\t',

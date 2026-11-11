@@ -39,7 +39,7 @@ void main() {
     test('plots the session scales over the recording blocks', () {
       expect(data.chart.series.keys, [
         'MDS-UPDRS 3.3 Rigidity RUE',
-        'MDS-UPDRS 3.4 Finger tapping R',
+        'MDS-UPDRS 3.4 Finger tapping RUE',
         'MDS-UPDRS 3.17 Rest tremor RUE',
         'MDS-UPDRS 3.10 Gait',
       ]);
@@ -91,7 +91,7 @@ void main() {
         expect(data.targetsText, contains('MDS-UPDRS 3.3 Rigidity RUE: min'));
         expect(
           data.targetsText,
-          isNot(contains('UPDRS-III')),
+          isNot(contains('MDS-UPDRS Part III')),
           reason: 'clinical baseline scales are not session targets',
         );
       },
@@ -108,7 +108,7 @@ void main() {
       final maxPrefs = [
         for (final name in [
           'MDS-UPDRS 3.3 Rigidity RUE',
-          'MDS-UPDRS 3.4 Finger tapping R',
+          'MDS-UPDRS 3.4 Finger tapping RUE',
           'MDS-UPDRS 3.17 Rest tremor RUE',
           'MDS-UPDRS 3.10 Gait',
         ])

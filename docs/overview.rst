@@ -36,20 +36,20 @@ it happens:
 **Stimulation, per configuration.**
    Active contacts and their polarity on each lead, amplitude (including
    current-steered splits across segmented contacts), pulse width, frequency,
-   and the stimulation program. Every configuration is a numbered *block*, so the
-   sequence is preserved.
+   and the stimulation program. Every configuration is numbered, so the sequence
+   is preserved.
 
 **Ratings, per configuration.**
-   Session scales rated at each block, the same scales throughout so that they
-   stay comparable, plus a baseline clinical assessment taken before
-   stimulation changes begin.
+   Symptom and side effect ratings at each configuration, the same ratings
+   throughout so that they stay comparable, plus an initial clinical assessment
+   taken before stimulation changes begin.
 
 **Observations.**
-   Free-text notes attached to the block they were written at, not to the
-   session as a whole.
+   Free-text notes attached to the configuration they were written at, not to
+   the session as a whole.
 
 **Time.**
-   Every entry is timestamped with its UTC offset. This is what makes it
+   Every saved configuration is timestamped with its UTC offset. This is what makes it
    possible, afterwards, to tell a rating taken seconds after a parameter change
    from one taken after several minutes, a distinction that changes how the
    number should be read.

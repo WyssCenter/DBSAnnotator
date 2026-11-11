@@ -70,11 +70,11 @@ clone builds and tests immediately.
 
 ## What it does
 
-The app opens on **Annotate programming session**: record a programming visit,
-with stimulation parameters, electrode contacts, clinical and session scales and
-notes, into a BIDS folder. Its Setup step also imports earlier sessions and
-exports a session report, a report across visits, a combined table or a BIDS
-folder. A side menu holds the settings.
+The app opens on **Annotate programming session**: annotate a programming visit,
+with stimulation parameters, contacts, clinical scales, symptom and side effect
+ratings and notes, into a BIDS folder. Its Session step also imports earlier
+sessions and exports a session report, a report across visits, a combined table
+or a BIDS folder. A side menu holds the settings.
 
 ## Output
 

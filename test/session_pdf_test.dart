@@ -25,7 +25,7 @@ void main() {
         blockId: '0',
         appendId: '1',
         isInitial: '1',
-        scaleName: 'UPDRS-III',
+        scaleName: 'MDS-UPDRS Part III',
         scaleValue: '32',
         leftElectrodeModel: 'SenSight B33005',
         rightElectrodeModel: 'SenSight B33005',

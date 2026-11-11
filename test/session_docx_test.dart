@@ -32,7 +32,7 @@ void main() {
       blockId: '0',
       appendId: '1',
       isInitial: '1',
-      scaleName: 'UPDRS-III',
+      scaleName: 'MDS-UPDRS Part III',
       scaleValue: '32',
       leftElectrodeModel: 'SenSight B33005',
       rightElectrodeModel: 'SenSight B33005',
@@ -125,7 +125,7 @@ void main() {
     // Section headings + data made it into the document.
     expect(doc, contains('Session report'));
     expect(doc, contains('Initial assessment (before programming)'));
-    expect(doc, contains('UPDRS-III'));
+    expect(doc, contains('MDS-UPDRS Part III'));
     expect(doc, contains('Session data'));
     expect(doc, contains('Programming summary'));
     // Split amplitude 1.5_1 sums to 2.5 mA in the summary.
@@ -285,7 +285,7 @@ void main() {
       // that nobody stands behind is what a documentation committee objects to.
       final doc = _part(bytes, 'word/document.xml');
       expect(doc, contains('Attestation'));
-      expect(doc, contains('Recorded by'));
+      expect(doc, contains('Documented by'));
       expect(doc, contains('Rated by'));
       expect(doc, isNot(contains('Reviewed by')));
     });

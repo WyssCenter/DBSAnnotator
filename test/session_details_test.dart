@@ -15,7 +15,7 @@ void main() {
     ..addInsert(
       isInitial: true,
       stim: const {},
-      scales: const [(name: 'UPDRS-III', value: '32')],
+      scales: const [(name: 'MDS-UPDRS Part III', value: '32')],
       pathology: 'PD',
       target: 'STN',
       leftIpgModel: 'Medtronic Percept PC',

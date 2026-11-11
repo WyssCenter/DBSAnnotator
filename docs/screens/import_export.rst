@@ -139,8 +139,9 @@ Several visits of one patient
 -----------------------------
 
 With two or more sessions naming the same patient, every action is available and
-the preview shows the report across visits's session-scales figure: every block
-of every visit, grouped under the visit's date, with the two best configurations
+the preview shows the symptom and side effect ratings figure of the report
+across visits: every configuration of every visit, grouped under the visit's
+date, with the two best configurations
 across all visits banded, exactly as the report will draw it.
 
 .. figure:: ../_static/screenshots/reports_visits.png
@@ -185,7 +186,8 @@ date.
 The notes must name the same patient as the sessions. If they do not, the
 report across visits is greyed out with the reason.
 
-It gets its own row rather than being written into a block's Notes cell,
+It gets its own row rather than being written into a configuration's Notes
+cell,
 because a note carries no configuration: attaching it to one would assert it was
 recorded against stimulation settings the file never says it was. A note with no
 readable timestamp is left out, since there is nowhere on a time axis to put it.
