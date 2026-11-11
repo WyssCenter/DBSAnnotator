@@ -33,6 +33,8 @@ class SessionEntriesTable extends StatelessWidget {
     this.bestBlocks = const [],
     this.secondBlocks = const [],
     this.onToggleStar,
+    this.onEdit,
+    this.onDelete,
   });
 
   final List<SessionRow> rows;
@@ -43,6 +45,10 @@ class SessionEntriesTable extends StatelessWidget {
 
   /// Called with a block id when its star is tapped; null shows stars only.
   final ValueChanged<String>? onToggleStar;
+
+  /// Called with a configuration's block id to edit or delete it.
+  final ValueChanged<String>? onEdit;
+  final ValueChanged<String>? onDelete;
 
   static const _headers = [
     '#',
@@ -208,6 +214,19 @@ class SessionEntriesTable extends StatelessWidget {
                 ),
               ),
             ),
+          if (starrable)
+            for (final (icon, tip, action) in [
+              (Icons.edit_outlined, 'Edit configuration #$id', onEdit),
+              (Icons.delete_outline, 'Delete configuration #$id', onDelete),
+            ])
+              if (action != null)
+                Tooltip(
+                  message: tip,
+                  child: InkWell(
+                    onTap: () => action(id),
+                    child: Icon(icon, size: 18, semanticLabel: tip),
+                  ),
+                ),
         ],
       ),
     );

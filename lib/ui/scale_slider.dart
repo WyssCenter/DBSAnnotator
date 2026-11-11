@@ -14,6 +14,7 @@ class ScaleSlider extends StatelessWidget {
     required this.onChanged,
     required this.onOmitToggle,
     this.step = 0.25,
+    this.quality,
   });
 
   final double value;
@@ -23,6 +24,13 @@ class ScaleSlider extends StatelessWidget {
   final ValueChanged<double> onChanged;
   final VoidCallback onOmitToggle;
   final double step;
+
+  /// How good the value is for this scale's target, 0 worst to 1 best; the
+  /// bar shades from red to green. Null when the scale is not ranked.
+  final double? quality;
+
+  /// Darker than any track, so a scale not assessed reads apart at a glance.
+  static const omittedTrack = Color(0xFF5F5F5F);
 
   bool get _discrete => step >= 1;
 
@@ -69,6 +77,18 @@ class ScaleSlider extends StatelessWidget {
                           : value.toStringAsFixed(_discrete ? 0 : 2),
                       omitted: omitted,
                       scheme: scheme,
+                      fill: switch (quality) {
+                        null => scheme.primaryContainer,
+                        final q => HSVColor.fromAHSV(
+                          1,
+                          120 * q.clamp(0.0, 1.0),
+                          0.55,
+                          0.92,
+                        ).toColor(),
+                      },
+                      fillInk: quality == null
+                          ? scheme.onPrimaryContainer
+                          : const Color(0xFF1B1B1B),
                       segments: _discrete ? ((max - min) / step).round() : 0,
                     ),
                   ),
@@ -97,6 +117,8 @@ class _BarPainter extends CustomPainter {
     required this.label,
     required this.omitted,
     required this.scheme,
+    required this.fill,
+    required this.fillInk,
     required this.segments,
   });
 
@@ -104,6 +126,8 @@ class _BarPainter extends CustomPainter {
   final String label;
   final bool omitted;
   final ColorScheme scheme;
+  final Color fill;
+  final Color fillInk;
   final int segments;
 
   @override
@@ -117,7 +141,7 @@ class _BarPainter extends CustomPainter {
       rrect,
       Paint()
         ..color = omitted
-            ? scheme.surfaceContainerLow
+            ? ScaleSlider.omittedTrack
             : scheme.surfaceContainerHighest,
     );
 
@@ -126,7 +150,7 @@ class _BarPainter extends CustomPainter {
       canvas.clipRRect(rrect);
       canvas.drawRect(
         Rect.fromLTWH(0, 0, size.width * fraction, size.height),
-        Paint()..color = scheme.primaryContainer,
+        Paint()..color = fill,
       );
       canvas.restore();
     }
@@ -153,7 +177,7 @@ class _BarPainter extends CustomPainter {
           text: label,
           style: TextStyle(
             fontFamily: debugPainterFontFamily,
-            color: scheme.onPrimaryContainer,
+            color: fraction >= 0.5 ? fillInk : scheme.onSurface,
             fontWeight: FontWeight.bold,
             fontSize: 12,
           ),
@@ -173,5 +197,7 @@ class _BarPainter extends CustomPainter {
       o.label != label ||
       o.omitted != omitted ||
       o.scheme != scheme ||
+      o.fill != fill ||
+      o.fillInk != fillInk ||
       o.segments != segments;
 }

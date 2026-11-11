@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
 
 import '../core/electrode/electrode_model.dart';
@@ -78,6 +80,11 @@ class _DevicesDialogState extends State<_DevicesDialog> {
   int _selected = 0;
   _Lead? _designing;
 
+  /// The content width of the dialog with no lead open, kept when one is, and
+  /// the width added beside it for the lead design.
+  static const _listsWidth = 552.0;
+  static const _designerWidth = 420.0;
+
   @override
   void dispose() {
     for (final m in _makers) {
@@ -114,11 +121,12 @@ class _DevicesDialogState extends State<_DevicesDialog> {
     final screen = MediaQuery.sizeOf(context);
     return AlertDialog(
       title: const Text('Devices settings'),
-      insetPadding: lead == null ? null : const EdgeInsets.all(24),
       constraints: lead == null ? null : const BoxConstraints(),
       content: SizedBox(
-        width: lead == null ? 760 : screen.width - 96,
-        height: lead == null ? 560 : screen.height - 220,
+        width: lead == null
+            ? 760
+            : min(_listsWidth + 16 + _designerWidth, screen.width - 112),
+        height: 560,
         child: LayoutBuilder(
           builder: (context, c) => Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -130,7 +138,7 @@ class _DevicesDialogState extends State<_DevicesDialog> {
               Expanded(child: _editor()),
               if (lead != null) ...[
                 const VerticalDivider(width: 16),
-                SizedBox(width: 420, child: _designer(lead)),
+                SizedBox(width: _designerWidth, child: _designer(lead)),
               ],
             ],
           ),

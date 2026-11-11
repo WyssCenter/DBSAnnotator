@@ -25,7 +25,12 @@ import '../core/session/bids_session.dart';
 import '../core/session/scale_presets.dart';
 import '../core/session/tsv_kind.dart';
 import '../core/session/scale_scoring.dart'
-    show ScaleMode, ScalePref, scaleModeFromString;
+    show
+        ScaleMode,
+        ScalePref,
+        computeAggregateIndex,
+        parseScaleTargets,
+        scaleModeFromString;
 import '../core/session/session_row.dart';
 import '../core/timestamps.dart' show recordedTime;
 import '../report/entry_charts.dart';
@@ -264,6 +269,12 @@ class _SessionScreenState extends State<SessionScreen>
 
   /// Whether the block about to be inserted is starred.
   bool _starNext = false;
+
+  /// The saved configuration being edited, when one is.
+  String? _editingBlock;
+
+  /// The Programming inputs as last saved or loaded, to tell unsaved changes.
+  String _savedSignature = '';
   // The indication whose scales are loaded.
   String? _selectedClinicalPreset;
   // Selected program name (desktop program combo).
@@ -672,10 +683,29 @@ class _SessionScreenState extends State<SessionScreen>
         _copySide(_leftInit, _leftRec);
         _copySide(_rightInit, _rightRec);
         _recSeeded = true;
+        _savedSignature = _recSignature();
       }
       _currentStep = step;
     });
   }
+
+  /// Everything the Programming step would save, as one comparable string.
+  String _recSignature() => [
+    for (final s in [_leftRec, _rightRec]) ...[
+      s.freq.text,
+      s.amp.text,
+      s.pulseWidth.text,
+      s.enabled,
+      s.caseState,
+      ...[for (final e in s.states.entries) '${e.key}=${e.value}']..sort(),
+      ...s.ampSplit,
+    ],
+    for (final s in _sessionScales) ...[s.name.text, s.value, s.omitted],
+    _notesRecCtrl.text,
+    _selectedProgram,
+    _starNext,
+    _leavesOn,
+  ].join('|');
 
   /// Start both initial sides from the indication's [defaults], unless any
   /// stimulation value is already there.
@@ -699,7 +729,12 @@ class _SessionScreenState extends State<SessionScreen>
   void _insertRecording(ElectrodeCatalog catalog, StimLimits limits) {
     if (!_stimInRange(limits, _leftRec, _rightRec)) return;
     _invalidateEntryCharts();
+    final editing = _editingBlock;
+    final previous = editing == null
+        ? null
+        : _authoring.rows.firstWhere((r) => r.blockId == editing);
     final inserted = _authoring.addInsert(
+      replacing: editing == null ? null : int.parse(editing),
       isInitial: false,
       stim: _stimCells(catalog, _leftRec, _rightRec),
       scales: [
@@ -721,14 +756,115 @@ class _SessionScreenState extends State<SessionScreen>
       starred: _starNext,
       notes: _notesRecCtrl.text.trim(),
     );
-    if (_leavesOn) _authoring.markFinalBlock(inserted.first.blockId);
+    final id = inserted.first.blockId;
+    if (previous != null) {
+      _authoring.setOnBlock(id, {
+        'acq_time': previous.acqTime,
+        'append_id': previous.appendId,
+      });
+    }
+    if (_leavesOn) {
+      _authoring.markFinalBlock(id);
+    } else if (previous?.isFinal == '1') {
+      _authoring.markFinalBlock(null);
+    }
     setState(() {
       _notesRecCtrl.clear();
       _leavesOn = false;
       _starNext = false;
+      _editingBlock = null;
+      _savedSignature = _recSignature();
     });
     autosave();
-    _snack('Configuration ${inserted.first.blockId} saved.');
+    _snack(
+      editing == null
+          ? 'Configuration #$id saved.'
+          : 'Changes to configuration #$id saved.',
+    );
+  }
+
+  /// Load a saved configuration into the Programming inputs, to change it and
+  /// save it in place.
+  Future<void> _editBlock(String blockId) async {
+    final (rawCatalog, rawLimits, _) = await _contracts;
+    if (!mounted) return;
+    final limits = rawLimits.withDefaults(_prefs.stimDefaults);
+    final leads = _leads(rawCatalog.withDevices(_prefs.devices));
+    final block = [
+      for (final r in _authoring.rows)
+        if (r.blockId == blockId) r,
+    ];
+    if (block.isEmpty) return;
+    final first = block.first;
+    setState(() {
+      _fillSide(_leftRec, first, left: true, model: leads.left);
+      _fillSide(_rightRec, first, left: false, model: leads.right);
+      for (final scale in _sessionScales) {
+        final rated = block
+            .where((r) => r.scaleName.trim() == scale.name.text.trim())
+            .firstOrNull;
+        final value = double.tryParse(rated?.scaleValue ?? '');
+        scale.omitted =
+            value == null || rated!.scaleValue == limits.sessionScaleOmittedTsv;
+        if (value != null) scale.value = value;
+      }
+      _notesRecCtrl.text = first.notes;
+      if (_programs.contains(first.programId)) {
+        _selectedProgram = first.programId;
+      }
+      _starNext = first.isStarred == '1';
+      _leavesOn = first.isFinal == '1';
+      _editingBlock = blockId;
+      _savedSignature = _recSignature();
+    });
+  }
+
+  /// Stop editing without saving; the configuration stays as it was saved.
+  void _cancelEdit() => setState(() {
+    _editingBlock = null;
+    _notesRecCtrl.clear();
+    _starNext = false;
+    _leavesOn = false;
+    _savedSignature = _recSignature();
+  });
+
+  /// Delete a saved configuration after asking.
+  Future<void> _deleteBlock(String blockId) async {
+    final isFinal = _authoring.rows.any(
+      (r) => r.blockId == blockId && r.isFinal == '1',
+    );
+    final yes =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Delete configuration #$blockId?'),
+            content: Text(
+              'Its stimulation settings, ratings and notes are removed from '
+              'this session and from the reports. This cannot be undone.'
+              '${isFinal ? '\n\nThis is the configuration the patient leaves '
+                        'on.' : ''}',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!yes || !mounted) return;
+    setState(() {
+      _authoring.removeBlock(blockId);
+      if (_editingBlock == blockId) _editingBlock = null;
+    });
+    _invalidateEntryCharts();
+    autosave();
+    _snack('Configuration #$blockId deleted.');
   }
 
   void _toggleStar(String blockId) {
@@ -789,6 +925,8 @@ class _SessionScreenState extends State<SessionScreen>
     _fillSessionDetails(content.rows);
     _selectedClinicalPreset = null;
     if (reopened) _currentStep = _programmingStep;
+    _editingBlock = null;
+    _savedSignature = _recSignature();
   }
 
   @override
@@ -1027,6 +1165,7 @@ class _SessionScreenState extends State<SessionScreen>
       start: () {
         _invalidateEntryCharts();
         _authoring = SessionAuthoring();
+        _editingBlock = null;
         _ids.run.text = name.run;
         _initialBlock = null;
         _initialSaved = null;
@@ -1051,6 +1190,30 @@ class _SessionScreenState extends State<SessionScreen>
     return started;
   }
 
+  /// Fill one side's inputs from the stimulation [row] holds for it.
+  void _fillSide(
+    _SideInputs s,
+    SessionRow row, {
+    required bool left,
+    required ElectrodeModel? model,
+  }) {
+    final amp = left ? row.leftAmplitude : row.rightAmplitude;
+    final parsed = parseAmplitude(amp);
+    s.freq.text = left ? row.leftStimFreq : row.rightStimFreq;
+    s.pulseWidth.text = left ? row.leftPulseWidth : row.rightPulseWidth;
+    s.amp.text = amp.isEmpty ? '' : presetLabel(parsed.total);
+    s.ampSplit = parsed.percentages.length > 1 ? parsed.percentages : const [];
+    if (model != null) {
+      final decoded = decodeTokens(
+        left ? row.leftAnode : row.rightAnode,
+        left ? row.leftCathode : row.rightCathode,
+        model,
+      );
+      s.states = decoded.states;
+      s.caseState = decoded.caseState;
+    }
+  }
+
   /// Fill the initial assessment with an earlier run's [rows], to check and
   /// change; nothing is saved until Next.
   void _prefillInitial(List<SessionRow> rows, ElectrodeCatalog catalog) {
@@ -1061,47 +1224,8 @@ class _SessionScreenState extends State<SessionScreen>
     if (initial.isEmpty) return;
     final first = initial.first;
     final leads = _leads(catalog);
-    void side(
-      _SideInputs s, {
-      required String freq,
-      required String anode,
-      required String cathode,
-      required String amp,
-      required String pulseWidth,
-      required ElectrodeModel? model,
-    }) {
-      final parsed = parseAmplitude(amp);
-      s.freq.text = freq;
-      s.pulseWidth.text = pulseWidth;
-      s.amp.text = amp.isEmpty ? '' : presetLabel(parsed.total);
-      s.ampSplit = parsed.percentages.length > 1
-          ? parsed.percentages
-          : const [];
-      if (model != null) {
-        final decoded = decodeTokens(anode, cathode, model);
-        s.states = decoded.states;
-        s.caseState = decoded.caseState;
-      }
-    }
-
-    side(
-      _leftInit,
-      freq: first.leftStimFreq,
-      anode: first.leftAnode,
-      cathode: first.leftCathode,
-      amp: first.leftAmplitude,
-      pulseWidth: first.leftPulseWidth,
-      model: leads.left,
-    );
-    side(
-      _rightInit,
-      freq: first.rightStimFreq,
-      anode: first.rightAnode,
-      cathode: first.rightCathode,
-      amp: first.rightAmplitude,
-      pulseWidth: first.rightPulseWidth,
-      model: leads.right,
-    );
+    _fillSide(_leftInit, first, left: true, model: leads.left);
+    _fillSide(_rightInit, first, left: false, model: leads.right);
     _medicationsCtrl.text = first.medications;
     _notesInitCtrl.text = first.notes;
     if (_programs.contains(first.programId)) _selectedProgram = first.programId;
@@ -1252,6 +1376,12 @@ class _SessionScreenState extends State<SessionScreen>
       anchor: exportKey,
       avoid: exportAvoid,
       failureLabel: 'Report export failed',
+      initialDirectory: reportFolderFor(
+        _prefs,
+        root: datasetRoot ?? _folder?.path,
+        subject: l.subject,
+      ),
+      onSaved: (path) => rememberReportFolder(_prefs, path),
       build: () async {
         final data = _reportData();
         // Only rasterise what the chosen sections will actually embed.
@@ -2535,6 +2665,23 @@ class _SessionScreenState extends State<SessionScreen>
               max: bounds.max,
               step: scale.step ?? 0.25,
               omitted: scale.omitted,
+              quality: scale.mode == ScaleMode.ignore
+                  ? null
+                  : computeAggregateIndex(
+                      {
+                        name: {0: bounds.value},
+                      },
+                      const [0],
+                      parseScaleTargets([
+                        (
+                          name: name,
+                          min: bounds.min,
+                          max: bounds.max,
+                          mode: scale.mode,
+                          custom: scale.custom,
+                        ),
+                      ]),
+                    )[0],
               onChanged: (v) => setState(() {
                 scale.value = v;
                 scale.omitted = false;
@@ -2688,6 +2835,8 @@ class _SessionScreenState extends State<SessionScreen>
                   SessionEntriesTable(
                     rows: _authoring.rows,
                     onToggleStar: _toggleStar,
+                    onEdit: _editBlock,
+                    onDelete: _deleteBlock,
                     bestBlocks: _entryCharts().bestXs,
                     secondBlocks: _entryCharts().secondXs,
                   ),
@@ -2840,45 +2989,98 @@ class _SessionScreenState extends State<SessionScreen>
     color: Theme.of(context).colorScheme.surfaceContainer,
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 8,
-        alignment: WrapAlignment.end,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Tooltip(
-            message: "Clinician's impression; does not affect the ranking.",
-            child: FilterChip(
-              avatar: Icon(_starNext ? Icons.star : Icons.star_border),
-              showCheckmark: false,
-              label: const Text('Star this configuration'),
-              selected: _starNext,
-              onSelected: (v) => setState(() => _starNext = v),
-            ),
-          ),
-          Tooltip(
-            message: 'Confirmed when the session ends.',
-            child: FilterChip(
-              label: const Text('Final settings (patient goes home on this)'),
-              selected: _leavesOn,
-              onSelected: (v) => setState(() => _leavesOn = v),
-            ),
-          ),
-          FilledButton.icon(
-            onPressed: () async {
-              final (rawCatalog, rawLimits, _) = await _contracts;
-              if (!mounted) return;
-              _insertRecording(
-                rawCatalog.withDevices(_prefs.devices),
-                rawLimits.withDefaults(_prefs.stimDefaults),
-              );
-            },
-            icon: const Icon(Icons.add),
-            label: const Text('Save configuration'),
-          ),
-        ],
+      child: ListenableBuilder(
+        listenable: Listenable.merge([
+          for (final s in [_leftRec, _rightRec]) ...[
+            s.freq,
+            s.amp,
+            s.pulseWidth,
+          ],
+          _notesRecCtrl,
+        ]),
+        builder: (context, _) => Row(
+          children: [
+            Expanded(child: _saveState(_recSignature() != _savedSignature)),
+            Flexible(flex: 3, child: _saveActions()),
+          ],
+        ),
       ),
     ),
+  );
+
+  /// The left of the save bar: which configuration is being edited, and
+  /// whether what is on screen is saved.
+  Widget _saveState(bool unsaved) {
+    final editing = _editingBlock;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final style = Theme.of(context).textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w700,
+      color: dark ? const Color(0xFFFFC56B) : const Color(0xFF9A5B00),
+    );
+    final text = [
+      if (editing != null) 'Editing configuration #$editing',
+      if (unsaved) editing == null ? 'Not saved yet' : 'not saved',
+    ].join(', ');
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Row(
+      children: [
+        Icon(
+          unsaved ? Icons.error_outline : Icons.edit_outlined,
+          color: style?.color,
+        ),
+        const SizedBox(width: 8),
+        Flexible(child: Text(text, style: style)),
+        if (editing != null)
+          TextButton(onPressed: _cancelEdit, child: const Text('Cancel edit')),
+      ],
+    );
+  }
+
+  Widget _saveActions() => Wrap(
+    spacing: 12,
+    runSpacing: 8,
+    alignment: WrapAlignment.end,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: [
+      Tooltip(
+        message: "Clinician's impression; does not affect the ranking.",
+        child: FilterChip(
+          avatar: Icon(_starNext ? Icons.star : Icons.star_border),
+          showCheckmark: false,
+          label: const Text('Star this configuration'),
+          selected: _starNext,
+          onSelected: (v) => setState(() => _starNext = v),
+        ),
+      ),
+      Tooltip(
+        message: 'Confirmed when the session ends.',
+        child: FilterChip(
+          label: const Text('Final settings (patient goes home on this)'),
+          selected: _leavesOn,
+          onSelected: (v) => setState(() => _leavesOn = v),
+        ),
+      ),
+      FilledButton.icon(
+        onPressed: () async {
+          final (rawCatalog, rawLimits, _) = await _contracts;
+          if (!mounted) return;
+          _insertRecording(
+            rawCatalog.withDevices(_prefs.devices),
+            rawLimits.withDefaults(_prefs.stimDefaults),
+          );
+        },
+        style: FilledButton.styleFrom(
+          backgroundColor: DbsColors.green,
+          foregroundColor: DbsColors.black,
+          minimumSize: const Size(0, 52),
+          textStyle: Theme.of(context).textTheme.titleMedium,
+        ),
+        icon: Icon(_editingBlock == null ? Icons.add : Icons.save_outlined),
+        label: Text(
+          _editingBlock == null ? 'Save configuration' : 'Save changes',
+        ),
+      ),
+    ],
   );
 }
 

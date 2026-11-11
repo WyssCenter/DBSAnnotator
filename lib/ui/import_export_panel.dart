@@ -272,6 +272,12 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
       filename: '${_reportBase}_report.${docx ? 'docx' : 'pdf'}',
       anchor: _exportKey,
       failureLabel: 'Report export failed',
+      initialDirectory: reportFolderFor(
+        _prefs,
+        root: _datasetSource?.root,
+        subject: BidsName.parse(_source)?.subject ?? '',
+      ),
+      onSaved: (path) => rememberReportFolder(_prefs, path),
       build: () => _buildSessionReport(
         docx: docx,
         sections: sections,
@@ -377,6 +383,12 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
       filename: name,
       anchor: _exportKey,
       failureLabel: 'Report export failed',
+      initialDirectory: reportFolderFor(
+        _prefs,
+        root: _datasetSource?.root,
+        subject: data.patientId,
+      ),
+      onSaved: (path) => rememberReportFolder(_prefs, path),
       build: () async {
         final clinical = await _chartPng(data.clinicalChart);
         final session = await _chartPng(data.sessionChart);

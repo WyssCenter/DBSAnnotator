@@ -7,6 +7,9 @@ import 'package:file_selector/file_selector.dart'
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../core/bids.dart';
+import '../core/prefs/user_prefs.dart';
+
 /// Whether a path from the document picker autosaves back to the file the
 /// user chose. False on iOS/iPadOS (`UIDocumentPickerViewController`) and
 /// Android (file_picker copies into the cache), which hand back a sandbox
@@ -196,10 +199,12 @@ Future<String?> chooseSavePath({
   required String extension,
   required ConfirmReplace confirmReplace,
   AvoidFile? avoid,
+  String? initialDirectory,
 }) async {
   final FileSaveLocation? chosen;
   try {
     chosen = await getSaveLocation(
+      initialDirectory: initialDirectory,
       suggestedName: suggestedName,
       acceptedTypeGroups: [
         XTypeGroup(label: extension.toUpperCase(), extensions: [extension]),
@@ -235,4 +240,36 @@ String unusedPath(String dir, String fileName) {
     if (!File(candidate).existsSync()) return candidate;
   }
   return '$dir/$stem-${DateTime.now().millisecondsSinceEpoch}$ext';
+}
+
+/// Where a report's Save-As dialog opens for [subject]: the folder the last
+/// report went to, unless that was a patient's `derivatives/sub-*` folder, in
+/// which case this patient's own one in [root]. Null when neither exists.
+String? reportFolderFor(
+  UserPrefs prefs, {
+  String? root,
+  required String subject,
+}) {
+  final last = prefs.reportFolder;
+  final patientFolder = RegExp(r'[\\/]derivatives[\\/]sub-[^\\/]+$');
+  if (last != null &&
+      !patientFolder.hasMatch(last) &&
+      Directory(last).existsSync()) {
+    return last;
+  }
+  final own = root == null
+      ? null
+      : '$root/derivatives/sub-${BidsName.label(subject)}';
+  return own != null && Directory(own).existsSync() ? own : null;
+}
+
+/// Remember the folder of [savedPath] for the next report, in [prefs] and in
+/// the stored preferences, changing nothing else there.
+Future<void> rememberReportFolder(UserPrefs prefs, String savedPath) async {
+  if (savedPath.isEmpty) return;
+  final folder = File(savedPath).parent.path;
+  prefs.reportFolder = folder;
+  final stored = await loadUserPrefs();
+  stored.reportFolder = folder;
+  await saveUserPrefs(stored);
 }

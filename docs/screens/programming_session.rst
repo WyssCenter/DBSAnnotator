@@ -358,7 +358,10 @@ comparable between configurations.
 Each rating is a slider. A discrete rating moves in whole points, as the MDS-UPDRS items do; a
 continuous rating takes any value on the bar. The arrows on either side move the slider one step.
 A rating that was not assessed can be marked omitted with the cross at the end of its row, which
-saves ``n/a`` rather than a made-up number.
+saves ``n/a`` rather than a made-up number; its bar turns dark grey. Once a scale has a target (see
+:ref:`scale-targets`), its bar shades from red to green by how close the value is to the worst or
+the best end, so a poor rating stands out at a glance. The shading is a reading aid only; it is
+not saved and does not change the ranking.
 
 Anything observed at that configuration, a side effect included, goes in **Notes**, which belong to
 the configuration they were typed for.
@@ -395,7 +398,9 @@ with **Not recorded** as a choice. Reports head a configuration **Left on (marke
 clinician)** only when it was confirmed this way, and **Last configuration tested** otherwise.
 
 **Save configuration** saves it. The notes clear, ready for the next one; the parameters and
-contacts stay, so a single amplitude change is one edit rather than a full re-entry.
+contacts stay, so a single amplitude change is one edit rather than a full re-entry. As soon as
+anything on the step differs from what was last saved, **Not saved yet** appears at the left of
+the bar, and goes away when you save.
 
 The same step in the dark theme:
 
@@ -427,7 +432,12 @@ handles to reorder the panels.
 **All configurations** is a table of every configuration saved, numbered in the ``#`` column and
 typed ``Initial`` or ``Test``. Values that belong to the configuration (time, program, parameters)
 are printed once rather than repeated on every rating row, and a heavy rule marks each boundary.
-The star of a configuration can be set or cleared here too. Once scale targets are set, the rows
+The star of a configuration can be set or cleared here too. The pencil beside a configuration's
+number opens it in the step above to change it: the bar says **Editing configuration #3**, and
+**Save changes** replaces that configuration, keeping its number and time, while **Cancel edit**
+leaves it as it was. The bin deletes a configuration after asking, and warns when it is the one
+the patient goes home on. Numbers are not reused, so a deleted configuration leaves a gap rather
+than renumbering the others. Once scale targets are set, the rows
 of the best and second-best configurations are shaded in the same greens as the charts, and the
 shading moves as each configuration is saved.
 

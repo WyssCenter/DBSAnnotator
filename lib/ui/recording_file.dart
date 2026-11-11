@@ -89,6 +89,9 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
 
   /// Where the file is kept: the chosen file, the dataset, or the app's copy.
   String? get savedLocation => _savePath ?? _datasetRoot ?? _workingPath;
+
+  /// The BIDS folder this visit is filed into, when there is one.
+  String? get datasetRoot => _datasetRoot;
   bool get savePathIsSandboxCopy => _savePathIsSandboxCopy;
   BidsName? get datasetName => _datasetName;
 

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dbs_annotator/app_info.dart' show kNotice, kNoticeShort;
 import 'package:dbs_annotator/core/electrode/electrode_model.dart';
+import 'package:dbs_annotator/core/schema_columns.dart' show isInitialValue;
 import 'package:dbs_annotator/core/session/authoring.dart';
 import 'package:dbs_annotator/core/session/scale_presets.dart';
 import 'package:dbs_annotator/core/session/session_row.dart';
@@ -150,6 +151,51 @@ void main() {
     expect(find.text('Task'), findsOneWidget);
     expect(find.text('Run'), findsOneWidget);
     expect(find.textContaining('File name: sub-'), findsOneWidget);
+  });
+
+  testWidgets('unsaved changes are flagged, and a saved configuration can be '
+      'edited in place and deleted', (tester) async {
+    final authoring = SessionAuthoring();
+    await pumpWizard(tester, authoring: authoring);
+    await tapNext(tester, 3);
+    expect(find.text('Save configuration'), findsOneWidget);
+    expect(find.text('Not saved yet'), findsNothing);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Notes'), 'first');
+    await tester.pump();
+    expect(find.text('Not saved yet'), findsOneWidget);
+    await tester.tap(find.text('Save configuration'));
+    await tester.pumpAndSettle();
+    expect(find.text('Not saved yet'), findsNothing);
+    final id = authoring.rows
+        .firstWhere((r) => !isInitialValue(r.isInitial))
+        .blockId;
+
+    final edit = find.byTooltip('Edit configuration #$id');
+    await tester.ensureVisible(edit);
+    await tester.tap(edit);
+    await tester.pumpAndSettle();
+    expect(find.text('Editing configuration #$id'), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextField, 'Notes'), 'second');
+    await tester.pump();
+    expect(find.text('Editing configuration #$id, not saved'), findsOneWidget);
+    await tester.tap(find.text('Save changes'));
+    await tester.pumpAndSettle();
+    final tested = [
+      for (final r in authoring.rows)
+        if (!isInitialValue(r.isInitial)) r,
+    ];
+    expect(tested.map((r) => r.blockId).toSet(), {id});
+    expect(tested.every((r) => r.notes == 'second'), isTrue);
+
+    final delete = find.byTooltip('Delete configuration #$id');
+    await tester.ensureVisible(delete);
+    await tester.tap(delete);
+    await tester.pumpAndSettle();
+    expect(find.text('Delete configuration #$id?'), findsOneWidget);
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(authoring.rows.where((r) => !isInitialValue(r.isInitial)), isEmpty);
   });
 
   testWidgets('every step says the app is not a medical device', (

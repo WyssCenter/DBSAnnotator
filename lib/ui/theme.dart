@@ -27,16 +27,13 @@ class DbsColors {
   /// a black label.
   static const accent = green;
 
-  // Electrode contact states: base + border.
-  //
-  // The pastel brand pair replaces a saturated red and blue that were 0.313 and
-  // 0.317 in luminance: a separation of 0.004, so on a monochrome printer the
-  // anode and the cathode were the same shade. These separate by 0.162, and
-  // both are still nameable as red and blue, which the printed key relies on.
+  // Electrode contact states: base + border. The ochre anode and the blue
+  // cathode differ by 0.15 in luminance, so they stay apart on a monochrome
+  // printout, and both are nameable, which the printed key relies on.
   static const offBase = greyMid;
   static const offBorder = greyDark;
-  static const anodicBase = redLight;
-  static const anodicBorder = Color(0xFFC96A3C);
+  static const anodicBase = Color(0xFFE9C46A);
+  static const anodicBorder = Color(0xFF9A6B0A);
   static const cathodicBase = blueLight;
   static const cathodicBorder = Color(0xFF2F6FC4);
 

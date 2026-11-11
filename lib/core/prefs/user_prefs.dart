@@ -23,6 +23,7 @@ class UserPrefs {
     this.clinicalRanges,
     this.session,
     this.reportPageSize,
+    this.reportFolder,
     this.entryPanelOrder,
     this.entryVisibleConfigs,
     this.entryTableExpanded,
@@ -56,6 +57,9 @@ class UserPrefs {
   /// Paper size for exported reports, 'a4' or 'letter', applied to both the
   /// PDF and the Word document so the two always match.
   String? reportPageSize;
+
+  /// The folder the last report was saved to.
+  String? reportFolder;
 
   /// Top-to-bottom order of the entry-review chart panels, by panel id,
   /// persisted so a clinician's arrangement survives closing the app.
@@ -122,6 +126,7 @@ class UserPrefs {
         ),
       ),
       reportPageSize: j['report_page_size'] as String?,
+      reportFolder: j['report_folder'] as String?,
       entryPanelOrder: (j['entry_panel_order'] as List?)
           ?.map((e) => e as String)
           .toList(),
@@ -167,6 +172,7 @@ class UserPrefs {
     if (clinicalRanges != null) 'clinical_ranges': clinicalRanges,
     if (session != null) 'session': session,
     if (reportPageSize != null) 'report_page_size': reportPageSize,
+    if (reportFolder != null) 'report_folder': reportFolder,
     if (entryPanelOrder != null) 'entry_panel_order': entryPanelOrder,
     if (entryVisibleConfigs != null)
       'entry_visible_configs': entryVisibleConfigs,
