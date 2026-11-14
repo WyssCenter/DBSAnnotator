@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
-import 'app_info.dart' show AppLogo, appName, kNotice;
+import 'app_info.dart' show appName;
 import 'core/prefs/user_prefs.dart';
 import 'ui/close_guard.dart';
 import 'ui/session_screen.dart';
@@ -135,49 +135,9 @@ class DbsAnnotatorApp extends StatelessWidget {
                 .copyWith(textScaler: TextScaler.linear(scale)),
             child: child!,
           ),
-          home: const _Notice(),
+          home: const SessionScreen(),
         ),
       ),
     );
   }
-}
-
-/// The not-a-medical-device notice, shown at every launch.
-class _Notice extends StatelessWidget {
-  const _Notice();
-
-  void _continue(BuildContext context) => Navigator.of(context).pushReplacement(
-    MaterialPageRoute<void>(builder: (_) => const SessionScreen()),
-  );
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const AppLogo(size: 72),
-              const SizedBox(height: 16),
-              Text(appName, style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: 24),
-              Text(
-                kNotice,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 32),
-              FilledButton(
-                onPressed: () => _continue(context),
-                child: const Text('I understand'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
 }

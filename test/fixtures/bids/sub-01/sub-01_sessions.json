@@ -17,7 +17,13 @@
   "left_ipg_model": {
     "Description": "Implanted pulse generator driving the left lead at this visit, as named in schema/electrode_models.json or typed. Recorded only: the app does not change any setting from it."
   },
+  "left_ipg_position": {
+    "Description": "Where the IPG driving the left lead is implanted: Left chest, Right chest, Left abdomen or Right abdomen. Empty when not recorded."
+  },
   "right_ipg_model": {
     "Description": "Implanted pulse generator driving the right lead. The same as the left when one device drives both leads."
+  },
+  "right_ipg_position": {
+    "Description": "Where the IPG driving the right lead is implanted, with the values of left_ipg_position. The same as the left when one device drives both leads."
   }
 }

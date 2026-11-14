@@ -101,6 +101,24 @@ void main() {
     );
   });
 
+  test('each IPG is named with where it is implanted', () {
+    final a = SessionAuthoring()
+      ..addInsert(
+        isInitial: false,
+        stim: const {},
+        leftIpgModel: 'Medtronic Activa SC',
+        rightIpgModel: 'Medtronic Activa SC',
+        leftIpgPosition: 'Left chest',
+        rightIpgPosition: 'Right chest',
+        at: at,
+      );
+    expect(
+      buildSessionReportData(rows: a.rows).sessionDetails,
+      'IPG: left Medtronic Activa SC (left chest), '
+      'right Medtronic Activa SC (right chest)',
+    );
+  });
+
   test('without stars the report adds no star legend', () {
     final a = visit()..setStarred('2', false);
     final data = buildSessionReportData(rows: a.rows);

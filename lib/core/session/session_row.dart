@@ -25,6 +25,8 @@ class SessionRow {
     this.rightElectrodeModel = '',
     this.leftIpgModel = '',
     this.rightIpgModel = '',
+    this.leftIpgPosition = '',
+    this.rightIpgPosition = '',
     this.programId = '',
     this.leftStimFreq = '',
     this.leftAnode = '',
@@ -71,6 +73,10 @@ class SessionRow {
   /// drives both leads.
   final String leftIpgModel;
   final String rightIpgModel;
+
+  /// Where each side's IPG is implanted, such as `Left chest`.
+  final String leftIpgPosition;
+  final String rightIpgPosition;
   final String programId;
   final String leftStimFreq;
   final String leftAnode;
@@ -107,6 +113,8 @@ class SessionRow {
     rightElectrodeModel: readColumn(m, 'right_electrode_model'),
     leftIpgModel: readColumn(m, 'left_ipg_model'),
     rightIpgModel: readColumn(m, 'right_ipg_model'),
+    leftIpgPosition: readColumn(m, 'left_ipg_position'),
+    rightIpgPosition: readColumn(m, 'right_ipg_position'),
     programId: readColumn(m, 'program_id'),
     leftStimFreq: readColumn(m, 'left_stim_freq'),
     leftAnode: readColumn(m, 'left_anode'),
@@ -157,7 +165,9 @@ class SessionRow {
     'left_electrode_model': leftElectrodeModel,
     'right_electrode_model': rightElectrodeModel,
     'left_ipg_model': leftIpgModel,
+    'left_ipg_position': leftIpgPosition,
     'right_ipg_model': rightIpgModel,
+    'right_ipg_position': rightIpgPosition,
     'program_id': programId,
     'left_stim_freq': leftStimFreq,
     'left_anode': leftAnode,

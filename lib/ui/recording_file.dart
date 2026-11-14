@@ -330,15 +330,17 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
 
   /// Start an empty visit saved into the BIDS folder at [root] as [name];
   /// [start] resets the content inside setState. False when nothing started.
+  /// [ask] false when the user already agreed to leave the current file.
   Future<bool> newInFolder({
     required String root,
     required BidsName name,
     required void Function() start,
+    bool ask = true,
   }) async {
     if (_switching) return false;
     _switching = true;
     try {
-      final leave = await _askLeave();
+      final leave = await _askLeave(ask: ask);
       if (leave == null || !mounted || _refuseWhileSaving()) return false;
       return await _replaceFile(
         leave: leave,
@@ -523,8 +525,10 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
   }
 
   /// Ask whether to keep the recovery copy; see `close_guard.dart`. Null to
-  /// stay, including when another question is already open.
-  Future<LeaveChoice?> _askLeave() async {
+  /// stay, including when another question is already open. Without [ask],
+  /// the copy is kept when nothing else holds the session, and the question
+  /// comes only when entries could not be saved.
+  Future<LeaveChoice?> _askLeave({bool ask = true}) async {
     if (_leaveAsked) return null;
     _leaveAsked = true;
     try {
@@ -539,6 +543,9 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
         hasEntries: hasEntries,
         stillSaving: stillSaving,
       );
+      if (!ask && !guard.entriesUnsaved && !stillSaving) {
+        return guard.onlyCopy ? LeaveChoice.keep : LeaveChoice.discard;
+      }
       return await askLeaveSession(
         context,
         _workingPath,

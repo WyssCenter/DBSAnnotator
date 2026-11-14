@@ -157,8 +157,7 @@ void main() {
     });
 
     expect(find.text('Clinical scales settings'), findsOneWidget);
-    // 'OCD' appears twice (group tile + selected editor's name field), so we
-    // just verify the returned map below.
+    expect(find.text(kScaleLicenceNotice), findsOneWidget);
     await tester.tap(find.text('Save & Close'));
     await tester.pumpAndSettle();
 

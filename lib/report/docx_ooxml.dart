@@ -162,7 +162,7 @@ String docxRow(
       ? docxHex(kHeaderFill)
       : rank == null
       ? null
-      : docxHex(rankRowTint(rank));
+      : docxHex(rank);
   return '<w:tr>${cells.indexed.map((e) => docxCell(e.$2, bold: header, fill: fill, topRule: topRule, leftRule: rank != null && e.$1 == 0 ? docxHex(rank) : null, right: rightColumns.contains(e.$1), widthTwips: e.$1 < widths.length ? widths[e.$1] : null, vMerge: vMerges[e.$1] ?? DocxVMerge.none)).join()}</w:tr>';
 }
 

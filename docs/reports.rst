@@ -38,14 +38,16 @@ button was pressed.
 Under it, a box with the first and the last settings per side in
 :doc:`contact notation <glossary>`:
 contacts with their share of current, total milliamps, frequency, pulse width and
-group. Then what changed between the two, and the response of each symptom and side
-effect rating from the first to the last rated configuration, so the outcome of the
-visit sits next to what was tried. The last settings are named for what they are: the
-final settings when a clinician confirmed them, otherwise the last configuration in the
-file, which nothing in the data shows a clinician *confirmed*.
+group, side by side so what changed reads across. Under them, each symptom and side
+effect rating's first and last value during the visit and the last minus the first,
+printed as entered, with a line saying these are ratings taken minutes apart and not a
+measure of treatment response. The configurations tried, and the range of each
+parameter, are in the Programming summary at the end. The last settings are named for
+what they are: the final settings when a clinician confirmed them, otherwise the last
+configuration in the file, which nothing in the data shows a clinician *confirmed*.
 
 .. figure:: _static/reports/session_report_summary.png
-   :alt: The page-one box: settings at the start and at the end of the session, what changed, and the response of each scale
+   :alt: The page-one box: settings at the start and at the end of the session, and the response of each scale
    :width: 100%
 
 Initial assessment
@@ -187,28 +189,25 @@ Symptom and side effect ratings by visit and configuration
 Several configurations per visit, so each visit contributes a run of points.
 The ticks are the configuration numbers, with each visit's date centred under its own
 configurations and a rule between visits. With scale targets set, green bands mark the
-two best configurations across all visits together, the targets they were
-ranked by are printed under the figure, and the axis is fixed to the declared
-range. Every visit's
-index is computed against the same targets and declared ranges, which is what
-makes one ranking across visits meaningful.
+two best configurations of each visit, ranked within that visit only: ratings taken
+months apart reflect the patient's state as much as the settings, so they are not
+ranked against each other. The targets are printed under the figure, and the axis is
+fixed to the declared range.
 
 .. figure:: _static/reports/longitudinal_report_session_scales.png
-   :alt: Ratings for every configuration of every visit, the two best across all visits banded
+   :alt: Ratings for every configuration of every visit, the two best of each visit banded
    :width: 100%
 
 Session data per visit
 ~~~~~~~~~~~~~~~~~~~~~~
 
 Each visit's table, under its own heading, laid out as in the session report. With
-targets set, the same two configurations as in the figure are shaded green:
-the highest and second-highest aggregate index across all visits. The Index
-column says so in its header, **Index (rank across all visits)**, because the
-same configuration carries its rank within the visit in that visit's own session
-report, headed **Index (rank in this session)**.
+targets set, the same configurations as in the figure are shaded green: the
+highest and second-highest aggregate index of that visit, with the rank under
+**Index (rank in this session)**, exactly as in that visit's own session report.
 
 .. figure:: _static/reports/longitudinal_report_page3.png
-   :alt: The per-visit session tables, with the two best configurations across all visits shaded
+   :alt: The per-visit session tables, with the two best configurations of each visit shaded
    :width: 100%
 
 Programming summary and source files

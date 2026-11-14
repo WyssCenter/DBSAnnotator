@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > [!IMPORTANT]
-> Wyss DBS Annotator is not a medical device. It is for annotating and documenting what happens during deep brain stimulation programming visits. It does not diagnose or decide stimulation settings: clinical decisions remain with the clinical team.
+> Wyss DBS Annotator is not a medical device and does not carry a CE mark.
 
 Annotate deep brain stimulation programming visits, and get analysis-ready data
 out.

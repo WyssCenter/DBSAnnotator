@@ -410,8 +410,8 @@ Future<void> _requireUnchanged(
   if (!mapEquals(before, now)) throw const DatasetChangedException();
 }
 
-///
 /// Without [backup], as while a visit is recorded, no `.bak-` copies are left.
+/// Every patient written gets a `derivatives/sub-*` folder for reports.
 Future<String?> _applyMerge(
   String root,
   MergePlan plan, {
@@ -445,6 +445,16 @@ Future<String?> _applyMerge(
       } else {
         await writeStringAtomic(target.path, file.content);
       }
+    }
+  }
+  for (final subject in {
+    for (final f in plan.write)
+      if (RegExp(r'^sub-[^/]+').firstMatch(f.path) case final m?) m[0]!,
+  }) {
+    try {
+      await Directory(full('derivatives/$subject')).create(recursive: true);
+    } on FileSystemException {
+      continue;
     }
   }
   return warning;

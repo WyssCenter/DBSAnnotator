@@ -241,13 +241,13 @@ void main() {
       // what colour reaches a filed clinical document.
       expect(
         doc,
-        contains('w:fill="${docxHex(rankRowTint(kBestFill))}"'),
+        contains('w:fill="${docxHex(kBestFill)}"'),
         reason: 'best-block tint',
       );
-      expect(doc, contains('w:color="0DE69F"'), reason: 'best-block edge');
+      expect(doc, contains('w:color="A8D2BA"'), reason: 'best-block edge');
       expect(
         doc,
-        contains('w:fill="${docxHex(rankRowTint(kSecondFill))}"'),
+        contains('w:fill="${docxHex(kSecondFill)}"'),
         reason: 'second-best tint',
       );
       expect(doc, contains('w:sz="24"'), reason: '3pt block separator rule');
@@ -259,7 +259,19 @@ void main() {
         reason: 'a clinical superlative for a rank statistic',
       );
       expect(doc, contains('Scale targets: Tremor: min'));
-      expect(doc, contains('does not constitute'), reason: 'disclaimer');
+      expect(doc, contains('do not constitute'), reason: 'disclaimer');
+    });
+
+    test('a starred best configuration keeps its rank-1 shading', () {
+      final starred = [
+        for (final r in rows)
+          r.blockId == '1'
+              ? SessionRow.fromMap({...r.toMap(), 'is_starred': '1'})
+              : r,
+      ];
+      final data = rankedReportData(starred);
+      expect(data.tableData.first.first, '1 *');
+      expect(data.rowFills[0], kBestFill);
     });
 
     test('carries docProps and an attestation block', () {

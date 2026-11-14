@@ -42,7 +42,9 @@ const List<String> visitColumns = <String>[
   'left_electrode_model',
   'right_electrode_model',
   'left_ipg_model',
+  'left_ipg_position',
   'right_ipg_model',
+  'right_ipg_position',
 ];
 
 /// The fixed columns of a session's `_scans.tsv`, one row per run with its
@@ -78,7 +80,9 @@ const List<String> workingColumns = <String>[
   'left_electrode_model',
   'right_electrode_model',
   'left_ipg_model',
+  'left_ipg_position',
   'right_ipg_model',
+  'right_ipg_position',
   'program_id',
   ...stimColumns,
   'medications',

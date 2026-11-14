@@ -202,6 +202,13 @@ const _stepNames = [
   'Programming',
   'Finish',
 ];
+const _ipgPositions = [
+  'Left chest',
+  'Right chest',
+  'Left abdomen',
+  'Right abdomen',
+];
+const _medicationLines = 5;
 const _assessmentStep = 2;
 const _programmingStep = 3;
 const _finishStep = 4;
@@ -231,20 +238,24 @@ class _SessionScreenState extends State<SessionScreen>
   final _targetCtrl = TextEditingController();
   final _leftIpgCtrl = TextEditingController(text: kDefaultIpg);
   final _rightIpgCtrl = TextEditingController();
+  final _leftIpgPositionCtrl = TextEditingController();
+  final _rightIpgPositionCtrl = TextEditingController();
 
   /// Whether one IPG drives both leads, so the right field is hidden.
   bool _sameIpg = true;
   final _medicationsCtrl = TextEditingController();
   final _notesRecCtrl = TextEditingController();
 
-  // Electrode/param state is INDEPENDENT per step: editing the recording config
-  // must not change what the initial config shows. The recording pair is seeded
-  // once from the initial pair on first entry to the Recording step.
   final _leftInit = _SideInputs();
   final _rightInit = _SideInputs();
   final _leftRec = _SideInputs();
   final _rightRec = _SideInputs();
-  bool _recSeeded = false;
+
+  /// The leads and initial sides Programming was last filled from.
+  String? _seededFrom;
+
+  /// The BIDS folder chosen when the open file was started or opened.
+  String? _startedIn;
   int? _initialBlock;
   String? _initialSaved;
   final _clinicalScales = <_ClinicalScaleEdit>[];
@@ -427,6 +438,8 @@ class _SessionScreenState extends State<SessionScreen>
     _targetCtrl.dispose();
     _leftIpgCtrl.dispose();
     _rightIpgCtrl.dispose();
+    _leftIpgPositionCtrl.dispose();
+    _rightIpgPositionCtrl.dispose();
     _medicationsCtrl.dispose();
     _leftInit.dispose();
     _rightInit.dispose();
@@ -549,19 +562,7 @@ class _SessionScreenState extends State<SessionScreen>
     final medications = _medicationsCtrl.text.trim();
     final models = (_modelName ?? '', _rightModelName ?? _modelName ?? '');
     final details = _sessionDetails;
-    final signature = jsonEncode([
-      stim,
-      [for (final s in scales) '${s.name}=${s.value}'],
-      notes,
-      medications,
-      _selectedProgram,
-      models.$1,
-      models.$2,
-      details.pathology,
-      details.target,
-      details.leftIpg,
-      details.rightIpg,
-    ]);
+    final signature = _initialSignature(catalog);
     if (signature == _initialSaved) return true;
     final empty =
         stim.values.every((v) => v.isEmpty) &&
@@ -582,6 +583,8 @@ class _SessionScreenState extends State<SessionScreen>
       target: details.target,
       leftIpgModel: details.leftIpg,
       rightIpgModel: details.rightIpg,
+      leftIpgPosition: details.leftIpgPosition,
+      rightIpgPosition: details.rightIpgPosition,
       medications: medications,
       notes: notes,
       replacing: _initialBlock,
@@ -593,13 +596,47 @@ class _SessionScreenState extends State<SessionScreen>
     return true;
   }
 
-  /// Pathology, target and IPG as chosen in Setup, written on every row.
-  ({String pathology, String target, String leftIpg, String rightIpg})
+  /// Everything the initial assessment saves, to tell whether it changed.
+  String _initialSignature(ElectrodeCatalog catalog) {
+    final d = _sessionDetails;
+    return jsonEncode([
+      _stimCells(catalog, _leftInit, _rightInit),
+      [
+        for (final s in _clinicalScales)
+          '${s.name.text.trim()}=${s.score.text.trim()}',
+      ],
+      _notesInitCtrl.text.trim(),
+      _medicationsCtrl.text.trim(),
+      _selectedProgram,
+      _modelName ?? '',
+      _rightModelName ?? _modelName ?? '',
+      d.pathology,
+      d.target,
+      d.leftIpg,
+      d.rightIpg,
+      d.leftIpgPosition,
+      d.rightIpgPosition,
+    ]);
+  }
+
+  /// Pathology, target and IPGs as chosen in Setup, written on every row.
+  ({
+    String pathology,
+    String target,
+    String leftIpg,
+    String rightIpg,
+    String leftIpgPosition,
+    String rightIpgPosition,
+  })
   get _sessionDetails => (
     pathology: _pathologyCtrl.text.trim(),
     target: _targetCtrl.text.trim(),
     leftIpg: _leftIpgCtrl.text.trim(),
     rightIpg: (_sameIpg ? _leftIpgCtrl : _rightIpgCtrl).text.trim(),
+    leftIpgPosition: _leftIpgPositionCtrl.text.trim(),
+    rightIpgPosition: (_sameIpg ? _leftIpgPositionCtrl : _rightIpgPositionCtrl)
+        .text
+        .trim(),
   );
 
   /// Write the indication, target, leads and IPGs into every saved row when
@@ -612,6 +649,8 @@ class _SessionScreenState extends State<SessionScreen>
       'target': d.target,
       'left_ipg_model': d.leftIpg,
       'right_ipg_model': d.rightIpg,
+      'left_ipg_position': d.leftIpgPosition,
+      'right_ipg_position': d.rightIpgPosition,
       'left_electrode_model': _modelName ?? '',
       'right_electrode_model': _rightModelName ?? _modelName ?? '',
     };
@@ -629,10 +668,21 @@ class _SessionScreenState extends State<SessionScreen>
   void _fillSessionDetails(List<SessionRow> rows) {
     _pathologyCtrl.text = sessionValueIn(rows, (r) => r.pathology);
     _targetCtrl.text = sessionValueIn(rows, (r) => r.target);
-    _leftIpgCtrl.text = sessionValueIn(rows, (r) => r.leftIpgModel);
-    _rightIpgCtrl.text = sessionValueIn(rows, (r) => r.rightIpgModel);
-    _sameIpg =
-        _rightIpgCtrl.text.isEmpty || _rightIpgCtrl.text == _leftIpgCtrl.text;
+    _fillIpgs(
+      sessionValueIn(rows, (r) => r.leftIpgModel),
+      sessionValueIn(rows, (r) => r.rightIpgModel),
+      sessionValueIn(rows, (r) => r.leftIpgPosition),
+      sessionValueIn(rows, (r) => r.rightIpgPosition),
+    );
+  }
+
+  /// Fill both IPGs, shown as one when the right one repeats the left.
+  void _fillIpgs(String left, String right, String leftAt, String rightAt) {
+    _leftIpgCtrl.text = left;
+    _rightIpgCtrl.text = right;
+    _leftIpgPositionCtrl.text = leftAt;
+    _rightIpgPositionCtrl.text = rightAt;
+    _sameIpg = right.isEmpty || (right == left && rightAt == leftAt);
   }
 
   /// Edit and save one of the Setup lists with the shared list editor.
@@ -656,6 +706,7 @@ class _SessionScreenState extends State<SessionScreen>
   /// which configuration the patient leaves on when entering Finish.
   Future<void> _goTo(int step) async {
     if (step == _currentStep) return;
+    if (_currentStep == 0 && _started && !await _followNewName()) return;
     if (step > 0 && !_started) {
       if (_ids.subject.text.trim().isEmpty) {
         setState(() => _subjectError = 'Enter or choose the patient ID');
@@ -679,27 +730,44 @@ class _SessionScreenState extends State<SessionScreen>
     }
     if (!mounted) return;
     setState(() {
-      if (step == _programmingStep && !_recSeeded) {
-        _copySide(_leftInit, _leftRec);
-        _copySide(_rightInit, _rightRec);
-        _recSeeded = true;
-        _savedSignature = _recSignature();
-      }
+      if (step == _programmingStep) _seedProgramming();
       _currentStep = step;
     });
   }
 
+  /// Fill Programming from the initial assessment whenever that or a lead
+  /// changed since the last fill; runs inside setState.
+  void _seedProgramming() {
+    final from = [
+      _modelName,
+      _rightModelName,
+      ..._sideParts(_leftInit),
+      ..._sideParts(_rightInit),
+    ].join('|');
+    if (from == _seededFrom || _editingBlock != null) return;
+    final replacing = _seededFrom != null;
+    _copySide(_leftInit, _leftRec);
+    _copySide(_rightInit, _rightRec);
+    _seededFrom = from;
+    _savedSignature = _recSignature();
+    if (replacing) {
+      _snack('Programming starts from the updated initial assessment.');
+    }
+  }
+
+  List<Object> _sideParts(_SideInputs s) => [
+    s.freq.text,
+    s.amp.text,
+    s.pulseWidth.text,
+    s.enabled,
+    s.caseState,
+    ...[for (final e in s.states.entries) '${e.key}=${e.value}']..sort(),
+    ...s.ampSplit,
+  ];
+
   /// Everything the Programming step would save, as one comparable string.
   String _recSignature() => [
-    for (final s in [_leftRec, _rightRec]) ...[
-      s.freq.text,
-      s.amp.text,
-      s.pulseWidth.text,
-      s.enabled,
-      s.caseState,
-      ...[for (final e in s.states.entries) '${e.key}=${e.value}']..sort(),
-      ...s.ampSplit,
-    ],
+    for (final s in [_leftRec, _rightRec]) ..._sideParts(s),
     for (final s in _sessionScales) ...[s.name.text, s.value, s.omitted],
     _notesRecCtrl.text,
     _selectedProgram,
@@ -753,6 +821,8 @@ class _SessionScreenState extends State<SessionScreen>
       target: _sessionDetails.target,
       leftIpgModel: _sessionDetails.leftIpg,
       rightIpgModel: _sessionDetails.rightIpg,
+      leftIpgPosition: _sessionDetails.leftIpgPosition,
+      rightIpgPosition: _sessionDetails.rightIpgPosition,
       starred: _starNext,
       notes: _notesRecCtrl.text.trim(),
     );
@@ -928,6 +998,7 @@ class _SessionScreenState extends State<SessionScreen>
     _authoring = content;
     _initialBlock = null;
     _initialSaved = null;
+    _seededFrom = null;
     _fillSessionDetails(content.rows);
     _selectedClinicalPreset = null;
     if (reopened) _currentStep = _programmingStep;
@@ -940,9 +1011,18 @@ class _SessionScreenState extends State<SessionScreen>
 
   @override
   Future<void> announceLoaded(String message) async {
-    _loadPathologyScales();
+    await _loadPathologyScales();
     final unknownModels = await _syncModelsToRows();
+    final catalog = (await _contracts).$1.withDevices(_prefs.devices);
     if (!mounted) return;
+    setState(() {
+      _startedIn = _folder?.path;
+      if (_prefillInitial(_authoring.rows, catalog) case final initial?) {
+        _initialBlock = int.tryParse(initial.blockId);
+        _initialSaved = _initialSignature(catalog);
+      }
+      _seedProgramming();
+    });
     _snack(message);
     if (unknownModels.isNotEmpty) {
       _snack(
@@ -1102,10 +1182,12 @@ class _SessionScreenState extends State<SessionScreen>
     setState(() {
       _pathologyCtrl.text = history.indication;
       _targetCtrl.text = cell('target');
-      _leftIpgCtrl.text = cell('left_ipg_model');
-      _rightIpgCtrl.text = cell('right_ipg_model');
-      _sameIpg =
-          _rightIpgCtrl.text.isEmpty || _rightIpgCtrl.text == _leftIpgCtrl.text;
+      _fillIpgs(
+        cell('left_ipg_model'),
+        cell('right_ipg_model'),
+        cell('left_ipg_position'),
+        cell('right_ipg_position'),
+      );
       final left = cell('left_electrode_model');
       final right = cell('right_electrode_model');
       if (catalog.models.containsKey(left)) {
@@ -1117,8 +1199,9 @@ class _SessionScreenState extends State<SessionScreen>
     _loadPathologyScales();
   }
 
-  /// Start a new visit in the chosen BIDS folder; true when it started.
-  Future<bool> _newSession() async {
+  /// Start a new visit in the chosen BIDS folder; true when it started. [ask]
+  /// false when the user already agreed to leave the open file.
+  Future<bool> _newSession({bool ask = true}) async {
     final subject = _ids.subject.text.trim();
     if (subject.isEmpty) {
       setState(() => _subjectError = 'Enter or choose the patient ID');
@@ -1168,6 +1251,7 @@ class _SessionScreenState extends State<SessionScreen>
     final started = await newInFolder(
       root: root,
       name: name,
+      ask: ask,
       start: () {
         _invalidateEntryCharts();
         _authoring = SessionAuthoring();
@@ -1175,25 +1259,55 @@ class _SessionScreenState extends State<SessionScreen>
         _ids.run.text = name.run;
         _initialBlock = null;
         _initialSaved = null;
+        _seededFrom = null;
+        _startedIn = root;
       },
     );
-    if (started) {
-      try {
-        await Directory('$root/derivatives/sub-${name.subject}')
-            .create(recursive: true);
-      } on FileSystemException catch (e) {
-        _snack('Could not create the derivatives folder: ${e.message}');
-      }
-      if (!mounted) return started;
-      if (earlier.isNotEmpty) setState(() => _prefillInitial(earlier, catalog));
-      _snack(
-        'New session in ${folder.name}. Run ${name.run} is saved there from '
-        'the first save.'
-        '${earlier.isEmpty ? '' : ' The initial assessment is filled in from '
-                  'the earlier run; check it before Next.'}',
-      );
+    if (!started || !mounted) return started;
+    if (earlier.isNotEmpty) setState(() => _prefillInitial(earlier, catalog));
+    _snack(
+      'New session in ${folder.name}. Run ${name.run} is saved there from '
+      'the first save.'
+      '${earlier.isEmpty ? '' : ' The initial assessment is filled in from '
+                'the earlier run; check it before Next.'}',
+    );
+    return true;
+  }
+
+  /// When the patient, visit or folder no longer match the open file, start
+  /// a new file for them, asking first when the open one holds entries. False
+  /// to stay on the first step.
+  Future<bool> _followNewName() async {
+    final opened = datasetName;
+    final renamed =
+        opened != null && opened.filename != _ids.name.filename ||
+        _startedIn != null && _folder?.path != _startedIn;
+    if (!renamed) return true;
+    if (hasEntries &&
+        !await _confirm(
+          'Start a new session file?',
+          'The patient, visit or BIDS folder no longer matches the open '
+              'session. The session recorded so far '
+              '${savePath == null ? 'is kept in the app as a recovery copy' : 'stays saved as ${pickedBasename(savePath!)}'}. '
+              'A new file starts for patient ${_ids.name.subject}, visit '
+              '${_ids.name.session}, with the devices and initial assessment '
+              'on screen.',
+          'Start new file',
+          no: 'Keep current file',
+        )) {
+      if (!mounted) return false;
+      setState(() {
+        if (opened != null) _ids.fill(opened);
+        _folder =
+            _prefs.bidsFolders
+                ?.where((f) => f.path == _startedIn)
+                .firstOrNull ??
+            _folder;
+      });
+      _loadPatients();
+      return false;
     }
-    return started;
+    return mounted && await _newSession(ask: false);
   }
 
   /// Fill one side's inputs from the stimulation [row] holds for it.
@@ -1220,14 +1334,14 @@ class _SessionScreenState extends State<SessionScreen>
     }
   }
 
-  /// Fill the initial assessment with an earlier run's [rows], to check and
-  /// change; nothing is saved until Next.
-  void _prefillInitial(List<SessionRow> rows, ElectrodeCatalog catalog) {
+  /// Fill the initial assessment from [rows], to check and change; nothing is
+  /// saved until Next. Returns the initial row used, if any.
+  SessionRow? _prefillInitial(List<SessionRow> rows, ElectrodeCatalog catalog) {
     final initial = [
       for (final r in rows)
         if (isInitialValue(r.isInitial)) r,
     ];
-    if (initial.isEmpty) return;
+    if (initial.isEmpty) return null;
     final first = initial.first;
     final leads = _leads(catalog);
     _fillSide(_leftInit, first, left: true, model: leads.left);
@@ -1235,9 +1349,7 @@ class _SessionScreenState extends State<SessionScreen>
     _medicationsCtrl.text = first.medications;
     _notesInitCtrl.text = first.notes;
     if (_programs.contains(first.programId)) _selectedProgram = first.programId;
-    for (final scale in _clinicalScales) {
-      scale.dispose();
-    }
+    _removedClinical.addAll(_clinicalScales);
     _clinicalScales
       ..clear()
       ..addAll([
@@ -1247,9 +1359,15 @@ class _SessionScreenState extends State<SessionScreen>
               ..name.text = r.scaleName
               ..score.text = r.scaleValue,
       ]);
+    return first;
   }
 
-  Future<bool> _confirm(String title, String message, String yes) async =>
+  Future<bool> _confirm(
+    String title,
+    String message,
+    String yes, {
+    String no = 'Cancel',
+  }) async =>
       await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -1258,7 +1376,7 @@ class _SessionScreenState extends State<SessionScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+              child: Text(no),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
@@ -1516,12 +1634,15 @@ class _SessionScreenState extends State<SessionScreen>
   /// Two rows: the configuration (parameters beside electrodes) and the
   /// observations (scales beside notes), the observations first when
   /// [observationsFirst]. Narrow screens stack everything in one column.
+  /// Wide, the notes end where the scales end, and are never shorter than
+  /// three lines.
   Widget _stepBody(
     Widget params,
     Widget electrodes,
     Widget scalesCard,
     Widget notes, {
     bool observationsFirst = false,
+    Widget? aboveNotes,
   }) {
     return LayoutBuilder(
       builder: (context, c) {
@@ -1539,7 +1660,40 @@ class _SessionScreenState extends State<SessionScreen>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [a, const SizedBox(height: 12), b],
               );
-        final rows = [pair(params, electrodes), pair(scalesCard, notes)];
+        double field(int lines) =>
+            MediaQuery.textScalerOf(context).scale(24.0 * lines) + 28;
+        final noteColumn = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (aboveNotes != null) ...[aboveNotes, const SizedBox(height: 12)],
+            wide ? Expanded(child: notes) : notes,
+          ],
+        );
+        final observations = wide
+            ? Table(
+                columnWidths: const {1: FixedColumnWidth(12)},
+                children: [
+                  TableRow(
+                    children: [
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: aboveNotes == null
+                              ? field(3)
+                              : field(_medicationLines) + 12 + field(3),
+                        ),
+                        child: scalesCard,
+                      ),
+                      const SizedBox(),
+                      TableCell(
+                        verticalAlignment: TableCellVerticalAlignment.fill,
+                        child: noteColumn,
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            : pair(scalesCard, noteColumn);
+        final rows = [pair(params, electrodes), observations];
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1627,6 +1781,42 @@ class _SessionScreenState extends State<SessionScreen>
       child: Text(text, style: Theme.of(context).textTheme.labelLarge),
     );
 
+    void setOneIpg(bool one) {
+      setState(() {
+        _sameIpg = one;
+        if (!one && _rightIpgCtrl.text.isEmpty) {
+          _rightIpgCtrl.text = _leftIpgCtrl.text;
+        }
+      });
+      _syncVisitDetails();
+    }
+
+    Widget ipg(
+      String label,
+      TextEditingController model,
+      TextEditingController position, {
+      VoidCallback? remove,
+    }) => Row(
+      children: [
+        Expanded(flex: 3, child: menu(label, catalog.ipgs, controller: model)),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: _choiceField(
+            controller: position,
+            label: 'Position',
+            options: _ipgPositions,
+          ),
+        ),
+        if (remove != null)
+          IconButton(
+            icon: const Icon(Icons.remove_circle_outline),
+            tooltip: 'Remove this IPG',
+            onPressed: remove,
+          ),
+      ],
+    );
+
     final same = _rightModelName == null;
     return TitledSection(
       title: 'Devices',
@@ -1644,6 +1834,7 @@ class _SessionScreenState extends State<SessionScreen>
             catalog.manufacturers,
             value: _modelName,
             onSelected: (name) => setState(() {
+              if (name == _modelName) return;
               _modelName = name;
               reset(
                 same
@@ -1655,7 +1846,12 @@ class _SessionScreenState extends State<SessionScreen>
           sameBox(
             'Same lead on both sides',
             same,
-            (v) => setState(() => _rightModelName = v ? null : _modelName),
+            (v) => setState(() {
+              if (v && _rightModelName != _modelName) {
+                reset([_rightInit, _rightRec]);
+              }
+              _rightModelName = v ? null : _modelName;
+            }),
           ),
           if (!same)
             menu(
@@ -1663,24 +1859,36 @@ class _SessionScreenState extends State<SessionScreen>
               catalog.manufacturers,
               value: _rightModelName,
               onSelected: (name) => setState(() {
+                if (name == _rightModelName) return;
                 _rightModelName = name;
                 reset([_rightInit, _rightRec]);
               }),
             ),
           const Divider(height: 24),
           heading('Implanted pulse generator (IPG)'),
-          menu(
-            _sameIpg ? 'IPG model' : 'Left IPG model',
-            catalog.ipgs,
-            controller: _leftIpgCtrl,
+          ipg(
+            _sameIpg ? 'IPG model' : 'IPG for the left lead',
+            _leftIpgCtrl,
+            _leftIpgPositionCtrl,
           ),
-          sameBox(
-            'Same IPG on both sides',
-            _sameIpg,
-            (v) => setState(() => _sameIpg = v),
-          ),
-          if (!_sameIpg)
-            menu('Right IPG model', catalog.ipgs, controller: _rightIpgCtrl),
+          if (_sameIpg)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => setOneIpg(false),
+                icon: const Icon(Icons.add),
+                label: const Text('Add IPG'),
+              ),
+            )
+          else ...[
+            const SizedBox(height: 12),
+            ipg(
+              'IPG for the right lead',
+              _rightIpgCtrl,
+              _rightIpgPositionCtrl,
+              remove: () => setOneIpg(true),
+            ),
+          ],
         ],
       ),
     );
@@ -1864,6 +2072,7 @@ class _SessionScreenState extends State<SessionScreen>
           ListenableBuilder(
             listenable: side.amp,
             builder: (context, _) => AmplitudeSplit(
+              key: ValueKey(_editingBlock),
               cathodes: _cathodesFor(side, model),
               total: double.tryParse(side.amp.text.trim()) ?? 0,
               decimals: limits.amplitudeDecimals,
@@ -1997,8 +2206,8 @@ class _SessionScreenState extends State<SessionScreen>
                   child: IgnorePointer(
                     ignoring: !side.enabled,
                     child: ElectrodeView(
+                      key: ValueKey(_editingBlock),
                       model: model,
-                      // Remounted on step switch; seed with captured config.
                       initialStates: side.states,
                       initialCaseState: side.caseState,
                       onChanged: (states, caseState) => setState(() {
@@ -2066,25 +2275,21 @@ class _SessionScreenState extends State<SessionScreen>
     );
   }
 
-  /// The Notes field, given a generous viewport-relative height so it has real
-  /// room. The Stepper scrolls when the column is taller than the window, so
-  /// this never overflows on short desktop windows (`expands` needs the bounded
-  /// box the SizedBox provides).
-  Widget _notesField(TextEditingController notesCtrl) {
-    return SizedBox(
-      height: (MediaQuery.sizeOf(context).height * 0.3).clamp(180.0, 600.0),
-      child: TextField(
-        controller: notesCtrl,
-        maxLines: null,
-        expands: true,
-        textAlignVertical: TextAlignVertical.top,
-        decoration: const InputDecoration(
-          labelText: 'Notes',
-          alignLabelWithHint: true,
-        ),
+  /// The Notes field: filling the height it is given, else three lines that
+  /// grow with the text.
+  Widget _notesField(TextEditingController notesCtrl) => LayoutBuilder(
+    builder: (context, c) => TextField(
+      controller: notesCtrl,
+      minLines: c.hasBoundedHeight ? null : 3,
+      maxLines: null,
+      expands: c.hasBoundedHeight,
+      textAlignVertical: TextAlignVertical.top,
+      decoration: const InputDecoration(
+        labelText: 'Notes',
+        alignLabelWithHint: true,
       ),
-    );
-  }
+    ),
+  );
 
   /// The visit's files: where it is saved, this session's exports, and the
   /// import and export of other sessions.
@@ -2095,7 +2300,7 @@ class _SessionScreenState extends State<SessionScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_patients.isNotEmpty && !started) ...[
+          if (_patients.isNotEmpty) ...[
             const SizedBox(height: 8),
             DropdownMenu<String>(
               expandedInsets: EdgeInsets.zero,
@@ -2210,7 +2415,6 @@ class _SessionScreenState extends State<SessionScreen>
                 key: ValueKey(_folder?.name),
                 expandedInsets: EdgeInsets.zero,
                 label: const Text('BIDS folder'),
-                enabled: !started,
                 initialSelection: _folder?.name,
                 dropdownMenuEntries: [
                   for (final f in _prefs.bidsFolders ?? const <BidsFolder>[])
@@ -2229,14 +2433,12 @@ class _SessionScreenState extends State<SessionScreen>
             IconButton(
               icon: const Icon(Icons.create_new_folder_outlined),
               tooltip: 'Add a BIDS folder',
-              onPressed: started
-                  ? null
-                  : () async {
-                      final added = await addBidsFolder(context, _prefs);
-                      if (added == null || !mounted) return;
-                      setState(() => _folder = added);
-                      _loadPatients();
-                    },
+              onPressed: () async {
+                final added = await addBidsFolder(context, _prefs);
+                if (added == null || !mounted) return;
+                setState(() => _folder = added);
+                _loadPatients();
+              },
             ),
           ],
         ),
@@ -2610,23 +2812,17 @@ class _SessionScreenState extends State<SessionScreen>
           _paramsColumn(leads, limits, left: _leftInit, right: _rightInit),
           _electrodesColumn(leads, _leftInit, _rightInit),
           _clinicalScalesCard(presets, limits),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextField(
-                controller: _medicationsCtrl,
-                minLines: 3,
-                maxLines: null,
-                decoration: const InputDecoration(
-                  labelText: 'Medications',
-                  alignLabelWithHint: true,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _notesField(_notesInitCtrl),
-            ],
-          ),
+          _notesField(_notesInitCtrl),
           observationsFirst: true,
+          aboveNotes: TextField(
+            controller: _medicationsCtrl,
+            minLines: 3,
+            maxLines: _medicationLines,
+            decoration: const InputDecoration(
+              labelText: 'Medications',
+              alignLabelWithHint: true,
+            ),
+          ),
         ),
       ],
     );

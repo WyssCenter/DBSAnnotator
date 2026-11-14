@@ -85,7 +85,7 @@
     "scale_columns": {
       "pattern": "scale_<name>",
       "type": "float",
-      "description": "One column per scale rated at this visit, placed before ``notes``: ``scale_`` plus the scale's name in lower case, every run of other characters turned into ``_`` (``Mood`` is ``scale_mood``, ``MDS-UPDRS 3.10 Gait`` is ``scale_mds_updrs_3_10_gait``); a second name giving the same column gains ``_2``. The cell is the rating alone, or ``n/a`` when the scale was not assessed. The sidecar gives each column's original scale name as its ``LongName``."
+      "description": "One column per scale rated at this visit, placed before ``notes``: ``scale_`` plus the scale's name in lower case, every run of other characters turned into ``_`` (``Mood`` is ``scale_mood``, ``Rigidity, right arm`` is ``scale_rigidity_right_arm``); a second name giving the same column gains ``_2``. The cell is the rating alone, or ``n/a`` when the scale was not assessed. The sidecar gives each column's original scale name as its ``LongName``."
     }
   },
   "annotation_tsv": {
@@ -135,9 +135,19 @@
         "description": "Implanted pulse generator driving the left lead at this visit, as named in ``schema/electrode_models.json`` or typed. Recorded only: the app does not change any setting from it."
       },
       {
+        "name": "left_ipg_position",
+        "type": "string",
+        "description": "Where the IPG driving the left lead is implanted: ``Left chest``, ``Right chest``, ``Left abdomen`` or ``Right abdomen``. Empty when not recorded."
+      },
+      {
         "name": "right_ipg_model",
         "type": "string",
         "description": "Implanted pulse generator driving the right lead. The same as the left when one device drives both leads."
+      },
+      {
+        "name": "right_ipg_position",
+        "type": "string",
+        "description": "Where the IPG driving the right lead is implanted, with the values of ``left_ipg_position``. The same as the left when one device drives both leads."
       }
     ]
   },
@@ -271,7 +281,7 @@
         "description": "``1`` on the row of a visit's initial assessment, taken from its ``sessions.tsv`` row; ``0`` on a configuration tried during the visit."
       }
     ],
-    "description": "One row per configuration, and one per visit for its initial assessment: these identity columns, then ``dbs_indication`` and the visit's ``target``, lead and IPG models and ``medications``, then the session columns, with the union of every file's ``scale_<name>`` columns (``n/a`` where a file has no such scale)."
+    "description": "One row per configuration, and one per visit for its initial assessment: these identity columns, then ``dbs_indication`` and the visit's ``target``, lead and IPG models, IPG positions and ``medications``, then the session columns, with the union of every file's ``scale_<name>`` columns (``n/a`` where a file has no such scale)."
   },
   "bids": {
     "filename_template": "sub-{subject}_ses-{session}_task-{task}_run-{run}_beh.tsv",

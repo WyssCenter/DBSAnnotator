@@ -211,7 +211,7 @@ void main() {
 
       expect(find.text('Same lead on both sides'), findsOneWidget);
       expect(find.text('Patient ID'), findsNothing);
-      expect(Directory('${bids.path}/derivatives/sub-01').existsSync(), isTrue);
+      expect(Directory('${bids.path}/derivatives').existsSync(), isFalse);
     });
 
     testWidgets('after an entry asks, and Delete the only copy replaces it', (
@@ -238,6 +238,9 @@ void main() {
       await _add(tester, working, 'second visit');
       await settleUntil(tester, working, () => _behIn(bids).isNotEmpty);
       final created = _behIn(bids).single;
+      final derivatives = Directory('${bids.path}/derivatives/sub-01');
+      await settleUntil(tester, working, derivatives.existsSync);
+      expect(derivatives.existsSync(), isTrue);
       await settleUntil(
         tester,
         working,
@@ -248,6 +251,34 @@ void main() {
       expect({
         for (final r in parseAnySessionTsv(text)) r.blockId,
       }, hasLength(1));
+    });
+
+    testWidgets('a patient ID changed after an entry asks, and a new file '
+        'leaves the first one as it was', (tester) async {
+      final (working, bids) = await _showNew(tester);
+      await _add(tester, working, 'first visit');
+      await settleUntil(tester, working, () => _behIn(bids).isNotEmpty);
+      final first = _behIn(bids).single;
+      final patient = find.widgetWithText(TextField, 'Patient ID');
+      String typed() => tester.widget<TextField>(patient).controller!.text;
+
+      await _toSetup(tester);
+      await tester.enterText(patient, '02');
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+      expect(find.text('Start a new session file?'), findsOneWidget);
+      await tester.tap(find.text('Keep current file'));
+      await tester.pumpAndSettle();
+      expect(typed(), '01');
+
+      await tester.enterText(patient, '02');
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Start new file'));
+      await pumpUntilFound(tester, find.text('Same lead on both sides'));
+      await tester.pumpAndSettle();
+      expect(first.readAsStringSync(), contains('first visit'));
+      expect(workingText(working), isNot(contains('first visit')));
     });
 
     testWidgets('Cancel keeps the entries and creates nothing', (tester) async {

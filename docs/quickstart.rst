@@ -4,8 +4,7 @@ Quick start
 Opening the app
 ---------------
 
-Launch Wyss DBS Annotator as you would any other app on the device. Every time it starts, it shows
-a notice that it is not a medical device; **I understand** continues. It then opens on
+Launch Wyss DBS Annotator as you would any other app on the device. It opens on
 :doc:`Annotate programming session <screens/programming_session>`, where a session is annotated in
 five steps. Its first step, Session, is also where you import earlier sessions and export reports
 and BIDS folders.

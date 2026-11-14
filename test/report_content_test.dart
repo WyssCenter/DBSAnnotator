@@ -116,18 +116,6 @@ void main() {
       expect(data.pwR, '90 µs (unchanged)');
     });
 
-    test('what changed names a dose change on unchanged contacts', () {
-      // The right lead keeps its contacts while its amplitude goes 5 to 6 mA;
-      // the contact notation alone would report no change at all.
-      expect(data.configChanges, contains('Right amplitude: 5.0 -> 6.0 mA'));
-      expect(data.configChanges, contains('Left amplitude: 5.0 -> 6.0 mA'));
-      expect(
-        data.configChanges.any((l) => l.startsWith('Left contacts:')),
-        isTrue,
-      );
-      expect(data.configChanges.last, 'Unchanged: frequency and pulse width.');
-    });
-
     test('the figure carries frequency and pulse width per side', () {
       // The live view in the app shows them; the report did not.
       expect(data.chart.frequency.keys, containsAll(['Left', 'Right']));

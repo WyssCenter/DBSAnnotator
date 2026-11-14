@@ -75,18 +75,18 @@
   },
   "scale_obsessions": {
     "LongName": "Obsessions",
-    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, MDS-UPDRS 3.10 Gait is scale_mds_updrs_3_10_gait); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
+    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, Rigidity, right arm is scale_rigidity_right_arm); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
   },
   "scale_compulsions": {
     "LongName": "Compulsions",
-    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, MDS-UPDRS 3.10 Gait is scale_mds_updrs_3_10_gait); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
+    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, Rigidity, right arm is scale_rigidity_right_arm); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
   },
   "scale_anxiety": {
     "LongName": "Anxiety",
-    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, MDS-UPDRS 3.10 Gait is scale_mds_updrs_3_10_gait); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
+    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, Rigidity, right arm is scale_rigidity_right_arm); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
   },
   "scale_mood": {
     "LongName": "Mood",
-    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, MDS-UPDRS 3.10 Gait is scale_mds_updrs_3_10_gait); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
+    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, Rigidity, right arm is scale_rigidity_right_arm); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
   }
 }

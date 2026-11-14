@@ -92,7 +92,9 @@ SessionTables splitSession(
     'left_electrode_model': fixed((r) => r.leftElectrodeModel),
     'right_electrode_model': fixed((r) => r.rightElectrodeModel),
     'left_ipg_model': fixed((r) => r.leftIpgModel),
+    'left_ipg_position': fixed((r) => r.leftIpgPosition),
     'right_ipg_model': fixed((r) => r.rightIpgModel),
+    'right_ipg_position': fixed((r) => r.rightIpgPosition),
   };
   final initialRow = <String, String>{
     'medications': i0?.medications ?? fixed((r) => r.medications),
@@ -149,7 +151,9 @@ List<SessionRow> joinSession({
       'left_electrode_model',
       'right_electrode_model',
       'left_ipg_model',
+      'left_ipg_position',
       'right_ipg_model',
+      'right_ipg_position',
     ])
       c: visit[c] ?? '',
   };

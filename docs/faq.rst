@@ -34,10 +34,8 @@ General
    scrolling.
 
 **Is it a medical device?**
-   No. It is for annotating and documenting what happens during deep brain
-   stimulation programming visits. It does not diagnose or decide stimulation
-   settings: clinical decisions remain with the clinical team. The app says so
-   at every launch, under every step and in every report.
+   No, and it does not carry a CE mark. The app says so under every step and in
+   every report.
 
 Files and data
 --------------

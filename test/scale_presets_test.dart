@@ -35,15 +35,28 @@ void main() {
     final ocd = clinicalRows(p, 'OCD');
     expect(ocd, contains('Y-BOCS'));
     expect(ocd, ['Y-BOCS', 'Y-BOCS-o', 'Y-BOCS-c', 'MADRS', 'OCI-R']);
-    expect(clinicalRows(p, 'MDD'), ['MADRS', 'HAM-D', 'BDI-II']);
+    expect(clinicalRows(p, 'MDD'), ['MADRS', 'HAM-D']);
   });
 
-  test('PD rates MDS-UPDRS III items 0 to 4 in whole steps', () {
+  test('no licensed scale is bundled, nor named in a rating', () {
+    final p = loadPresets();
+    expect(clinicalRows(p, 'PD'), ['CGI-S']);
+    final names = [
+      ...p.clinicalRanges.keys,
+      for (final g in p.buttons) ...clinicalRows(p, g),
+      for (final g in p.buttons) ...sessionRows(p, g).map((r) => r.name),
+    ];
+    for (final licensed in ['UPDRS', 'UDysRS', 'PDQ-39', 'BDI']) {
+      expect(names.where((n) => n.contains(licensed)), isEmpty);
+    }
+  });
+
+  test('PD rates ten motor items 0 to 4 in whole steps', () {
     final p = loadPresets();
     final pd = sessionRows(p, 'PD');
-    final items = pd.where((r) => r.name.startsWith('MDS-UPDRS 3.'));
+    final items = pd.where((r) => r.max == '4');
     expect(pd.first, (
-      name: 'MDS-UPDRS 3.3 Rigidity RUE',
+      name: 'Rigidity, right arm',
       min: '0',
       max: '4',
       mode: 'min',

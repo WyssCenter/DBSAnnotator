@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dbs_annotator/app_info.dart' show kNotice, kNoticeShort;
+import 'package:dbs_annotator/app_info.dart' show kNoticeShort;
 import 'package:dbs_annotator/core/electrode/electrode_model.dart';
 import 'package:dbs_annotator/core/schema_columns.dart' show isInitialValue;
 import 'package:dbs_annotator/core/session/authoring.dart';
@@ -171,11 +171,17 @@ void main() {
         .firstWhere((r) => !isInitialValue(r.isInitial))
         .blockId;
 
+    final canvas = tester.state(find.byType(ElectrodeView).first);
     final edit = find.widgetWithText(TextButton, 'Edit');
     await tester.ensureVisible(edit);
     await tester.tap(edit);
     await tester.pumpAndSettle();
     expect(find.text('Editing configuration #$id'), findsOneWidget);
+    expect(
+      tester.state(find.byType(ElectrodeView).first),
+      isNot(same(canvas)),
+      reason: 'the canvas starts again from the loaded configuration',
+    );
     await tester.enterText(find.widgetWithText(TextField, 'Notes'), 'second');
     await tester.pump();
     expect(find.text('Editing configuration #$id, not saved'), findsOneWidget);
@@ -200,6 +206,90 @@ void main() {
     expect(authoring.rows.where((r) => !isInitialValue(r.isInitial)), isEmpty);
   });
 
+  Finder leftField(String label) => find.descendant(
+    of: find.widgetWithText(TextFormField, label).first,
+    matching: find.byType(TextField),
+  );
+  String leftText(WidgetTester tester, String label) =>
+      tester.widget<TextField>(leftField(label)).controller!.text;
+
+  Future<void> goTo(WidgetTester tester, String step) async {
+    await tester.tap(find.text(step).first);
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('Programming starts from the initial assessment, and again '
+      'whenever that or a lead changes', (tester) async {
+    await pumpWizard(tester);
+    await tapNext(tester, 2);
+    await tester.enterText(leftField('Amplitude'), '3');
+    await tapNext(tester);
+    expect(leftText(tester, 'Amplitude'), '3');
+
+    await tester.tap(find.text('Back'));
+    await tester.pumpAndSettle();
+    await tester.enterText(leftField('Amplitude'), '4');
+    await tapNext(tester);
+    expect(leftText(tester, 'Amplitude'), '4');
+
+    await tester.enterText(leftField('Amplitude'), '5');
+    await goTo(tester, 'Initial assessment');
+    await goTo(tester, 'Programming');
+    expect(leftText(tester, 'Amplitude'), '5');
+
+    await goTo(tester, 'Indication and devices');
+    await tester.tap(find.widgetWithText(DropdownMenu<String>, 'Lead model'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Medtronic 3389').last);
+    await tester.pumpAndSettle();
+    await goTo(tester, 'Programming');
+    expect(leftText(tester, 'Amplitude'), '4');
+  });
+
+  testWidgets('one IPG by default; Add IPG gives each lead its own, each '
+      'with where it is implanted', (tester) async {
+    final authoring = SessionAuthoring();
+    await pumpWizard(tester, authoring: authoring);
+    await tapNext(tester);
+    expect(find.text('Same IPG on both sides'), findsNothing);
+    expect(
+      find.widgetWithText(DropdownMenu<String>, 'IPG model'),
+      findsOneWidget,
+    );
+
+    Future<void> position(String value) async {
+      await tester.tap(
+        find.widgetWithText(DropdownMenu<String>, 'Position').last,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(value).last);
+      await tester.pumpAndSettle();
+    }
+
+    await position('Left chest');
+    await tester.tap(find.text('Add IPG'));
+    await tester.pumpAndSettle();
+    expect(
+      find.widgetWithText(DropdownMenu<String>, 'IPG for the right lead'),
+      findsOneWidget,
+    );
+    await position('Right chest');
+
+    await tapNext(tester, 2);
+    await tester.tap(find.text('Save configuration'));
+    await tester.pumpAndSettle();
+    expect(authoring.rows, isNotEmpty);
+    expect(
+      authoring.rows.every(
+        (r) =>
+            r.leftIpgModel == r.rightIpgModel &&
+            r.leftIpgPosition == 'Left chest' &&
+            r.rightIpgPosition == 'Right chest',
+      ),
+      isTrue,
+    );
+  });
+
   testWidgets('every step says the app is not a medical device', (
     tester,
   ) async {
@@ -210,16 +300,9 @@ void main() {
     }
   });
 
-  testWidgets('every launch shows the notice before the session', (
-    tester,
-  ) async {
+  testWidgets('the app opens on the session', (tester) async {
     await tester.pumpWidget(const DbsAnnotatorApp());
-    expect(find.text(kNotice), findsOneWidget);
-    expect(find.text('Annotate programming session'), findsNothing);
-    await tester.tap(find.text('I understand'));
     await tester.pump();
-    await tester.pump(const Duration(seconds: 1));
-    expect(find.text(kNotice), findsNothing);
     expect(find.text('Annotate programming session'), findsOneWidget);
   });
 
@@ -384,7 +467,7 @@ void main() {
 
     // Choosing the pathology loaded its clinical scales.
     await tapNext(tester);
-    expect(find.widgetWithText(TextField, 'MDS-UPDRS'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'CGI-S'), findsOneWidget);
     await tester.enterText(
       find.widgetWithText(TextField, 'Medications'),
       'Levodopa 100 mg',
@@ -579,7 +662,7 @@ void main() {
     // Programming: one rating row per PD scale, each with a bar and an omit
     // ("not assessed") toggle.
     final pdRows = scalePresets.session['PD']!;
-    const first = 'MDS-UPDRS 3.3 Rigidity RUE';
+    const first = 'Rigidity, right arm';
     expect(find.byType(ScaleSlider), findsNWidgets(pdRows.length));
     expect(find.text(first), findsOneWidget);
 
@@ -622,7 +705,7 @@ void main() {
     await closeMenu(tester);
     await tickScale(tester, 'Add ratings', 'ET', 'Action tremor');
     expect(find.byType(ScaleSlider), findsNWidgets(pdRows.length + 1));
-    await tickScale(tester, 'Add ratings', 'PD', 'MDS-UPDRS 3.1 Speech');
+    await tickScale(tester, 'Add ratings', 'PD', 'Speech');
     expect(find.byType(ScaleSlider), findsNWidgets(pdRows.length));
   });
 }

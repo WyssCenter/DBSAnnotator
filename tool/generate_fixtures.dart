@@ -49,6 +49,7 @@ const String _model = 'Medtronic SenSight B33005';
 const String _pathology = 'OCD';
 const String _target = 'VC/VS';
 const String _ipg = 'Medtronic Percept PC';
+const String _ipgPosition = 'Left chest';
 const String _program = 'B';
 const String _freq = '130';
 const String _pulseWidth = '90';
@@ -159,6 +160,8 @@ List<SessionRow> _rows() => [
     target: _target,
     leftIpgModel: _ipg,
     rightIpgModel: _ipg,
+    leftIpgPosition: _ipgPosition,
+    rightIpgPosition: _ipgPosition,
     medications: 'Fluoxetine 60 mg daily',
     notes:
         'tense and anxious, checks the door twice, avoids touching the '
@@ -190,6 +193,8 @@ List<SessionRow> _rows() => [
       target: _target,
       leftIpgModel: _ipg,
       rightIpgModel: _ipg,
+      leftIpgPosition: _ipgPosition,
+      rightIpgPosition: _ipgPosition,
       notes: _blocks[i].notes,
       leftStimFreq: _freq,
       leftAnode: 'case',

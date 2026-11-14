@@ -144,7 +144,7 @@ With two or more sessions naming the same patient, every action is available and
 the preview shows the symptom and side effect ratings figure of the report
 across visits: every configuration of every visit, grouped under the visit's
 date, with the two best configurations
-across all visits banded, exactly as the report will draw it.
+of each visit banded, exactly as the report will draw it.
 
 .. figure:: ../_static/screenshots/reports_visits.png
    :alt: Several visits imported, with the session-scales figure across all of them

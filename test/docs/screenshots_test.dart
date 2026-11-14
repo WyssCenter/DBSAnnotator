@@ -770,6 +770,17 @@ void main() {
       ),
     );
     await _choosePathology(tester);
+    for (final (field, value) in [
+      ('IPG model', 'Medtronic Percept PC'),
+      ('Position', 'Left chest'),
+    ]) {
+      await _tapFinder(
+        tester,
+        find.widgetWithText(DropdownMenu<String>, field),
+      );
+      await tester.tap(find.text(value).last);
+      await tester.pumpAndSettle();
+    }
     await _shootFitted(tester, 'session_devices');
   });
 

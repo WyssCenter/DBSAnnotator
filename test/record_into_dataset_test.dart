@@ -114,6 +114,14 @@ void main() {
     expect(File('$dir/${_name.sidecarFilename}').existsSync(), isTrue);
   });
 
+  test('a new patient gets a derivatives folder for reports', () async {
+    await file();
+    expect(
+      Directory('${root.path}/derivatives/sub-${_name.subject}').existsSync(),
+      isTrue,
+    );
+  });
+
   test('a non-date session label is honoured, not replaced', () async {
     await file();
     // `ses-preop`, because plenty of studies do not label sessions by date.
