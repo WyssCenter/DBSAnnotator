@@ -35,6 +35,6 @@ keywords:
   - Flutter
 license: MIT
 # Must match `version:` in pubspec.yaml; pinned by test/version_parity_test.dart.
-version: 0.6.0
+version: 0.7.0
 # date-released: 'YYYY-MM-DD'   # TODO: set at release, alongside a Zenodo DOI
 # doi: '10.5281/zenodo.XXXXXXX' # TODO: JOSS requires an archived release
