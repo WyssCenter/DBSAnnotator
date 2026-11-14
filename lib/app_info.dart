@@ -25,15 +25,11 @@ final Uri docsUri = Uri.parse(docsUrl);
 final Uri contactUri = Uri(scheme: 'mailto', path: contactEmail);
 
 /// What the app is not, shown under every step.
-const String kNoticeShort =
-    'Not a medical device. For annotating DBS programming visits.';
+const String kNoticeShort = 'Not a medical device. No CE mark.';
 
-/// The full notice, for About, every launch and every report.
+/// The full notice, for About and every report.
 const String kNotice =
-    '$appName is not a medical device. It is for annotating and documenting '
-    'what happens during deep brain stimulation programming visits. It does '
-    'not diagnose or decide stimulation settings: clinical decisions remain '
-    'with the clinical team.';
+    '$appName is not a medical device and does not carry a CE mark.';
 
 const String publisher = 'Wyss Center for Bio and Neuroengineering';
 const String copyrightHolders =

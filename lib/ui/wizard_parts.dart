@@ -160,11 +160,7 @@ class BidsNameFields extends StatelessWidget {
             flex: 2,
             child: TextField(
               controller: entries.session,
-              decoration: const InputDecoration(
-                labelText: 'Visit',
-                helperText: 'The date, or a label such as 3mo',
-                helperMaxLines: 2,
-              ),
+              decoration: const InputDecoration(labelText: 'Session ID'),
             ),
           ),
         ],
@@ -173,16 +169,16 @@ class BidsNameFields extends StatelessWidget {
         title: const Text('Research file naming'),
         maintainState: true,
         tilePadding: EdgeInsets.zero,
-        childrenPadding: const EdgeInsets.only(bottom: 8),
+        childrenPadding: const EdgeInsets.only(top: 8, bottom: 8),
         shape: const Border(),
         collapsedShape: const Border(),
         children: [
           Row(
             children: [
               for (final (i, (ctrl, label, flex)) in [
-                (entries.task, 'Task', 3),
-                (entries.acquisition, 'Acquisition', 3),
-                (entries.run, 'Run', 2),
+                (entries.task, 'Task ID', 3),
+                (entries.acquisition, 'Acquisition ID', 3),
+                (entries.run, 'Run ID', 2),
               ].indexed) ...[
                 if (i > 0) const SizedBox(width: 12),
                 Expanded(
@@ -212,7 +208,7 @@ class BidsNameFields extends StatelessWidget {
             ]),
             builder: (context, _) => Text(
               'File name: ${entries.name.filename}. The parts follow the '
-              'BIDS naming convention; Acquisition is added only when filled '
+              'BIDS naming convention; Acquisition ID is added only when filled '
               'in.',
               style: Theme.of(context).textTheme.bodySmall,
             ),

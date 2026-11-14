@@ -19,20 +19,25 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(_host(const ImportExportPanel()));
+    await tester.pumpWidget(
+      _host(const ImportExportPanel(folder: 'C:/Studies/OCD-DBS')),
+    );
     await tester.pump();
 
-    expect(find.text('Import session files'), findsOneWidget);
     expect(find.text('No files imported.'), findsOneWidget);
     expect(find.textContaining('appear once a session is imported'), findsOne);
     expect(find.text('Single session report'), findsNothing);
-    final load = tester.widget<ButtonStyleButton>(
+    ButtonStyleButton load() => tester.widget<ButtonStyleButton>(
       find.ancestor(
-        of: find.text('Import from a BIDS folder'),
+        of: find.text('Import'),
         matching: find.bySubtype<ButtonStyleButton>(),
       ),
     );
-    expect(load.onPressed, isNotNull);
+    expect(load().onPressed, isNotNull);
+
+    await tester.pumpWidget(_host(const ImportExportPanel()));
+    await tester.pump();
+    expect(load().onPressed, isNull, reason: 'no BIDS folder chosen above');
   });
 
   testWidgets('every action explains itself once a session is imported', (

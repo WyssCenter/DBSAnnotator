@@ -4,6 +4,11 @@ import 'package:flutter/material.dart';
 
 import '../core/session/scale_presets.dart';
 
+/// Shown at the top of both scale settings dialogs.
+const String kScaleLicenceNotice =
+    'You can add other scales. Some, such as the MDS-UPDRS, need a licence '
+    'from their owner: you are responsible for the scales you use.';
+
 /// Edit the clinical scale presets (disease group -> scale names) and each
 /// scale's range, mirroring the desktop `ClinicalScalesSettingsDialog`. The
 /// range only sets the clinical figure's y axis, so it may be left blank.
@@ -224,6 +229,13 @@ class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                kScaleLicenceNotice,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -350,7 +362,7 @@ class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
             const SizedBox(width: 8),
             Tooltip(
               message:
-                  'Discrete: whole points only, as the MDS-UPDRS items. '
+                  'Discrete: whole points only, such as a 0 to 4 item. '
                   'Continuous: any value on the bar.',
               child: SegmentedButton<bool>(
                 showSelectedIcon: false,

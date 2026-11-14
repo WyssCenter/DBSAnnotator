@@ -24,26 +24,10 @@ const int kGreyMid = 0xFF949494;
 const int kGrey = 0xFFD8D8D8;
 const int kGreyLight = 0xFFE6E6E6;
 
-/// Rank 1 and rank 2, in the shaded table rows and the chart bands.
-///
-/// Measurably no worse than the pair they replaced: 0.199 of luminance
-/// separates them against 0.210 before, and black reads at 12.8:1 and 16.8:1
-/// on them. The order is carried by hatch density as well, because two greens
-/// this close cannot be told apart on a monochrome printer.
-const int kBestFill = kGreen;
-const int kSecondFill = kGreenLighter;
-
-/// A ranked table row's shading: [rankFill] at 30% over white, so the text
-/// stays easy to read and the row prints pale. The full colour goes on the
-/// row's left edge, which is what points at it.
-int rankRowTint(int rankFill) {
-  int mix(int shift) {
-    final c = (rankFill >> shift) & 0xFF;
-    return (255 - (255 - c) * 0.3).round() << shift;
-  }
-
-  return 0xFF000000 | mix(16) | mix(8) | mix(0);
-}
+/// Rank 1 and rank 2 in shaded rows and chart bands: muted greens as light as
+/// the brand pair, with hatch density also carrying the order in monochrome.
+const int kBestFill = 0xFFA8D2BA;
+const int kSecondFill = 0xFFD6EADE;
 
 /// Report chrome: rules, footers, meta lines and table header fills.
 ///

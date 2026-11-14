@@ -43,14 +43,10 @@
     ],
     "MDD": [
       "MADRS",
-      "HAM-D",
-      "BDI-II"
+      "HAM-D"
     ],
     "PD": [
-      "MDS-UPDRS",
-      "MDS-UPDRS Part III",
-      "PDQ-39",
-      "UDysRS"
+      "CGI-S"
     ],
     "ET": [
       "FTM-TRS",
@@ -88,17 +84,9 @@
       "0",
       "72"
     ],
-    "BDI-II": [
-      "0",
-      "63"
-    ],
-    "PDQ-39": [
-      "0",
-      "100"
-    ],
-    "UDysRS": [
-      "0",
-      "104"
+    "CGI-S": [
+      "1",
+      "7"
     ],
     "FTM-TRS": [
       "0",
@@ -119,10 +107,6 @@
     "TS-CGI": [
       "1",
       "7"
-    ],
-    "MDS-UPDRS Part III": [
-      "0",
-      "132"
     ]
   },
   "session": {
@@ -186,70 +170,70 @@
     ],
     "PD": [
       [
-        "MDS-UPDRS 3.3 Rigidity RUE",
+        "Rigidity, right arm",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "MDS-UPDRS 3.3 Rigidity LUE",
+        "Rigidity, left arm",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "MDS-UPDRS 3.4 Finger tapping RUE",
+        "Finger tapping, right hand",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "MDS-UPDRS 3.4 Finger tapping LUE",
+        "Finger tapping, left hand",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "MDS-UPDRS 3.15 Postural tremor RUE",
+        "Postural tremor, right hand",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "MDS-UPDRS 3.15 Postural tremor LUE",
+        "Postural tremor, left hand",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "MDS-UPDRS 3.17 Rest tremor RUE",
+        "Rest tremor, right arm",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "MDS-UPDRS 3.17 Rest tremor LUE",
+        "Rest tremor, left arm",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "MDS-UPDRS 3.10 Gait",
+        "Gait",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "MDS-UPDRS 3.1 Speech",
+        "Speech",
         "0",
         "4",
         "min",

@@ -116,9 +116,7 @@ void main() {
     expect(docx, contains(data.freqL));
     expect(docx, contains(data.targetsText));
     expect(docx, contains(data.figureCaption.substring(0, 40)));
-    for (final line in data.configChanges) {
-      expect(docx, contains(line));
-    }
+    expect(docx, isNot(contains('Unchanged:')));
   });
 
   test('Word explains the index it shades by, in the PDF legend order', () {
@@ -139,21 +137,25 @@ void main() {
     expect(docx, contains('Notes: ${data.initNotes}'));
   });
 
-  test('page 1 carries the response to the visit', () {
-    // One column per scale, read down: first, last, change.
+  test('page 1 carries the ratings of the visit, not called an outcome', () {
     expect(data.responseGrid.map((r) => r.first), [
       '',
       'First',
       'Last',
-      'Change',
+      'Last minus first',
     ]);
     expect(data.responseGrid.first.skip(1), [
       for (final r in data.response) r.name,
     ]);
     expect(
-      docx.indexOf('Change'),
+      data.responseGrid.skip(1).expand((r) => r.skip(1)),
+      everyElement(isNot(endsWith('.00'))),
+    );
+    expect(
+      docx.indexOf('Last minus first'),
       lessThan(docx.indexOf('Initial assessment')),
     );
+    expect(docx, contains(kResponseNote));
   });
 
   test('both formats build from the same data without throwing', () async {

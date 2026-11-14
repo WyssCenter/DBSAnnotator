@@ -1,3 +1,3 @@
-session_id	acq_time	target	left_electrode_model	right_electrode_model	left_ipg_model	right_ipg_model
-ses-20260203	2026-02-03T09:00:00+00:00	STN	Medtronic SenSight B33005	Medtronic SenSight B33005	Medtronic Percept PC	Medtronic Percept PC
-ses-20260918	2026-09-18T09:00:00+00:00	STN	Medtronic SenSight B33005	Medtronic SenSight B33005	Medtronic Percept PC	Medtronic Percept PC
+session_id	acq_time	target	left_electrode_model	right_electrode_model	left_ipg_model	left_ipg_position	right_ipg_model	right_ipg_position
+ses-20260203	2026-02-03T09:00:00+00:00	VC/VS	Medtronic SenSight B33005	Medtronic SenSight B33005	Medtronic Percept PC	Left chest	Medtronic Percept PC	Left chest
+ses-20260918	2026-09-18T09:00:00+00:00	VC/VS	Medtronic SenSight B33005	Medtronic SenSight B33005	Medtronic Percept PC	Left chest	Medtronic Percept PC	Left chest

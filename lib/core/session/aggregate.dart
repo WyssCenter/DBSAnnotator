@@ -49,7 +49,9 @@ const List<String> _visitCells = <String>[
   'left_electrode_model',
   'right_electrode_model',
   'left_ipg_model',
+  'left_ipg_position',
   'right_ipg_model',
+  'right_ipg_position',
   'medications',
 ];
 

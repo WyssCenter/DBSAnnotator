@@ -51,7 +51,7 @@ An example BIDS folder
 ----------------------
 
 The repository holds a complete, synthetic example: two visits of one patient
-with Parkinson's disease, written by the app's own export code, in
+with obsessive-compulsive disorder (OCD), written by the app's own export code, in
 `test/fixtures/bids <https://github.com/neuromodulation/DBSAnnotator/tree/main/test/fixtures/bids>`_.
 It is the folder the tests read back, so it always matches what the current
 version writes, and it is a convenient place to try an analysis before you
@@ -71,9 +71,12 @@ repeated on every row:
    The ``participant_id`` and the patient's ``dbs_indication``.
 
 ``sub-<label>/sub-<label>_sessions.tsv``, one row per visit
-   What cannot change within a visit: the anatomical ``target`` and the lead
-   and IPG models of each side. They are kept per visit, not per patient,
-   because a reimplantation can change them.
+   What cannot change within a visit: the anatomical ``target``, the lead
+   and IPG models of each side, and where each IPG is implanted
+   (``left_ipg_position``, ``right_ipg_position``: ``Left chest``,
+   ``Right chest``, ``Left abdomen`` or ``Right abdomen``, empty when not
+   recorded). They are kept per visit, not per patient, because a
+   reimplantation can change them.
 
 ``sub-<label>/ses-<label>/sub-<label>_ses-<label>_scans.tsv``, one row per run
    The **initial assessment** of each run: the ``medications``, the
@@ -334,8 +337,8 @@ columns in front, and its ``.json`` sidecar beside it (see
    sub-07          ses-20260401   01      sub-07_ses-20260401_..._beh.tsv   ...
 
 After the identity columns come ``is_initial``, the patient's
-``dbs_indication``, the visit's target, lead and IPG models and medications,
-then the session columns with the union of every file's ``scale_<name>``
+``dbs_indication``, the visit's target, lead and IPG models, IPG positions and
+medications, then the session columns with the union of every file's ``scale_<name>``
 columns, ``n/a`` where a file has no such scale. Each visit's initial
 assessment is a row of its own with ``is_initial = 1``; every configuration
 tried is a row with ``is_initial = 0``. So:

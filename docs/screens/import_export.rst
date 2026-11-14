@@ -1,17 +1,15 @@
 Import and export
 =================
 
-On the :ref:`Session step <setup-step>`, import the session files you have, or a
-whole BIDS folder, then take whatever they support. This never changes the
-files you give it: it reads them, shows what is in them, and produces documents
-and BIDS folders from them. Into a BIDS folder you choose it writes only what
-you ask it to add, and only after you have confirmed the list of files.
+On the :ref:`Session step <setup-step>`, **Import** reads the sessions saved in
+the BIDS folder chosen at the top of the step, then you take whatever they
+support. Only sessions filed in a BIDS folder are imported, not single session
+files. This never changes the files it reads: it shows what is in them, and
+produces documents and BIDS folders from them. Into a BIDS folder you choose it
+writes only what you ask it to add, and only after you have confirmed the list
+of files.
 
-On Windows, macOS and Linux you can also drag session files, or one BIDS
-folder, from the file manager onto the import area; the area turns green while
-something is held over it. On a tablet or phone, use the two import buttons.
-
-The whole screen scrolls as one page, from the import buttons down through the
+The whole screen scrolls as one page, from the Import button down through the
 actions to the preview, so a long session table never squeezes the rest.
 
 .. raw:: html
@@ -34,38 +32,25 @@ chosen, the scale targets it ranks by, then the export.
    Before anything is imported. Every action is listed, disabled, with the
    reason underneath rather than hidden until you tap it.
 
+.. _load-from-dataset:
+
 Importing
 ---------
 
-**Import TSVs** takes several files at once. Each is classified by its
+**Import** reads the BIDS folder chosen at the top of the Session step; with no
+folder chosen, it stays disabled. Every session and notes TSV under
+``sub-<participant>/ses-<session>/beh/`` is found, including older
+``_events.tsv`` files. Sidecars, imaging, other datatypes and everything under
+``derivatives/`` are left alone, and copies kept under ``old/``,
+``sourcedata/`` and similar folders are skipped. Each file is classified by its
 **columns**, not its name, so a file renamed by hand still opens as what it is,
-and a file that is neither a programming session nor a notes file is rejected by
-name rather than loaded as a screen of blank rows.
+and a file that is neither a programming session nor a notes file is left out
+by name rather than loaded as a screen of blank rows. A file already in the
+list is refused by name, so nothing is counted twice.
 
-A file already in the list is refused by name. Two files with the same basename
-would collide in a BIDS folder and would be double-counted in a combined table,
-so the duplicate is dropped rather than silently merged.
-
-.. _load-from-dataset:
-
-Loading from a dataset
-----------------------
-
-When your visits are already filed in a BIDS folder, **Import from a BIDS folder** reads
-them from there instead of one import at a time. On Windows, macOS and Linux you
-choose the dataset folder; on iPadOS and Android you choose the dataset as a
-``.zip``, because those systems do not let an app read a folder you pick.
-
-Every session and notes TSV under ``sub-<participant>/ses-<session>/beh/`` is
-found, including older ``_events.tsv`` files. Sidecars, imaging, other datatypes
-and everything under ``derivatives/`` are left alone. A folder is read from the
-chosen folder's own root, so choose the dataset folder itself, not a folder that
-contains it; copies kept under ``old/``, ``sourcedata/`` and similar folders are
-skipped. A ``.zip`` may wrap the dataset in one or more folders, and the
-dataset is the folder holding its ``dataset_description.json``; a ``.zip``
-without one is read for recordings in any folder. A checklist then shows each
-participant with the number of files found, all ticked: untick the ones you do
-not want, for example to keep a report across visits to one patient.
+A checklist then shows each participant with the number of files found, all
+ticked: untick the ones you do not want, for example to keep a report across
+visits to one patient.
 
 .. figure:: ../_static/screenshots/dialog_load_participants.png
    :alt: The checklist of participants found in the dataset, all ticked, with
@@ -144,7 +129,7 @@ With two or more sessions naming the same patient, every action is available and
 the preview shows the symptom and side effect ratings figure of the report
 across visits: every configuration of every visit, grouped under the visit's
 date, with the two best configurations
-across all visits banded, exactly as the report will draw it.
+of each visit banded, exactly as the report will draw it.
 
 .. figure:: ../_static/screenshots/reports_visits.png
    :alt: Several visits imported, with the session-scales figure across all of them
@@ -427,6 +412,5 @@ table of the whole dataset. The ``.bak-`` copies that adding into a folder
 leaves are hidden from the validator through ``.bidsignore``; see
 :ref:`the merge rules <dataset-merge-rules>`.
 
-If the list mixes files from the dataset with files imported from elsewhere, or
-the dataset was loaded as a ``.zip``, nothing is written into the dataset and the
-table and sidecar are exported as a ``.zip`` as usual.
+If the list mixes files imported from two BIDS folders, nothing is written into
+either and the table and sidecar are exported as a ``.zip`` as usual.

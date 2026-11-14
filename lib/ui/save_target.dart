@@ -49,9 +49,6 @@ Future<String?> readPickedText(PlatformFile picked) async {
 /// channel to resolve it. Mirrors `debugPainterFontFamily`.
 Directory? debugWorkingDir;
 
-/// Stands in for the file picker's selection, for recorded docs videos.
-List<PlatformFile>? debugPickedFiles;
-
 /// Replaces every Save-As dialog with this folder, for recorded docs videos.
 Directory? debugSaveDir;
 

@@ -208,11 +208,10 @@ Uint8List buildSessionDocx({
         contentTwips: pageSize.contentWidthTwips,
       ),
     );
-    for (final line in data.configChanges) {
-      body.write(docxPara(line, size: 18));
-    }
     if (data.responseGrid.isNotEmpty) {
-      body.write(_responseTable(data, pageSize));
+      body
+        ..write(_responseTable(data, pageSize))
+        ..write(docxPara(kResponseNote, size: 16));
     }
   }
 

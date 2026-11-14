@@ -125,7 +125,7 @@ tables and the sidecar example in `output_format` are rendered from
 
 ### Screenshots
 
-The 28 images under `docs/_static/screenshots/` are generated from widget tests,
+The 31 images under `docs/_static/screenshots/` are generated from widget tests,
 never edited by hand, and committed, because Read the Docs cannot run a Flutter
 SDK inside its build limits. To regenerate after a UI change:
 
@@ -162,7 +162,14 @@ ffmpeg once (`winget install Gyan.FFmpeg`), then:
 ```powershell
 powershell -File tool/record_video.ps1 -Flow record_block
 powershell -File tool/record_video.ps1 -Flow reports
+powershell -File tool/record_video.ps1 -Flow step_session   # and step_devices,
+# step_initial, step_programming, step_finish: one clip per step
 ```
+
+A flow is `integration_test/videos/<flow>_test.dart`. The shared visit (OCD,
+VC/VS, 130 Hz, 90 µs, 5 to 8 mA) is in `visit.dart`. A step clip runs the
+earlier steps first and calls `rolling(tester)` where its recording starts.
+Keep the app window in front and untouched while a flow records.
 
 Each flow lists what it says in an enum at the top of its test, and calls
 `say(...)` where each line applies. The script turns those lines into a

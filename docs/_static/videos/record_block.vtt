@@ -1,20 +1,29 @@
 WEBVTT
 
-00:00:01.038 --> 00:00:09.286
-This is the Session step. Type the patient ID and press Next: the session starts, and is saved into the chosen BIDS folder.
+00:00:01.078 --> 00:00:09.737
+A whole visit, start to end. In Session, type the patient ID and press Next: the session starts in the chosen BIDS folder.
 
-00:00:09.413 --> 00:00:17.858
-In Indication and devices, choose the DBS indication. The target, the leads and the IPG are set here too.
+00:00:15.162 --> 00:00:23.205
+Choose the DBS indication, here OCD, the anatomical target, the lead model and the IPG.
 
-00:00:17.995 --> 00:00:29.227
-The initial assessment documents how the patient arrives. Set the stimulation of each side, and tap the contacts on the lead: once for an anode, twice for a cathode.
+00:00:40.895 --> 00:00:47.626
+The initial assessment documents how the patient arrives: the clinical scales, the medications and a note.
 
-00:00:29.367 --> 00:00:35.931
-Then the clinical scores, and a note on how the patient presents. Next saves the initial assessment.
+00:01:05.944 --> 00:01:17.319
+Then the stimulation on arrival: 130 hertz, 5 milliamps, 90 microseconds on each side. Tap a contact twice for a cathode, and the case once for the anode.
 
-00:00:46.004 --> 00:00:54.890
-In Programming, change one thing at a time, rate the symptoms and side effects, note how the patient responds, and press Save configuration.
+00:01:28.195 --> 00:01:36.819
+In Programming, raise the amplitude to 6 milliamps, rate the symptoms and side effects, note how the patient responds, and save.
 
-00:01:11.925 --> 00:01:20.022
-Each saved configuration is added to the charts and to the table below, where it can be starred, edited or deleted.
+00:01:56.878 --> 00:02:03.876
+At 7 milliamps the patient is better: the configuration is starred and marked as the final settings.
+
+00:02:28.011 --> 00:02:31.016
+At 8 milliamps, side effects appear.
+
+00:02:51.910 --> 00:02:57.318
+The charts follow every rating across the configurations, and the table lists them all.
+
+00:03:00.110 --> 00:03:06.888
+Next confirms the configuration the patient leaves on. Finish makes the reports and the BIDS export.
 

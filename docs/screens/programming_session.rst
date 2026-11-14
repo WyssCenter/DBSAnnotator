@@ -1,12 +1,10 @@
 Annotate programming session
 ============================
 
-Every time it starts, the app opens on a notice: it is not a medical device, it is for annotating
-and documenting what happens during deep brain stimulation programming visits, and clinical
-decisions remain with the clinical team. **I understand** continues to the app. A short form of
-the same notice stays in the bar at the bottom of every step, and every report carries it in full.
+The app opens on this screen. The bar at the bottom of every step says that the app is not a
+medical device and does not carry a CE mark, and every report carries the same notice.
 
-After the notice the app opens on this screen. A programming session is annotated in five steps,
+A programming session is annotated in five steps,
 Session, Indication and devices, Initial assessment, Programming and Finish, shown across the top.
 **Back** and **Next** sit in the bar at the bottom of the screen, with the name of the current step
 between them. The menu button at the top left opens the :ref:`settings menu <settings-menu>`.
@@ -20,8 +18,9 @@ between them. The menu button at the top left opens the :ref:`settings menu <set
             label="English" default>
    </video>
 
-A visit from start to end: a new session, the stimulation parameters, the lead, the clinical
-scales, then three configurations rated and saved, with the charts and table below.
+A whole visit from start to end: the patient, the indication and devices, the initial
+assessment, three configurations rated and saved, and Finish. Each step below has a shorter
+clip that also shows its other options.
 
 .. _setup-step:
 
@@ -30,10 +29,22 @@ Step 1: Session
 
 Session is where a visit starts, and where files from other visits come in and reports go out.
 
+.. raw:: html
+
+   <video controls playsinline preload="metadata" width="100%"
+          poster="../_static/videos/step_session.png">
+     <source src="../_static/videos/step_session.mp4" type="video/mp4">
+     <track kind="captions" src="../_static/videos/step_session.vtt" srclang="en"
+            label="English" default>
+   </video>
+
+The Session step: a patient already in the folder, the session ID, and the research file
+naming.
+
 .. figure:: ../_static/screenshots/session_step0_file.png
    :alt: The Session step: the BIDS folder bar at the top, This session on the left with the
-         patient ID, visit and research file naming, and Other sessions on the right with the
-         drop zone and the import buttons
+         patient ID, session ID and research file naming, and Other sessions on the right with
+         the Import button
    :width: 100%
 
    The Session step with a session started for patient 01.
@@ -45,8 +56,9 @@ Every visit is saved inside a BIDS folder, chosen in the bar across the top of t
 button beside the list adds another folder. You can keep several, for example one per cohort,
 and manage them under **Storage folders (BIDS)** in the settings menu. The folder must be a BIDS
 folder this app or another tool wrote, or an empty folder to start one in (see
-:ref:`what counts as a BIDS folder <bids-folder-requirements>`). Once a session has started, the
-folder is fixed for that visit.
+:ref:`what counts as a BIDS folder <bids-folder-requirements>`). The folder can still be changed
+after a session has started; see
+:ref:`changing the patient or the folder <changing-patient-or-folder>`.
 
 This session
 ~~~~~~~~~~~~
@@ -56,24 +68,36 @@ otherwise, or for a new patient, type the ID. For a known patient the app fills 
 indication, the anatomical target, the leads and the IPGs from the patient's last visit, and says
 so on the next step.
 
-**Visit** is the visit date unless you type another label, such as ``preop`` or ``3mo``.
+**Session ID** is the visit date unless you type another label, such as ``preop`` or ``3mo``.
 
-**Research file naming** opens the remaining parts of the file name: the **Task** (``programming``
-unless you name another), an optional **Acquisition**, and the **Run** number. The file name they
-make is shown under the fields, so you can see what will be written before anything is. Like every
-BIDS label, they keep letters and digits only. See :doc:`the output format <../output_format>`.
+**Research file naming** opens the remaining parts of the file name: the **Task ID**
+(``programming`` unless you name another), an optional **Acquisition ID**, and the **Run ID**. The
+file name they make is shown under the fields, so you can see what will be written before
+anything is. Like every BIDS label, they keep letters and digits only. See
+:doc:`the output format <../output_format>`.
 
-Pressing **Next** with a patient ID entered starts the visit in the chosen folder and creates
-``derivatives/sub-<id>/`` for the patient there. When the patient already has a run on that day,
-the visit is saved as the next run (``run-02``, ``run-03``) and the **Run** field changes to
-match; nothing is overwritten. The initial assessment of the new run opens filled in from the
-earlier run, so you only change what differs, such as notes taken after a dose; each run keeps its
-own. The visit is written into the folder at the first save and kept up to date at every save
-after that: its ``beh/`` file, the run's row in the session's ``scans.tsv``, the visit's row in
-the patient's ``sessions.tsv`` and the patient's row in ``participants.tsv`` (see
-:ref:`where-values-live`). A line under the buttons says which patient, visit and run the session
-was started for. Once a session is open, a **New session** button appears to start another one
-without closing the app.
+Pressing **Next** with a patient ID entered starts the visit in the chosen folder. When the
+patient already has a run on that day, the visit is saved as the next run (``run-02``,
+``run-03``) and the **Run ID** field changes to match; nothing is overwritten. The initial
+assessment of the new run opens filled in from the earlier run, so you only change what differs,
+such as notes taken after a dose; each run keeps its own. The visit is written into the folder at
+the first save and kept up to date at every save after that: its ``beh/`` file, the run's row in
+the session's ``scans.tsv``, the visit's row in the patient's ``sessions.tsv`` and the patient's
+row in ``participants.tsv`` (see :ref:`where-values-live`). The first save also creates
+``derivatives/sub-<id>/``, the patient's folder for reports; every patient added to a BIDS folder
+from **Reports** gets one too. A line under the buttons says which patient, visit and run the
+session was started for. Once a session is open, a **New session** button appears to start
+another one without closing the app.
+
+.. _changing-patient-or-folder:
+
+**Changing the patient or the folder after the start.** Every field on this step stays editable.
+When you change the patient ID, the session ID, the research file naming or the BIDS folder of a
+session that already holds entries, **Next** asks **Start a new session file?** The session
+recorded so far stays saved under its own name. **Start new file** begins a new file for the new
+details, keeping the devices and the initial assessment on screen so they are saved into it;
+**Keep current file** puts the fields back as they were. When nothing has been recorded yet, the
+new details are simply used.
 
 **Open saved session** continues a visit already saved, or opens a session file from an earlier
 version of the app, which is saved in the current form from the next save. Opening a file also
@@ -88,11 +112,9 @@ Word, its BIDS folder as a zip, and the page size, A4 or US Letter, as Finish do
 Other sessions
 ~~~~~~~~~~~~~~
 
-Beside this session, **Other sessions** reads session files from earlier visits, or one whole BIDS
-folder, and produces reports across visits, the combined table and BIDS folders. On Windows, macOS
-and Linux you can drag session files or one BIDS folder onto the area; on every platform the
-**Import session files** and **Import from a BIDS folder** buttons do the same. The actions appear
-once a session is imported. See :doc:`import_export`.
+Beside this session, **Other sessions** has one button, **Import**, which reads the earlier visits
+saved in the BIDS folder chosen at the top, and produces reports across visits, the combined table
+and BIDS folders. The actions appear once a session is imported. See :doc:`import_export`.
 
 The recovery copy
 ~~~~~~~~~~~~~~~~~
@@ -141,12 +163,24 @@ count as unkept.
 Step 2: Indication and devices
 ------------------------------
 
+.. raw:: html
+
+   <video controls playsinline preload="metadata" width="100%"
+          poster="../_static/videos/step_devices.png">
+     <source src="../_static/videos/step_devices.mp4" type="video/mp4">
+     <track kind="captions" src="../_static/videos/step_devices.vtt" srclang="en"
+            label="English" default>
+   </video>
+
+Indication and devices: the indication, the target, the leads, the IPG and the devices
+settings.
+
 .. figure:: ../_static/screenshots/session_devices.png
    :alt: Indication and devices: the DBS indication and anatomical target on the left, the lead
-         and IPG models on the right, each with a box to use the same model on both sides
+         model with a box to use the same lead on both sides, and the IPG model with its position
    :width: 100%
 
-   Indication and devices for a Parkinson's disease patient with a directional lead.
+   Indication and devices for a patient with OCD and a directional lead.
 
 The patient's **DBS indication** and **anatomical target**, and the implanted devices. The
 indication chooses the clinical scales, the symptom and side effect ratings and the stimulation
@@ -158,8 +192,10 @@ each lead's real contact heights and spacings, so two different leads look diffe
 on both sides** is ticked by default; untick it when the two leads differ, and a second list sets
 the right lead. Each side's model is saved in its own column.
 
-**Implanted pulse generator (IPG).** The same choice for the IPG, with **Same IPG on both sides**
-for one generator driving both leads.
+**Implanted pulse generator (IPG).** One IPG drives both leads by default: choose its model and
+its **Position**, left or right chest, or left or right abdomen. When each lead has its own IPG,
+**Add IPG** adds a second: the first then drives the left lead and the second the right, each with
+its own model and position. The remove button beside the second goes back to one IPG.
 
 When the patient's last visit filled these values in, a line above them says so. Check each one:
 a reimplantation changes the target, the leads or the IPG. Everything on this step stays editable
@@ -199,21 +235,34 @@ Step 3: Initial assessment
 How the patient is on arrival, before anything is changed. The step is saved as the run's
 initial assessment, in its row of the session's ``scans.tsv``, when you press **Next**.
 
+.. raw:: html
+
+   <video controls playsinline preload="metadata" width="100%"
+          poster="../_static/videos/step_initial.png">
+     <source src="../_static/videos/step_initial.mp4" type="video/mp4">
+     <track kind="captions" src="../_static/videos/step_initial.vtt" srclang="en"
+            label="English" default>
+   </video>
+
+The initial assessment: clinical scales, medications and notes, the stimulation on arrival,
+the contacts and a current split between two cathodes.
+
 .. figure:: ../_static/screenshots/session_step1_config.png
    :alt: Initial assessment: clinical scales, medications and notes at the top; the active
          program, the parameters per side and the current fractionalization on the left; the
          contacts diagram on the right
    :width: 100%
 
-   The initial assessment of a Parkinson's disease patient: current steered across two segments
+   The initial assessment of a patient with OCD: current steered across two segments
    of level 2 on the left lead.
 
-**Clinical scales.** The baseline assessment: disease-specific scores such as Y-BOCS or MDS-UPDRS
-Part III, typed once per visit. The indication fills the list; the plus button adds scales from
-the presets and the button beside it edits the presets.
+**Clinical scales.** The baseline assessment: disease-specific scores such as Y-BOCS or MADRS,
+typed once per visit. The indication fills the list; the plus button adds scales from the presets
+and the button beside it edits the presets.
 
 **Medications** and **Notes.** Free text about the patient's state on arrival. These notes belong
-to the initial assessment.
+to the initial assessment. Notes are never shorter than Medications and reach down to the last
+clinical scale beside them; longer notes scroll inside the field.
 
 **Active program (group).** The program the settings belong to, such as A, B or C. Manufacturers
 call it the group.
@@ -289,7 +338,12 @@ TS), the scale names inside each, and each scale's **Min** and **Max**. The rang
 is used only to draw the longitudinal report's clinical figure on the scale's own axis; it is
 never printed. The bundled scales come with their published total ranges where a name identifies
 one instrument (Y-BOCS 0 to 40, MADRS 0 to 60, and so on). Names that stand for more than one,
-such as HAM-D or MDS-UPDRS, are left blank for you to fill in.
+such as HAM-D, are left blank for you to fill in.
+
+The dialog reminds you that you can add other scales, and that some, such as the MDS-UPDRS, need
+a licence from their owner. The app bundles no scale known to need a licence, and names its
+Parkinson's ratings plainly (rigidity, right arm) rather than after a licensed instrument: you are
+responsible for the scales you add and use.
 
 .. _selecting-contacts:
 
@@ -336,6 +390,18 @@ Step 4: Programming
 
 The loop, repeated once per configuration tested.
 
+.. raw:: html
+
+   <video controls playsinline preload="metadata" width="100%"
+          poster="../_static/videos/step_programming.png">
+     <source src="../_static/videos/step_programming.mp4" type="video/mp4">
+     <track kind="captions" src="../_static/videos/step_programming.vtt" srclang="en"
+            label="English" default>
+   </video>
+
+Programming: configurations rated and saved, a session scale added, one configuration
+edited and one deleted.
+
 .. figure:: ../_static/screenshots/session_step3_recording.png
    :alt: The Programming step: program, parameters and contacts above; symptom and side effect
          ratings and notes below; the bar with Star this configuration, Final settings and Save
@@ -345,19 +411,21 @@ The loop, repeated once per configuration tested.
    One configuration set and rated, ready to save.
 
 The parameters and contacts work as in Initial assessment, and start from the settings entered
-there. Change what the configuration tests, then rate the patient.
+there. When you go back and change the initial assessment or a lead, Programming starts again from
+the new settings; configurations already saved are not touched. Change what the configuration
+tests, then rate the patient.
 
 Symptom and side effect ratings
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Quick ratings taken at every configuration, each on a fixed range, so configurations can be
-compared within the visit. The indication fills the list: for Parkinson's disease, items of the
-MDS-UPDRS Part III per side (``RUE`` and ``LUE`` for the right and left upper extremity), gait,
-speech and dyskinesia. The plus button adds ratings from the presets, and the button beside it
-edits the presets. Keeping the set the same for the whole session is what makes the ratings
+compared within the visit. The indication fills the list: for Parkinson's disease, rigidity,
+finger tapping, postural and rest tremor for each arm, each rated 0 to 4, then gait, speech,
+dyskinesia and paresthesia. The plus button adds ratings from the presets, and the button beside
+it edits the presets. Keeping the set the same for the whole session is what makes the ratings
 comparable between configurations.
 
-Each rating is a slider. A discrete rating moves in whole points, as the MDS-UPDRS items do; a
+Each rating is a slider. A discrete rating moves in whole points, as the 0 to 4 items do; a
 continuous rating takes any value on the bar. The arrows on either side move the slider one step.
 A rating that was not assessed can be marked omitted with the cross at the end of its row, which
 saves ``n/a`` rather than a made-up number; its bar turns dark grey. Once a scale has a target (see
@@ -366,7 +434,7 @@ the best end, so a poor rating stands out at a glance. The shading is a reading 
 not saved and does not change the ranking.
 
 Anything observed at that configuration, a side effect included, goes in **Notes**, which belong to
-the configuration they were typed for.
+the configuration they were typed for. The field reaches down to the last rating beside it.
 
 .. _dialog-session-scales:
 
@@ -383,7 +451,8 @@ Opened by the button on **Symptom and side effect ratings**, or from the setting
 
 The same shape as the clinical scales dialog, with two differences. Each row carries a minimum and
 maximum, because the ratings are taken on a slider at every configuration and need a range. Each
-row also chooses **Discrete**, whole points only, or **Continuous**, any value on the bar.
+row also chooses **Discrete**, whole points only, or **Continuous**, any value on the bar. The same
+licence reminder as in the clinical scales dialog sits at the top.
 
 Saving a configuration
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -481,6 +550,18 @@ ranked anywhere: see :ref:`scale-targets` for the definition of the aggregate in
 
 Step 5: Finish
 --------------
+
+.. raw:: html
+
+   <video controls playsinline preload="metadata" width="100%"
+          poster="../_static/videos/step_finish.png">
+     <source src="../_static/videos/step_finish.mp4" type="video/mp4">
+     <track kind="captions" src="../_static/videos/step_finish.vtt" srclang="en"
+            label="English" default>
+   </video>
+
+Finish: the configuration the patient leaves on, the summary, the reports and the BIDS
+export.
 
 .. figure:: ../_static/screenshots/session_finish.png
    :alt: The Finish step: the session summary, the report buttons for the patient record, the

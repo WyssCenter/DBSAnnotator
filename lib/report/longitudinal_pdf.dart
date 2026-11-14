@@ -12,7 +12,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../app_info.dart' show appName, appVersion, kNotice;
-import '../core/brand_palette.dart' show rankRowTint;
 import 'attestation.dart';
 import 'docx_ooxml.dart';
 import 'longitudinal_data.dart';
@@ -424,7 +423,7 @@ Uint8List buildLongitudinalDocx({
             ..write(docxHeading2(day.date))
             ..write(
               docxTable(
-                data.tableHeadersFor(ref),
+                ref.session.tableHeaders,
                 day.rows,
                 weights: ref.session.tableWeights,
                 contentTwips: pageSize.contentWidthTwips,
@@ -438,14 +437,14 @@ Uint8List buildLongitudinalDocx({
           ..write(docxHeading2(_visitLabel(v)))
           ..write(
             docxTable(
-              data.tableHeadersFor(v),
-              data.tableRowsFor(v),
+              v.session.tableHeaders,
+              v.session.tableRows,
               weights: v.session.tableWeights,
               lightInsideH: true,
               rowRules: _blockStarts(v.session.tableRows),
-              rowFills: data.rowFillsFor(v),
+              rowFills: v.session.rowFills,
               rightColumns: {
-                for (final (i, h) in data.tableHeadersFor(v).indexed)
+                for (final (i, h) in v.session.tableHeaders.indexed)
                   if (kNumericTableHeaders.contains(h)) i,
               },
               contentTwips: pageSize.contentWidthTwips,
@@ -562,7 +561,7 @@ List<pw.Widget> _sessionTable(
           ),
         ),
         pw.TableHelper.fromTextArray(
-          headers: data.tableHeadersFor(data.visits.first),
+          headers: data.visits.first.session.tableHeaders,
           data: t.rows(long.rows(day.rows, prefix: day.date)),
           cellStyle: const pw.TextStyle(fontSize: 8),
           headerStyle: const pw.TextStyle(
@@ -587,8 +586,8 @@ List<pw.Widget> _sessionTable(
           ),
         ),
         pw.TableHelper.fromTextArray(
-          headers: data.tableHeadersFor(v),
-          data: t.rows(long.rows(data.tableRowsFor(v), prefix: _visitLabel(v))),
+          headers: v.session.tableHeaders,
+          data: t.rows(long.rows(v.session.tableRows, prefix: _visitLabel(v))),
           cellStyle: const pw.TextStyle(fontSize: 8),
           headerStyle: const pw.TextStyle(
             fontSize: 8,
@@ -596,7 +595,7 @@ List<pw.Widget> _sessionTable(
           ),
           headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
           cellAlignment: pw.Alignment.centerLeft,
-          cellAlignments: numericColumnAlignments(data.tableHeadersFor(v)),
+          cellAlignments: numericColumnAlignments(v.session.tableHeaders),
           columnWidths: {
             for (final (i, w) in v.session.tableWeights.indexed)
               i: pw.FlexColumnWidth(w),
@@ -611,9 +610,9 @@ List<pw.Widget> _sessionTable(
           ),
           // Header is row 0, so data row i is table row i + 1.
           cellDecoration: (col, dynamic cell, row) {
-            final fill = data.rowFillsFor(v)[row - 1];
+            final fill = v.session.rowFills[row - 1];
             return pw.BoxDecoration(
-              color: fill == null ? null : PdfColor.fromInt(rankRowTint(fill)),
+              color: fill == null ? null : PdfColor.fromInt(fill),
               border: pw.Border(
                 top: _blockStarts(v.session.tableRows).contains(row - 1)
                     ? const pw.BorderSide(width: 1.2)

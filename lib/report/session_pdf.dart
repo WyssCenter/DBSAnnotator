@@ -23,7 +23,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../app_info.dart' show appName, appVersion, kNotice;
-import '../core/brand_palette.dart' show rankRowTint;
 import 'attestation.dart';
 import 'report_data.dart';
 import 'report_fonts.dart';
@@ -548,14 +547,13 @@ Future<ReportBytes> buildSessionPdf({
                     ),
                   ],
                 ),
-                if (data.configChanges.isNotEmpty) ...[
-                  pw.SizedBox(height: 4),
-                  for (final line in data.configChanges)
-                    pw.Text(t(line), style: const pw.TextStyle(fontSize: 9)),
-                ],
                 if (data.responseGrid.isNotEmpty) ...[
                   pw.SizedBox(height: 4),
                   reportGrid(data.responseGrid, t, fontSize: 8),
+                  pw.Text(
+                    kResponseNote,
+                    style: const pw.TextStyle(fontSize: 8),
+                  ),
                 ],
               ],
             ),
@@ -671,9 +669,7 @@ Future<ReportBytes> buildSessionPdf({
                   return const pw.BoxDecoration();
                 }
                 return pw.BoxDecoration(
-                  color: fill == null
-                      ? null
-                      : PdfColor.fromInt(rankRowTint(fill)),
+                  color: fill == null ? null : PdfColor.fromInt(fill),
                   border: pw.Border(
                     top: isBoundary
                         ? const pw.BorderSide(

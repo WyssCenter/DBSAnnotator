@@ -255,18 +255,21 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: SingleChildScrollView(
-              child: ImportExportPanel(catalog: catalog),
+              child: ImportExportPanel(
+                catalog: catalog,
+                folder: 'C:/Studies/OCD-DBS',
+              ),
             ),
           ),
         ),
       );
 
-      await tester.tap(find.text('Import from a BIDS folder'));
+      await tester.tap(find.text('Import'));
       await tester.pumpAndSettle();
       expect(find.text('Import which participants?'), findsOneWidget);
       await tester.tap(find.text('sub-02'));
       await tester.pump();
-      await tester.tap(find.text('Import'));
+      await tester.tap(find.text('Import').last);
       await tester.pumpAndSettle();
 
       expect(find.textContaining('sub-01_ses-a_'), findsOneWidget);
@@ -296,7 +299,7 @@ void main() {
       MaterialApp(
         home: Builder(
           builder: (context) => TextButton(
-            onPressed: () => loadDatasetTsvs(context, (_) {}),
+            onPressed: () => loadDatasetTsvs(context, (_) {}, folder: 'study'),
             child: const Text('load'),
           ),
         ),

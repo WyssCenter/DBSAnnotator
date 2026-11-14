@@ -7,19 +7,47 @@ the same application and writes the same files.
 
 .. raw:: html
 
-   <p class="dbs-download">
-     <a id="dbs-download-button" class="dbs-download-button" href="#get-the-app">Download</a>
-     <span id="dbs-download-note" class="dbs-download-note">Choose your platform below.</span>
-   </p>
+   <div class="dbs-dl">
+     <div class="dbs-dl-head">
+       <img src="_static/app_icon.png" alt="" width="64" height="64">
+       <div>
+         <div class="dbs-dl-name">Wyss DBS Annotator</div>
+         <div class="dbs-dl-meta">Wyss Center for Bio and Neuroengineering &middot; Free</div>
+       </div>
+     </div>
+     <a id="dbs-dl-main" class="dbs-dl-main" href="#get-the-app">Download</a>
+     <p id="dbs-dl-note" class="dbs-dl-note">Choose your platform below.</p>
+     <div class="dbs-dl-label">All platforms</div>
+     <div id="get-the-app" class="dbs-dl-grid"></div>
+   </div>
    <script>
    (function () {
-     var targets = {
-       ipados: ["https://apps.apple.com/app/idAPPLE_APP_ID", "App Store"],
-       android: ["https://play.google.com/store/apps/details?id=ch.wysscenter.dbsannotator", "Google Play"],
-       windows: ["https://apps.microsoft.com/detail/9PD9QFRXZLLL", "Microsoft Store"],
-       macos: ["https://apps.apple.com/app/idAPPLE_APP_ID", "Mac App Store"],
-       linux: ["#install-on-linux", "the install command"]
+     var apple = null;
+     var platforms = {
+       windows: { name: "Windows", store: "Microsoft Store",
+         web: "https://apps.microsoft.com/detail/9PD9QFRXZLLL",
+         app: "ms-windows-store://pdp/?ProductId=9PD9QFRXZLLL" },
+       macos: { name: "macOS", store: "Mac App Store",
+         web: apple && "https://apps.apple.com/app/id" + apple,
+         app: apple && "macappstore://apps.apple.com/app/id" + apple },
+       linux: { name: "Linux", store: "Terminal command", web: "#install-on-linux" },
+       ipados: { name: "iPadOS", store: "App Store",
+         web: apple && "https://apps.apple.com/app/id" + apple },
+       android: { name: "Android", store: "Google Play",
+         web: "https://play.google.com/store/apps/details?id=ch.wysscenter.dbsannotator" }
      };
+
+     var grid = document.getElementById("get-the-app");
+     Object.keys(platforms).forEach(function (key) {
+       var p = platforms[key];
+       var el = document.createElement(p.web ? "a" : "span");
+       el.className = "dbs-dl-platform" + (p.web ? "" : " is-soon");
+       if (p.web) el.href = p.web;
+       el.innerHTML = "<strong>" + p.name + "</strong><span>" +
+         (p.web ? p.store : "Coming soon") + "</span>";
+       grid.appendChild(el);
+     });
+
      var ua = navigator.userAgent;
      var os = /Android/.test(ua) ? "android"
        : /iPad|iPhone/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "ipados"
@@ -28,39 +56,41 @@ the same application and writes the same files.
        : /Linux|X11/.test(ua) ? "linux"
        : null;
      if (!os) return;
-     var button = document.getElementById("dbs-download-button");
-     button.href = targets[os][0];
-     document.getElementById("dbs-download-note").textContent =
-       "Takes you to " + targets[os][1] + ". On another device? Choose your platform below.";
+
+     var p = platforms[os];
+     var main = document.getElementById("dbs-dl-main");
+     var note = document.getElementById("dbs-dl-note");
+     if (!p.web) {
+       main.textContent = "Coming soon for " + p.name;
+       main.removeAttribute("href");
+       main.className += " is-soon";
+       note.textContent = "Other platforms are available below.";
+       return;
+     }
+     main.textContent = "Download for " + p.name;
+     main.href = p.app || p.web;
+     if (os === "linux") {
+       note.textContent = "Shows the one-line install command.";
+     } else if (p.app) {
+       note.innerHTML = "Opens the " + p.store + " app. Not opening? " +
+         "<a href=\"" + p.web + "\">View it in your browser</a>.";
+     } else {
+       note.textContent = "Opens " + p.store + ".";
+     }
    })();
    </script>
 
-The button recognises the device you are reading this on and takes you to the
-right place: the store page for the app on iPadOS, Android, Windows and macOS, or
-the install command on Linux. To install on a different device, pick it here:
+The Download button recognises the device you are reading this on. On Windows it
+opens the Microsoft Store app itself, which shows whether Wyss DBS Annotator is
+already installed and keeps it up to date; on iPadOS and Android the store page
+opens in the store app as usual. On Linux it shows the install command below. To
+install on a different device, pick it under *All platforms*.
 
-.. _get-the-app:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - Platform
-     - Where to get it
-   * - iPadOS
-     - `App Store <https://apps.apple.com/app/idAPPLE_APP_ID>`__
-   * - Android
-     - `Google Play <https://play.google.com/store/apps/details?id=ch.wysscenter.dbsannotator>`__
-   * - Windows
-     - `Microsoft Store <https://apps.microsoft.com/detail/9PD9QFRXZLLL>`__
-   * - macOS
-     - `Mac App Store <https://apps.apple.com/app/idAPPLE_APP_ID>`__
-   * - Linux
-     - :ref:`One command in a terminal <install-on-linux>`
-
-On the four store platforms, installing from the store is the whole procedure:
-the store checks the app's signature and keeps it up to date. If a link does not
-open, search the store for *Wyss DBS Annotator*.
+On the store platforms, installing from the store is the whole procedure: the
+store checks the app's signature and installs updates for you. On a computer
+managed by your hospital or institution, the store may be blocked; your IT
+department can install the app from the same listing. If a link does not open,
+search the store for *Wyss DBS Annotator*.
 
 .. _install-on-linux:
 

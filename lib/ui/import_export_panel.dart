@@ -1,5 +1,5 @@
-/// Import and export on the Session step: import session files or a BIDS
-/// folder, then produce whatever they support.
+/// Import and export on the Session step: import sessions from the BIDS
+/// folder chosen above, then produce whatever they support.
 ///
 /// The actions are always listed, and the ones the imported files cannot
 /// support are disabled with the reason in place of their description, rather
@@ -8,7 +8,6 @@ library;
 
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 
@@ -39,7 +38,6 @@ import '../report/session_pdf.dart';
 import '../report/upload_actions.dart';
 import 'bids_export.dart';
 import 'bids_merge_ui.dart';
-import 'import_drop_zone.dart';
 import 'report_action_row.dart';
 import 'report_images.dart';
 import 'report_sections_dialog.dart';
@@ -51,11 +49,19 @@ import 'session/entry_charts_view.dart';
 import 'share_util.dart';
 
 class ImportExportPanel extends StatefulWidget {
-  const ImportExportPanel({super.key, this.catalog, this.initialFiles});
+  const ImportExportPanel({
+    super.key,
+    this.catalog,
+    this.initialFiles,
+    this.folder,
+  });
 
   /// Injected by tests and the screenshot build, which have no asset bundle.
   final ElectrodeCatalog? catalog;
   final List<Uploaded>? initialFiles;
+
+  /// The BIDS folder chosen on the Session step, the one Import reads.
+  final String? folder;
 
   @override
   State<ImportExportPanel> createState() => _ImportExportPanelState();
@@ -109,25 +115,8 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
   bool get _letter =>
       (_prefs.reportPageSize ?? kDefaultReportPageSize) == 'letter';
 
-  Future<void> _upload() async {
-    final List<PlatformFile> picked;
-    try {
-      picked =
-          debugPickedFiles ?? await FilePicker.pickFiles(type: FileType.any);
-    } catch (e) {
-      if (mounted) _snack('Could not open the file picker. ($e)');
-      return;
-    }
-    if (picked.isEmpty) return;
-
-    _add([
-      for (final file in picked)
-        (name: file.name, content: await readPickedText(file)),
-    ]);
-  }
-
-  /// Load the recorded TSVs of a dataset, for the participants chosen.
-  Future<void> _loadDataset({String? folder}) async {
+  /// Load the recorded TSVs of [folder], for the participants chosen.
+  Future<void> _loadDataset(String folder) async {
     final loaded = await loadDatasetTsvs(context, _snack, folder: folder);
     if (loaded == null || !mounted) return;
     final added = _add(loaded.files);
@@ -707,12 +696,7 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ImportDropZone(
-          onFiles: _add,
-          onFolder: (folder) => _loadDataset(folder: folder),
-          say: _snack,
-          child: _uploadBar(theme),
-        ),
+        _uploadBar(theme),
         if (_files.isNotEmpty) ...[const SizedBox(height: 8), _fileList(theme)],
         const SizedBox(height: 12),
         if (_files.isEmpty)
@@ -735,21 +719,23 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
   Widget _uploadBar(ThemeData theme) => Wrap(
     spacing: 8,
     runSpacing: 8,
-    alignment: WrapAlignment.center,
     crossAxisAlignment: WrapCrossAlignment.center,
     children: [
       FilledButton.icon(
         key: _exportKey,
-        onPressed: _upload,
-        icon: const Icon(Icons.file_open_outlined),
-        label: const Text('Import session files'),
-      ),
-      FilledButton.icon(
-        onPressed: () => _loadDataset(),
+        onPressed: switch (widget.folder) {
+          final folder? => () => _loadDataset(folder),
+          null => null,
+        },
         icon: const Icon(Icons.folder_open),
-        label: const Text('Import from a BIDS folder'),
+        label: const Text('Import'),
       ),
-      Text(uploadSummary(_files), style: theme.textTheme.bodyMedium),
+      Text(
+        widget.folder == null
+            ? 'Choose a BIDS folder above to import from it.'
+            : uploadSummary(_files),
+        style: theme.textTheme.bodyMedium,
+      ),
       if (_files.isNotEmpty)
         TextButton.icon(
           onPressed: () => setState(() {

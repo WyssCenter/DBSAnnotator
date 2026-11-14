@@ -47,17 +47,16 @@ The words the rest of this documentation uses, in the order you meet them.
    the configurations tested.
 
 **Clinical scales**
-   Validated assessments typed once per visit in the initial assessment, such as Y-BOCS, MADRS or
-   MDS-UPDRS Part III.
+   Validated assessments typed once per visit in the initial assessment, such as Y-BOCS or MADRS.
+   Some, such as the MDS-UPDRS, need a licence from their owner; the app does not bundle them.
 
 **Symptom and side effect ratings**
    Quick ratings taken at *every* configuration, each on a range you define (for example
-   Obsessions 0 to 10, or an MDS-UPDRS Part III item such as rigidity of the right upper
-   extremity, ``RUE``), so configurations can be compared within the visit. In the file and in
-   some report headings they are called session scales.
+   Obsessions 0 to 10, or rigidity of the right arm 0 to 4), so configurations can be compared
+   within the visit. In the file and in some report headings they are called session scales.
 
 **Discrete and continuous ratings**
-   A discrete rating takes whole points only, as the MDS-UPDRS items do. A continuous rating takes
+   A discrete rating takes whole points only, such as a 0 to 4 item. A continuous rating takes
    any value on the slider. Each rating is set to one or the other in its settings.
 
 **Final settings**

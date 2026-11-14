@@ -24,8 +24,6 @@ import 'report_data.dart'
         ScalesChartSpec,
         SessionReportData,
         buildSessionReportData,
-        kSessionIndexHeader,
-        kVisitsIndexHeader,
         datedNotes,
         coerceInt,
         kLeftOnTitle,
@@ -78,7 +76,6 @@ class LongitudinalReportData {
     required this.visitTable,
     required this.mismatchedPatients,
     this.rankedBlocks = const {},
-    this.overallRanks = const {},
     this.notesWithoutVisit = const [],
     this.timeline = const [],
     this.noteFiles = const [],
@@ -115,45 +112,8 @@ class LongitudinalReportData {
   final List<String> mismatchedPatients;
 
   /// Visit filename to block to fill: the highest and second-highest
-  /// aggregate index across every visit together, so the whole report marks
-  /// two configurations rather than two per visit.
+  /// aggregate index of each visit, ranked within that visit only.
   final Map<String, Map<int, int>> rankedBlocks;
-
-  /// Visit filename to block to its rank across every visit, which is what
-  /// the tables print: a per-visit rank beside cross-visit shading would say
-  /// two different things about one row.
-  final Map<String, Map<int, int>> overallRanks;
-
-  /// [visit]'s session table with the Index cell carrying the overall rank.
-  List<List<String>> tableRowsFor(LongitudinalVisit visit) {
-    final col = visit.session.tableHeaders.indexOf(kSessionIndexHeader);
-    final ranks = overallRanks[visit.filename] ?? const {};
-    if (col < 0) return visit.session.tableRows;
-    return [
-      for (final row in visit.session.tableRows)
-        if (ranks[int.tryParse(row.first)] case final rank?
-            when row[col].isNotEmpty)
-          [...row]..[col] = '${row[col].split('\n').first}\n(rank $rank)'
-        else
-          row,
-    ];
-  }
-
-  /// [visit]'s session table headers, the Index naming the cross-visit rank
-  /// [tableRowsFor] prints.
-  List<String> tableHeadersFor(LongitudinalVisit visit) => [
-    for (final h in visit.session.tableHeaders)
-      h == kSessionIndexHeader ? kVisitsIndexHeader : h,
-  ];
-
-  /// Data-row index of [visit]'s session table to its fill.
-  Map<int, int> rowFillsFor(LongitudinalVisit visit) {
-    final fills = rankedBlocks[visit.filename] ?? const {};
-    return {
-      for (final (i, row) in visit.session.tableData.indexed)
-        i: ?fills[int.tryParse(row.first)],
-    };
-  }
 
   bool get isEmpty => visits.isEmpty;
 
@@ -188,9 +148,8 @@ const kSeeSummary = 'As in the summary above';
 
 /// Printed under the per-visit session tables when any row is shaded.
 const kVisitRankingLegend =
-    'Shaded rows, marked on their left edge: the highest (darker) and '
-    'second-highest aggregate index '
-    'across all visits, against the same scale targets.';
+    'Shaded rows: the highest (darker) and second-highest aggregate index '
+    'within each visit, against the same scale targets.';
 
 /// Column headers for [LongitudinalReportData.visitTable].
 const longitudinalTableHeaders = [
@@ -364,16 +323,12 @@ LongitudinalReportData buildLongitudinalReportData({
     });
   }
 
-  // Figure 2: session scales, one point per (visit, block).
-  //
-  // The bands mark the two best configurations across all visits. Every
-  // visit's index is normalised into the same declared scale ranges and
-  // oriented by the same targets, so the values are on one scale.
   final sessionSeries = <String, Map<int, double>>{};
   final sessionLabels = <int, String>{};
   final sessionGroups = <({int from, int to, String label})>[];
-  final globalIndex = <int, double>{};
-  final visitBlockAt = <int, (String, int)>{};
+  final bestXs = <int>[];
+  final secondXs = <int>[];
+  final rankedBlocks = <String, Map<int, int>>{};
   var x = 0;
   for (final visit in visits) {
     if (visit.blocks.isNotEmpty) {
@@ -387,31 +342,20 @@ LongitudinalReportData buildLongitudinalReportData({
     }
     for (final block in visit.blocks) {
       sessionLabels[x] = '$block';
-      if (visit.session.chart.aggregateIndex[block] case final v?) {
-        globalIndex[x] = v;
-        visitBlockAt[x] = (visit.filename, block);
+      for (final (blocks, xs, fill) in [
+        (visit.session.bestBlocks, bestXs, kBestFill),
+        (visit.session.secondBlocks, secondXs, kSecondFill),
+      ]) {
+        if (blocks.contains(block)) {
+          xs.add(x);
+          (rankedBlocks[visit.filename] ??= {})[block] = fill;
+        }
       }
       visit.sessionScales.forEach((name, byBlock) {
         final v = byBlock[block];
         if (v != null) (sessionSeries[name] ??= <int, double>{})[x] = v;
       });
       x++;
-    }
-  }
-
-  final globalRanks = rankBlocks(globalIndex);
-  final bestXs = blocksAtRank(globalRanks, 1);
-  final secondXs = blocksAtRank(globalRanks, 2);
-  final rankedBlocks = <String, Map<int, int>>{};
-  final overallRanks = <String, Map<int, int>>{};
-  globalRanks.forEach((at, rank) {
-    final (file, block) = visitBlockAt[at]!;
-    (overallRanks[file] ??= {})[block] = rank;
-  });
-  for (final (xs, fill) in [(bestXs, kBestFill), (secondXs, kSecondFill)]) {
-    for (final at in xs) {
-      final (file, block) = visitBlockAt[at]!;
-      (rankedBlocks[file] ??= {})[block] = fill;
     }
   }
 
@@ -473,9 +417,6 @@ LongitudinalReportData buildLongitudinalReportData({
       xs: xs,
       yMin: lo,
       yMax: hi,
-      // No index series on either figure, as the desktop passes
-      // `show_general_index=False`; the bands carry the ranking, two
-      // configurations across all visits.
       aggregateIndex: const {},
       bestXs: best,
       secondXs: second,
@@ -569,7 +510,7 @@ LongitudinalReportData buildLongitudinalReportData({
       second: secondXs,
       declaredBounds: true,
       groups: sessionGroups,
-      rankScope: 'across all visits',
+      rankScope: 'within each visit',
     ),
     visitTable: table,
     notesWithoutVisit: unplaced,
@@ -577,7 +518,6 @@ LongitudinalReportData buildLongitudinalReportData({
     noteFiles: noteFilenames,
     mismatchedPatients: ids.length <= 1 ? const [] : ids.skip(1).toList(),
     rankedBlocks: rankedBlocks,
-    overallRanks: overallRanks,
   );
 }
 

@@ -88,7 +88,10 @@ Future<void> _newVisit(
   await pumpUntilFound(tester, find.text(dataset.path));
   await tester.enterText(find.widgetWithText(TextField, 'Patient ID'), '01');
   if (session != null) {
-    await tester.enterText(find.widgetWithText(TextField, 'Visit'), session);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Session ID'),
+      session,
+    );
   }
   await tapNew(tester);
   await pumpUntilFound(tester, find.textContaining(_newSnack));
@@ -161,8 +164,36 @@ void main() {
 
       await _toSetup(tester);
       expect(_field(tester, 'Patient ID'), '07');
-      expect(_field(tester, 'Task'), 'tuning');
-      expect(_field(tester, 'Run'), '03');
+      expect(_field(tester, 'Task ID'), 'tuning');
+      expect(_field(tester, 'Run ID'), '03');
+    });
+
+    testWidgets('a reopened visit shows its own initial assessment, edited in '
+        'place', (tester) async {
+      final dirs = useTempDirs();
+      final planted = plantWork(
+        dirs.working,
+        _recoveredName,
+        _planted('recovered entry'),
+      );
+      await found(tester);
+      await tester.tap(find.text('Reopen'));
+      await pumpUntilFound(tester, find.textContaining('Reopened'));
+      await tester.pumpAndSettle();
+      final leftFrequency = find.descendant(
+        of: find.widgetWithText(TextFormField, 'Frequency').first,
+        matching: find.byType(TextField),
+      );
+      expect(tester.widget<TextField>(leftFrequency).controller!.text, '130');
+
+      await tester.tap(find.text('Initial assessment').first);
+      await tester.pumpAndSettle();
+      expect(_field(tester, 'Notes'), 'recovered entry');
+      expect(find.widgetWithText(TextField, 'Y-BOCS'), findsOneWidget);
+      await tester.tap(find.text('Programming').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Initial assessment saved.'), findsNothing);
+      expect(planted.readAsStringSync(), _planted('recovered entry'));
     });
 
     testWidgets('a reopened copy keeps recording into itself only', (
@@ -310,8 +341,8 @@ void main() {
       expect(find.text(_opened(_openedName)), findsOneWidget);
       expect(_setupStep(), findsOneWidget);
       expect(_field(tester, 'Patient ID'), '08');
-      expect(_field(tester, 'Task'), 'tuning');
-      expect(_field(tester, 'Run'), '02');
+      expect(_field(tester, 'Task ID'), 'tuning');
+      expect(_field(tester, 'Run ID'), '02');
 
       await _add(tester, working, 'after opening');
       await settleUntil(
@@ -528,7 +559,7 @@ void main() {
       expect(_behTsvs(dataset), hasLength(1));
       expect(filed.path, contains('ses-visitA'));
       await _toSetup(tester);
-      expect(_field(tester, 'Visit'), '20260204');
+      expect(_field(tester, 'Session ID'), '20260204');
     });
   });
 

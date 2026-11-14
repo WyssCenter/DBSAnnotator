@@ -1,0 +1,17 @@
+WEBVTT
+
+00:00:01.064 --> 00:00:07.807
+Every visit is saved into a BIDS folder, chosen at the top of the Session step. The button beside it adds another folder.
+
+00:00:11.680 --> 00:00:19.410
+This patient is already in the folder, so pick them from the list. Their indication, target and devices come from the last visit.
+
+00:00:23.046 --> 00:00:26.747
+The visit is dated today, unless you type another label.
+
+00:00:28.692 --> 00:00:36.074
+Research file naming sets the rest of the file name. Here the task is renamed, and the file name below follows.
+
+00:00:42.764 --> 00:00:48.636
+Next starts the session. The next step shows what was filled in from the last visit, to check.
+

@@ -6,12 +6,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:dbs_annotator/core/brand_palette.dart' show kBestFill;
 import 'package:dbs_annotator/core/session/scale_scoring.dart';
 import 'package:dbs_annotator/core/session/session_file.dart';
 import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:dbs_annotator/report/longitudinal_data.dart';
 import 'package:dbs_annotator/report/longitudinal_pdf.dart';
-import 'package:dbs_annotator/report/report_data.dart' show kVisitsIndexHeader;
 import 'package:flutter_test/flutter_test.dart';
 
 String _part(List<int> bytes, String name) => utf8.decode(
@@ -120,30 +120,25 @@ void main() {
     expect(ranked.clinicalChart.yMax, greaterThanOrEqualTo(40));
   });
 
-  test('with targets, two configurations are marked across all visits', () {
+  test('with targets, each visit marks its own best configurations', () {
     final ranked = buildLongitudinalReportData(
       files: _twoVisits(),
       scalePrefs: const [
         (name: 'Tremor', min: 0, max: 10, mode: ScaleMode.min, custom: null),
       ],
     );
-    // Not two per visit: the ranking runs over every visit together.
-    final marked = [
-      for (final fills in ranked.rankedBlocks.values) ...fills.values,
-    ];
-    expect(marked.toSet().length, 2, reason: 'one best, one second');
-    expect(ranked.sessionChart.bestXs, isNotEmpty);
-    expect(ranked.sessionChart.secondXs, isNotEmpty);
-    // The table prints the same overall rank the shading shows: the first
-    // visit's best block is second overall, so it must not read "rank 1".
-    final first = ranked.visits.first;
-    final col = ranked.tableHeadersFor(first).indexOf(kVisitsIndexHeader);
-    final cells = [
-      for (final r in ranked.tableRowsFor(first))
-        if (r[col].isNotEmpty) r[col],
-    ];
-    expect(cells.any((c) => c.contains('(rank 2)')), isTrue);
-    expect(cells.any((c) => c.contains('(rank 1)')), isFalse);
+    expect(ranked.sessionChart.rankScope, 'within each visit');
+    for (final visit in ranked.visits) {
+      expect(ranked.rankedBlocks[visit.filename]!.values, contains(kBestFill));
+      expect(visit.session.rowFills.values, contains(kBestFill));
+      expect(
+        visit.session.tableRows
+            .expand((r) => r)
+            .any((c) => c.contains('(rank 1)')),
+        isTrue,
+      );
+    }
+    expect(ranked.sessionChart.bestXs.length, ranked.visits.length);
     // Without targets nothing is ranked.
     expect(data.rankedBlocks, isEmpty);
     // The report names the targets it ranked by, and none when it did not.
@@ -291,10 +286,7 @@ void main() {
     );
     expect(real.visits, hasLength(1));
     expect(real.visits.first.blocks, [1, 2, 3, 4, 5, 6, 7]);
-    expect(
-      real.visits.first.clinicalScales.keys,
-      contains('MDS-UPDRS Part III'),
-    );
+    expect(real.visits.first.clinicalScales.keys, contains('Y-BOCS'));
     expect(real.sessionChart.xs, hasLength(7));
   });
 }

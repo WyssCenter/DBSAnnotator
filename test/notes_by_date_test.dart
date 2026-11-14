@@ -152,7 +152,7 @@ void main() {
       expect(data.timeline[0].visit?.filename, first);
       expect(data.timeline[2].visit?.filename, second);
       expect(day.date, '2026-02-20');
-      final headers = data.tableHeadersFor(data.visits.first);
+      final headers = data.visits.first.session.tableHeaders;
       final row = day.rows.single;
       expect(row, hasLength(headers.length));
       expect(row[headers.indexOf('Time')], isNotEmpty);

@@ -1,20 +1,15 @@
-import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:io';
 
-import 'package:dbs_annotator/ui/save_target.dart';
-import 'package:dbs_annotator/ui/session_screen.dart';
-import 'package:cross_file/cross_file.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../test/docs/example_visits.dart';
 import 'video_harness.dart';
+import 'visit.dart';
 
 /// What the video says, in order: its captions and its voice.
 enum _Line {
   import(
-    'Other sessions, on the Session step, imports earlier session files: '
-    'here, two visits of the same patient.',
+    'Import, under Other sessions, reads the visits saved in the BIDS folder '
+    'chosen above: here, two visits of the same patient.',
   ),
   report(
     'A report across visits can be exported as PDF or Word. Choose the '
@@ -29,18 +24,28 @@ enum _Line {
 
 Future<void> _say(WidgetTester tester, _Line line) => say(tester, line.text);
 
+/// The example BIDS folder: the same two visits the docs show.
+void _seed(Directory study) {
+  final source = Directory('$videoRoot/test/fixtures/bids');
+  for (final f in source.listSync(recursive: true).whereType<File>()) {
+    final to = File(
+      '${study.path}/${f.path.substring(source.path.length + 1)}',
+    );
+    to.parent.createSync(recursive: true);
+    f.copySync(to.path);
+  }
+}
+
 void main() {
   initVideoBinding();
 
   testWidgets('reports from imported sessions', (tester) async {
-    debugPickedFiles = [
-      for (final e in exampleVisitTexts(root: videoRoot).entries)
-        _Picked(e.key, utf8.encode(e.value)),
-    ];
     await prepareScript(_Line.values.map((l) => l.text));
-    await startVideo(tester, const SessionScreen());
+    await openApp(tester, seed: _seed);
+    await rolling(tester);
     await _say(tester, _Line.import);
-    await tapText(tester, 'Import session files');
+    await tapText(tester, 'Import');
+    await tap(tester, find.text('Import').last);
     await pause(tester, 2000);
     await _say(tester, _Line.report);
     await tap(tester, find.text('PDF').at(1));
@@ -56,26 +61,4 @@ void main() {
     await pause(tester, 2500);
     await endVideo(tester);
   });
-}
-
-/// An imported file held in memory, as the picker would hand it back.
-final class _Picked extends PlatformFile {
-  _Picked(this.name, this.bytes);
-
-  @override
-  final String name;
-  final Uint8List bytes;
-
-  @override
-  Uri get uri => Uri.file(name);
-  @override
-  XFile get xFile => XFile.fromData(bytes, name: name);
-  @override
-  int? lengthSync() => bytes.length;
-  @override
-  Future<int> length() async => bytes.length;
-  @override
-  Future<Uint8List> readAsBytes() async => bytes;
-  @override
-  Stream<Uint8List> readAsByteStream() => Stream.value(bytes);
 }

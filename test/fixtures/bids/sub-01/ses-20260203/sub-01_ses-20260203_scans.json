@@ -44,16 +44,16 @@
   "notes": {
     "Description": "Notes of the initial assessment of this run."
   },
-  "scale_mds_updrs_part_iii": {
-    "LongName": "MDS-UPDRS Part III",
+  "scale_y_bocs": {
+    "LongName": "Y-BOCS",
     "Description": "The run's initial assessment: its clinical scales, named as in the session files' scale_<name> columns. The stimulation columns hold the settings the patient arrived on."
   },
-  "scale_pdq_39": {
-    "LongName": "PDQ-39",
+  "scale_madrs": {
+    "LongName": "MADRS",
     "Description": "The run's initial assessment: its clinical scales, named as in the session files' scale_<name> columns. The stimulation columns hold the settings the patient arrived on."
   },
-  "scale_udysrs": {
-    "LongName": "UDysRS",
+  "scale_oci_r": {
+    "LongName": "OCI-R",
     "Description": "The run's initial assessment: its clinical scales, named as in the session files' scale_<name> columns. The stimulation columns hold the settings the patient arrived on."
   }
 }

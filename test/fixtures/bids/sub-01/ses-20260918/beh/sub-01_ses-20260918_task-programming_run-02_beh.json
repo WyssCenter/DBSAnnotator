@@ -73,20 +73,20 @@
     "LongName": "Notes",
     "Description": "Free-text note recorded with this configuration."
   },
-  "scale_mds_updrs_3_3_rigidity_rue": {
-    "LongName": "MDS-UPDRS 3.3 Rigidity RUE",
-    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, MDS-UPDRS 3.10 Gait is scale_mds_updrs_3_10_gait); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
+  "scale_obsessions": {
+    "LongName": "Obsessions",
+    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, Rigidity, right arm is scale_rigidity_right_arm); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
   },
-  "scale_mds_updrs_3_4_finger_tapping_rue": {
-    "LongName": "MDS-UPDRS 3.4 Finger tapping RUE",
-    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, MDS-UPDRS 3.10 Gait is scale_mds_updrs_3_10_gait); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
+  "scale_compulsions": {
+    "LongName": "Compulsions",
+    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, Rigidity, right arm is scale_rigidity_right_arm); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
   },
-  "scale_mds_updrs_3_17_rest_tremor_rue": {
-    "LongName": "MDS-UPDRS 3.17 Rest tremor RUE",
-    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, MDS-UPDRS 3.10 Gait is scale_mds_updrs_3_10_gait); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
+  "scale_anxiety": {
+    "LongName": "Anxiety",
+    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, Rigidity, right arm is scale_rigidity_right_arm); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
   },
-  "scale_mds_updrs_3_10_gait": {
-    "LongName": "MDS-UPDRS 3.10 Gait",
-    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, MDS-UPDRS 3.10 Gait is scale_mds_updrs_3_10_gait); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
+  "scale_mood": {
+    "LongName": "Mood",
+    "Description": "One column per scale rated at this visit, placed before notes: scale_ plus the scale's name in lower case, every run of other characters turned into _ (Mood is scale_mood, Rigidity, right arm is scale_rigidity_right_arm); a second name giving the same column gains _2. The cell is the rating alone, or n/a when the scale was not assessed. The sidecar gives each column's original scale name as its LongName."
   }
 }

@@ -430,7 +430,13 @@ const sessionTableColumnWeights = <double>[
 ];
 
 /// A signed change: "-5", "+0.25", or "0" for none, never "+0".
-String _signed(double d) => d == 0 ? '0' : '${d > 0 ? '+' : ''}${_num(d)}';
+String _signed(double d) => d == 0 ? '0' : '${d > 0 ? '+' : ''}${trimZeros(d)}';
+
+/// Printed under the page-1 ratings table, which a reader could otherwise
+/// take for an outcome.
+const kResponseNote =
+    "Each scale's first and last rating during this visit, taken minutes "
+    'apart: not a measure of treatment response.';
 
 /// The final configuration's heading when the clinician marked it.
 const kLeftOnTitle = 'Final settings (marked by the clinician)';
@@ -439,15 +445,8 @@ const kLeftOnTitle = 'Final settings (marked by the clinician)';
 /// which a setting tried and rejected would occupy just the same.
 const kLastRecordedTitle = 'Last configuration tested';
 
-/// Two decimals, as every rating in the reports is printed.
-String _num(double v) => v.toStringAsFixed(2);
-
-/// The Index column as printed in a session report: the rank's scope is in the
-/// header, because the longitudinal report ranks the same block across visits.
+/// The Index column as printed, the rank's scope in the header.
 const kSessionIndexHeader = 'Index (rank in this session)';
-
-/// The same column in the longitudinal per-visit tables.
-const kVisitsIndexHeader = 'Index (rank across all visits)';
 
 /// Columns printed right-aligned, so their digits line up down the column.
 const kNumericTableHeaders = {
@@ -455,7 +454,6 @@ const kNumericTableHeaders = {
   'Amp (mA)',
   'PW (\u00B5s)',
   kSessionIndexHeader,
-  kVisitsIndexHeader,
 };
 
 final int _indexColumn = sessionTableHeaders.indexOf('Index');
@@ -481,17 +479,15 @@ const kStarredLegend =
     '* Starred by the clinician during the visit as a particularly good '
     'configuration. A clinical impression, not part of the ranking.';
 
-/// Clinical-liability statement printed under the session-data table, verbatim
-/// from the desktop (`report_common.add_table_legend`). Deliberately not
-/// paraphrased, and shared so both formats carry it identically.
+/// Clinical-liability statement printed under the session-data table, shared
+/// so both formats carry it identically.
 const kRankingDisclaimer =
-    'Note: The highlighted rows are derived exclusively from the annotated '
-    'symptom and side effect ratings and represent a computational ranking '
-    'intended '
-    'solely as a reference. This color-coded indication does not constitute '
-    'clinical guidance. The ranking does not account for side effects, '
-    'tolerability, or the observations in the Notes column, and is not a '
-    'recommendation to program these settings.';
+    'Note: The highlighted rows mark the highest aggregate index values, '
+    'computed only from the ratings in the Scales column, as a reference. '
+    'They do not constitute clinical guidance. The ranking does not account '
+    'for side effects or tolerability that were not rated, or for the '
+    'observations in the Notes column, and is not a recommendation to program '
+    'these settings.';
 
 /// Everything needed to draw the scales-timeline chart, so the PDF and Word
 /// renderers share one source of truth. Mirrors the desktop
@@ -584,7 +580,6 @@ class SessionReportData {
     required this.rowCount,
     required this.lastConfig,
     required this.firstConfig,
-    required this.configChanges,
     required this.replicateSpread,
     required this.numDistinctConfigs,
     required this.hasInitial,
@@ -732,11 +727,6 @@ class SessionReportData {
   /// [lastConfig]. From the baseline row: the state the patient arrived in.
   final Map<String, String> firstConfig;
 
-  /// What changed between [firstConfig] and [lastConfig], one line per side
-  /// that moved, plus an explicit line for anything that did not. Answers
-  /// "what did you change?" without diffing a fourteen-row table by eye.
-  final List<String> configChanges;
-
   /// The last recorded configuration, as a printable summary: side -> lines.
   /// Nothing in the TSV records that a clinician *chose* it, so "final
   /// settings" would assert a decision the data does not contain.
@@ -768,9 +758,12 @@ class SessionReportData {
       ? const []
       : [
           ['', for (final r in response) r.name],
-          ['First', for (final r in response) _num(r.first)],
-          ['Last', for (final r in response) _num(r.last)],
-          ['Change', for (final r in response) _signed(r.last - r.first)],
+          ['First', for (final r in response) trimZeros(r.first)],
+          ['Last', for (final r in response) trimZeros(r.last)],
+          [
+            'Last minus first',
+            for (final r in response) _signed(r.last - r.first),
+          ],
         ];
 
   /// The parameters tried, one side per column.
@@ -817,7 +810,7 @@ class SessionReportData {
   /// every report that prints this table.
   Map<int, int> get rowFills => {
     for (final (i, row) in tableData.indexed)
-      if (int.tryParse(row.first) case final block?)
+      if (int.tryParse(row.first.split(' ').first) case final block?)
         if (bestBlocks.contains(block))
           i: kBestFill
         else if (secondBlocks.contains(block))
@@ -994,51 +987,6 @@ LateralTokens? tokensOf(SessionRow? r) => r == null
         rightAmplitude: r.rightAmplitude,
       );
 
-/// One line per side that changed between [from] and [to], and one saying so
-/// when a parameter held steady on both sides. Compares the printable per-side
-/// summaries, not raw columns, so it speaks the same language as the box above.
-/// Each line carries its own label, because a caller that prefixed them all
-/// would print "Changed: Unchanged: ...".
-List<String> _configChanges(SessionRow? from, SessionRow? to) {
-  if (from == null || to == null) return const [];
-  final out = <String>[];
-  // Contacts and total amplitude separately: the contact notation carries each
-  // contact's share of the current, not the dose, so a dose change on the same
-  // contacts would otherwise go unreported.
-  String dose(SessionRow r, bool left) =>
-      amplitudeCell(left ? r.leftAmplitude : r.rightAmplitude);
-  for (final left in [true, false]) {
-    final side = left ? 'Left' : 'Right';
-    final before = lateralText(tokensOf(from)!, left: left);
-    final after = lateralText(tokensOf(to)!, left: left);
-    if (before != after) out.add('$side contacts: $before -> $after');
-    final (was, now) = (dose(from, left), dose(to, left));
-    if (was != now && was.isNotEmpty && now.isNotEmpty) {
-      out.add('$side amplitude: $was -> $now mA');
-    }
-  }
-  // What held steady, so the reader does not have to check.
-  bool same(String Function(SessionRow) pick) =>
-      pick(from).trim() == pick(to).trim();
-  final steady = <String>[
-    if (dose(from, true) == dose(to, true) &&
-        dose(from, false) == dose(to, false))
-      'amplitude',
-    if (same((r) => r.leftStimFreq) && same((r) => r.rightStimFreq))
-      'frequency',
-    if (same((r) => r.leftPulseWidth) && same((r) => r.rightPulseWidth))
-      'pulse width',
-  ];
-  if (steady.isNotEmpty) {
-    final list = steady.length == 1
-        ? steady.single
-        : '${steady.sublist(0, steady.length - 1).join(', ')} and ${steady.last}';
-    out.add('Unchanged: $list.');
-  }
-  if (out.isEmpty) out.add('No change from the pre-session configuration.');
-  return out;
-}
-
 /// "7" or, when a setting was rated more than once, "7 (6 distinct settings)".
 ///
 /// The block count alone overstates how much was explored: blocks that are
@@ -1168,8 +1116,17 @@ SessionReportData buildSessionReportData({
   final initScales = _collectScalePairs(initSessionRows);
   final initNotes = latestInit?.notes.trim() ?? '';
   final starred = starredBlocksIn(rows);
-  final leftIpg = sessionValueIn(rows, (r) => r.leftIpgModel);
-  final rightIpg = sessionValueIn(rows, (r) => r.rightIpgModel);
+  String ipg(String model, String position) => position.isEmpty
+      ? model
+      : '$model (${position.toLowerCase()})'.trimLeft();
+  final leftIpg = ipg(
+    sessionValueIn(rows, (r) => r.leftIpgModel),
+    sessionValueIn(rows, (r) => r.leftIpgPosition),
+  );
+  final rightIpg = ipg(
+    sessionValueIn(rows, (r) => r.rightIpgModel),
+    sessionValueIn(rows, (r) => r.rightIpgPosition),
+  );
   final sessionDetails = [
     for (final (label, value) in [
       ('DBS indication', sessionValueIn(rows, (r) => r.pathology)),
@@ -1446,7 +1403,6 @@ SessionReportData buildSessionReportData({
     rowCount: rows.length,
     lastConfig: _lastConfigLines(latestFinal),
     firstConfig: _lastConfigLines(latestInit),
-    configChanges: _configChanges(latestInit, latestFinal),
     response: response,
     scalesRated: scalesRated,
     numDistinctConfigs: numDistinctConfigs,
