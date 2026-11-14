@@ -926,32 +926,24 @@ pickDatasetZip(void Function(String) say) async {
 /// Stands in for the dataset picker in tests: the folder and its files.
 ({String? root, List<DatasetFile> files})? debugDataset;
 
-/// The recorded TSVs of a dataset the user picks, narrowed to the participants
-/// they choose: a folder on the desktop, the dataset `.zip` on the tablets.
-/// `root` is the folder, null for a zip. Null when cancelled, with any reason
-/// passed to [say].
+/// The recorded TSVs of the BIDS [folder], narrowed to the participants the
+/// user chooses. Null when cancelled, with any reason passed to [say].
 Future<({String? root, List<({String name, String content})> files})?>
 loadDatasetTsvs(
   BuildContext context,
   void Function(String) say, {
-  String? folder,
+  required String folder,
 }) async {
   final ({String? root, List<DatasetFile> files}) source;
   if (debugDataset case final d?) {
     source = d;
-  } else if (folder != null || canWriteChosenFolder) {
-    final root = folder ?? await pickDatasetFolder();
-    if (root == null) return null;
+  } else {
     try {
-      source = (root: root, files: await readDatasetDirectory(root));
+      source = (root: folder, files: await readDatasetDirectory(folder));
     } catch (e) {
       say('Could not read that folder: $e');
       return null;
     }
-  } else {
-    final zip = await pickDatasetZip(say);
-    if (zip == null) return null;
-    source = (root: null, files: zip.files);
   }
   final byParticipant = {
     for (final MapEntry(:key, :value) in recordedFiles(

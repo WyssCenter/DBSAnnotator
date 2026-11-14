@@ -63,11 +63,11 @@ void main() {
     await pick(tester, 'Patient already in this folder', '02');
 
     await _say(tester, _Line.visit);
-    await point(tester, find.widgetWithText(TextField, 'Visit'));
+    await point(tester, find.widgetWithText(TextField, 'Session ID'));
 
     await _say(tester, _Line.naming);
     await tapText(tester, 'Research file naming');
-    await typeInto(tester, 'Task', 'titration');
+    await typeInto(tester, 'Task ID', 'titration');
     await point(tester, find.textContaining('File name:'));
 
     await _say(tester, _Line.start);

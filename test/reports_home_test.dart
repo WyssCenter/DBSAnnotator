@@ -31,9 +31,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Import session files'), findsOneWidget);
-    expect(find.text('Import from a BIDS folder'), findsOneWidget);
-    expect(find.text('No files imported.'), findsOneWidget);
+    expect(find.text('Import'), findsOneWidget);
+    expect(find.text('Import session files'), findsNothing);
+    expect(
+      find.text('Choose a BIDS folder above to import from it.'),
+      findsOneWidget,
+    );
   });
 
   test('the panel composes rather than reimplements', () {

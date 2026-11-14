@@ -586,7 +586,7 @@ Future<void> _selectProgram(WidgetTester tester, {String program = 'B'}) async {
 Future<void> _seedFileStep(WidgetTester tester) async {
   await _type(tester, 'Patient ID', _subjectId);
   await _tapText(tester, 'Research file naming');
-  await _type(tester, 'Run', _runId);
+  await _type(tester, 'Run ID', _runId);
 }
 
 /// Tap a shape on the [index]th lead. The layout comes from the same pure
@@ -1176,9 +1176,14 @@ void main() {
     addTearDown(() => debugDataset = null);
     await _pump(
       tester,
-      _panel(ImportExportPanel(catalog: (await _contracts()).$1)),
+      _panel(
+        ImportExportPanel(
+          catalog: (await _contracts()).$1,
+          folder: 'C:/Studies/OCD-DBS',
+        ),
+      ),
     );
-    await _tapText(tester, 'Import from a BIDS folder');
+    await _tapText(tester, 'Import');
     await _shootDialog(tester, 'dialog_load_participants');
   });
 

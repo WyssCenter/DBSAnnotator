@@ -38,13 +38,13 @@ Session is where a visit starts, and where files from other visits come in and r
             label="English" default>
    </video>
 
-The Session step: a patient already in the folder, the visit label, and the research file
+The Session step: a patient already in the folder, the session ID, and the research file
 naming.
 
 .. figure:: ../_static/screenshots/session_step0_file.png
    :alt: The Session step: the BIDS folder bar at the top, This session on the left with the
-         patient ID, visit and research file naming, and Other sessions on the right with the
-         drop zone and the import buttons
+         patient ID, session ID and research file naming, and Other sessions on the right with
+         the Import button
    :width: 100%
 
    The Session step with a session started for patient 01.
@@ -68,16 +68,17 @@ otherwise, or for a new patient, type the ID. For a known patient the app fills 
 indication, the anatomical target, the leads and the IPGs from the patient's last visit, and says
 so on the next step.
 
-**Visit** is the visit date unless you type another label, such as ``preop`` or ``3mo``.
+**Session ID** is the visit date unless you type another label, such as ``preop`` or ``3mo``.
 
-**Research file naming** opens the remaining parts of the file name: the **Task** (``programming``
-unless you name another), an optional **Acquisition**, and the **Run** number. The file name they
-make is shown under the fields, so you can see what will be written before anything is. Like every
-BIDS label, they keep letters and digits only. See :doc:`the output format <../output_format>`.
+**Research file naming** opens the remaining parts of the file name: the **Task ID**
+(``programming`` unless you name another), an optional **Acquisition ID**, and the **Run ID**. The
+file name they make is shown under the fields, so you can see what will be written before
+anything is. Like every BIDS label, they keep letters and digits only. See
+:doc:`the output format <../output_format>`.
 
 Pressing **Next** with a patient ID entered starts the visit in the chosen folder. When the
 patient already has a run on that day, the visit is saved as the next run (``run-02``,
-``run-03``) and the **Run** field changes to match; nothing is overwritten. The initial
+``run-03``) and the **Run ID** field changes to match; nothing is overwritten. The initial
 assessment of the new run opens filled in from the earlier run, so you only change what differs,
 such as notes taken after a dose; each run keeps its own. The visit is written into the folder at
 the first save and kept up to date at every save after that: its ``beh/`` file, the run's row in
@@ -91,7 +92,7 @@ another one without closing the app.
 .. _changing-patient-or-folder:
 
 **Changing the patient or the folder after the start.** Every field on this step stays editable.
-When you change the patient ID, the visit, the research file naming or the BIDS folder of a
+When you change the patient ID, the session ID, the research file naming or the BIDS folder of a
 session that already holds entries, **Next** asks **Start a new session file?** The session
 recorded so far stays saved under its own name. **Start new file** begins a new file for the new
 details, keeping the devices and the initial assessment on screen so they are saved into it;
@@ -111,11 +112,9 @@ Word, its BIDS folder as a zip, and the page size, A4 or US Letter, as Finish do
 Other sessions
 ~~~~~~~~~~~~~~
 
-Beside this session, **Other sessions** reads session files from earlier visits, or one whole BIDS
-folder, and produces reports across visits, the combined table and BIDS folders. On Windows, macOS
-and Linux you can drag session files or one BIDS folder onto the area; on every platform the
-**Import session files** and **Import from a BIDS folder** buttons do the same. The actions appear
-once a session is imported. See :doc:`import_export`.
+Beside this session, **Other sessions** has one button, **Import**, which reads the earlier visits
+saved in the BIDS folder chosen at the top, and produces reports across visits, the combined table
+and BIDS folders. The actions appear once a session is imported. See :doc:`import_export`.
 
 The recovery copy
 ~~~~~~~~~~~~~~~~~

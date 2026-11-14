@@ -131,25 +131,25 @@ void main() {
     expect(find.byTooltip('Add a BIDS folder'), findsOneWidget);
     expect(find.text('Other sessions'), findsOneWidget);
     expect(find.text('DBS indication'), findsNothing);
-    expect(find.text('Import session files'), findsOneWidget);
-    expect(find.text('Import from a BIDS folder'), findsOneWidget);
+    expect(find.text('Import'), findsOneWidget);
+    expect(find.text('Import session files'), findsNothing);
   });
 
   testWidgets('research file naming is folded away; an empty patient ID is '
       'marked on the field', (tester) async {
     await pumpWizard(tester, open: false);
     expect(find.text('Patient ID'), findsOneWidget);
-    expect(find.text('Visit'), findsOneWidget);
-    expect(find.text('Task'), findsNothing);
-    expect(find.text('Run'), findsNothing);
+    expect(find.text('Session ID'), findsOneWidget);
+    expect(find.text('Task ID'), findsNothing);
+    expect(find.text('Run ID'), findsNothing);
 
     await tapNext(tester);
     expect(find.text('Enter or choose the patient ID'), findsOneWidget);
 
     await tester.tap(find.text('Research file naming'));
     await tester.pumpAndSettle();
-    expect(find.text('Task'), findsOneWidget);
-    expect(find.text('Run'), findsOneWidget);
+    expect(find.text('Task ID'), findsOneWidget);
+    expect(find.text('Run ID'), findsOneWidget);
     expect(find.textContaining('File name: sub-'), findsOneWidget);
   });
 

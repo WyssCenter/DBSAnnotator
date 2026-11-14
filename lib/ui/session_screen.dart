@@ -1286,10 +1286,10 @@ class _SessionScreenState extends State<SessionScreen>
     if (hasEntries &&
         !await _confirm(
           'Start a new session file?',
-          'The patient, visit or BIDS folder no longer matches the open '
-              'session. The session recorded so far '
+          'The patient ID, session ID or BIDS folder no longer matches the '
+              'open session. The session recorded so far '
               '${savePath == null ? 'is kept in the app as a recovery copy' : 'stays saved as ${pickedBasename(savePath!)}'}. '
-              'A new file starts for patient ${_ids.name.subject}, visit '
+              'A new file starts for patient ${_ids.name.subject}, session '
               '${_ids.name.session}, with the devices and initial assessment '
               'on screen.',
           'Start new file',
@@ -2348,7 +2348,7 @@ class _SessionScreenState extends State<SessionScreen>
                 child: Text(
                   started
                       ? 'Session started for patient ${_ids.name.subject}, '
-                            'visit ${_ids.name.session}'
+                            'session ${_ids.name.session}'
                             '${_ids.name.run == '01' ? '' : ', run ${_ids.name.run}'}'
                       : 'Enter or choose the patient ID and press Next, or '
                             'open a saved session.',
@@ -2403,7 +2403,7 @@ class _SessionScreenState extends State<SessionScreen>
     );
     final others = TitledSection(
       title: 'Other sessions',
-      child: ImportExportPanel(catalog: catalog),
+      child: ImportExportPanel(catalog: catalog, folder: _folder?.path),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
