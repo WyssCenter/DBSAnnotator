@@ -51,12 +51,7 @@ void main() {
       final scales = data.panels.first;
       expect(
         scales.series.keys,
-        containsAll([
-          'MDS-UPDRS 3.3 Rigidity RUE',
-          'MDS-UPDRS 3.4 Finger tapping RUE',
-          'MDS-UPDRS 3.17 Rest tremor RUE',
-          'MDS-UPDRS 3.10 Gait',
-        ]),
+        containsAll(['Obsessions', 'Compulsions', 'Anxiety', 'Mood']),
       );
     });
 
@@ -73,7 +68,7 @@ void main() {
     });
 
     test('pulse width and frequency read through their unit suffixes', () {
-      expect(data.panels[2].series['Left']![1], 60);
+      expect(data.panels[2].series['Left']![1], 90);
       expect(data.panels[3].series['Left']![1], 130);
     });
 

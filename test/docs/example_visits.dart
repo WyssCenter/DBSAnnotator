@@ -13,12 +13,11 @@ const exampleFixture =
 /// change column show a real change rather than a copy.
 const _followUp = {
   '2026-02-03': '2026-09-18',
-  '\tMDS-UPDRS Part III\t38\t': '\tMDS-UPDRS Part III\t29\t',
-  '\tPDQ-39\t31\t': '\tPDQ-39\t24\t',
-  '\tUDysRS\t14\t': '\tUDysRS\t10\t',
-  '\tMDS-UPDRS 3.3 Rigidity RUE\t3\t': '\tMDS-UPDRS 3.3 Rigidity RUE\t2\t',
-  '\tMDS-UPDRS 3.17 Rest tremor RUE\t2\t':
-      '\tMDS-UPDRS 3.17 Rest tremor RUE\t1\t',
+  '\tY-BOCS\t28\t': '\tY-BOCS\t21\t',
+  '\tMADRS\t18\t': '\tMADRS\t12\t',
+  '\tOCI-R\t30\t': '\tOCI-R\t22\t',
+  '\tObsessions\t6\t': '\tObsessions\t4\t',
+  '\tAnxiety\t4\t': '\tAnxiety\t2\t',
 };
 
 /// The two visits as they would be on disk: filename to TSV text.

@@ -20,8 +20,9 @@ between them. The menu button at the top left opens the :ref:`settings menu <set
             label="English" default>
    </video>
 
-A visit from start to end: a new session, the stimulation parameters, the lead, the clinical
-scales, then three configurations rated and saved, with the charts and table below.
+A whole visit from start to end: the patient, the indication and devices, the initial
+assessment, three configurations rated and saved, and Finish. Each step below has a shorter
+clip that also shows its other options.
 
 .. _setup-step:
 
@@ -29,6 +30,18 @@ Step 1: Session
 ---------------
 
 Session is where a visit starts, and where files from other visits come in and reports go out.
+
+.. raw:: html
+
+   <video controls playsinline preload="metadata" width="100%"
+          poster="../_static/videos/step_session.png">
+     <source src="../_static/videos/step_session.mp4" type="video/mp4">
+     <track kind="captions" src="../_static/videos/step_session.vtt" srclang="en"
+            label="English" default>
+   </video>
+
+The Session step: a patient already in the folder, the visit label, and the research file
+naming.
 
 .. figure:: ../_static/screenshots/session_step0_file.png
    :alt: The Session step: the BIDS folder bar at the top, This session on the left with the
@@ -141,12 +154,24 @@ count as unkept.
 Step 2: Indication and devices
 ------------------------------
 
+.. raw:: html
+
+   <video controls playsinline preload="metadata" width="100%"
+          poster="../_static/videos/step_devices.png">
+     <source src="../_static/videos/step_devices.mp4" type="video/mp4">
+     <track kind="captions" src="../_static/videos/step_devices.vtt" srclang="en"
+            label="English" default>
+   </video>
+
+Indication and devices: the indication, the target, the leads, the IPG and the devices
+settings.
+
 .. figure:: ../_static/screenshots/session_devices.png
    :alt: Indication and devices: the DBS indication and anatomical target on the left, the lead
          and IPG models on the right, each with a box to use the same model on both sides
    :width: 100%
 
-   Indication and devices for a Parkinson's disease patient with a directional lead.
+   Indication and devices for a patient with OCD and a directional lead.
 
 The patient's **DBS indication** and **anatomical target**, and the implanted devices. The
 indication chooses the clinical scales, the symptom and side effect ratings and the stimulation
@@ -199,13 +224,25 @@ Step 3: Initial assessment
 How the patient is on arrival, before anything is changed. The step is saved as the run's
 initial assessment, in its row of the session's ``scans.tsv``, when you press **Next**.
 
+.. raw:: html
+
+   <video controls playsinline preload="metadata" width="100%"
+          poster="../_static/videos/step_initial.png">
+     <source src="../_static/videos/step_initial.mp4" type="video/mp4">
+     <track kind="captions" src="../_static/videos/step_initial.vtt" srclang="en"
+            label="English" default>
+   </video>
+
+The initial assessment: clinical scales, medications and notes, the stimulation on arrival,
+the contacts and a current split between two cathodes.
+
 .. figure:: ../_static/screenshots/session_step1_config.png
    :alt: Initial assessment: clinical scales, medications and notes at the top; the active
          program, the parameters per side and the current fractionalization on the left; the
          contacts diagram on the right
    :width: 100%
 
-   The initial assessment of a Parkinson's disease patient: current steered across two segments
+   The initial assessment of a patient with OCD: current steered across two segments
    of level 2 on the left lead.
 
 **Clinical scales.** The baseline assessment: disease-specific scores such as Y-BOCS or MDS-UPDRS
@@ -335,6 +372,18 @@ Step 4: Programming
 -------------------
 
 The loop, repeated once per configuration tested.
+
+.. raw:: html
+
+   <video controls playsinline preload="metadata" width="100%"
+          poster="../_static/videos/step_programming.png">
+     <source src="../_static/videos/step_programming.mp4" type="video/mp4">
+     <track kind="captions" src="../_static/videos/step_programming.vtt" srclang="en"
+            label="English" default>
+   </video>
+
+Programming: configurations rated and saved, a session scale added, one configuration
+edited and one deleted.
 
 .. figure:: ../_static/screenshots/session_step3_recording.png
    :alt: The Programming step: program, parameters and contacts above; symptom and side effect
@@ -481,6 +530,18 @@ ranked anywhere: see :ref:`scale-targets` for the definition of the aggregate in
 
 Step 5: Finish
 --------------
+
+.. raw:: html
+
+   <video controls playsinline preload="metadata" width="100%"
+          poster="../_static/videos/step_finish.png">
+     <source src="../_static/videos/step_finish.mp4" type="video/mp4">
+     <track kind="captions" src="../_static/videos/step_finish.vtt" srclang="en"
+            label="English" default>
+   </video>
+
+Finish: the configuration the patient leaves on, the summary, the reports and the BIDS
+export.
 
 .. figure:: ../_static/screenshots/session_finish.png
    :alt: The Finish step: the session summary, the report buttons for the patient record, the

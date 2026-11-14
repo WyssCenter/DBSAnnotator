@@ -27,16 +27,16 @@ void main() {
   );
 
   test('the aggregate index per block, to three decimals', () {
-    // Four MDS-UPDRS III items, all mode `min` over 0..4, so each block scores
-    // the mean of (1 - value/4) across its four ratings.
+    // Four OCD session scales, all mode `min` over 0..10, so each block scores
+    // the mean of (1 - value/10) across its four ratings.
     const expected = {
-      1: 0.375,
-      2: 0.500,
-      3: 0.4375,
-      4: 0.4375,
-      5: 0.250,
-      6: 0.625,
-      7: 0.750,
+      1: 0.50,
+      2: 0.60,
+      3: 0.55,
+      4: 0.55,
+      5: 0.40,
+      6: 0.70,
+      7: 0.80,
     };
     expect(data.chart.aggregateIndex.keys, expected.keys);
     for (final e in expected.entries) {
@@ -55,8 +55,8 @@ void main() {
     final idx = data.chart.aggregateIndex;
     final replicateSpread = (idx[7]! - idx[6]!).abs();
     final betweenSettings = (idx[2]! - idx[3]!).abs();
-    expect(replicateSpread, closeTo(0.125, 5e-4));
-    expect(betweenSettings, closeTo(0.0625, 5e-4));
+    expect(replicateSpread, closeTo(0.1, 5e-4));
+    expect(betweenSettings, closeTo(0.05, 5e-4));
     expect(
       replicateSpread,
       greaterThan(betweenSettings),

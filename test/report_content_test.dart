@@ -31,7 +31,7 @@ void main() {
       // the L row.
       final first = data.tableData.first;
       expect(first[time], matches(RegExp(r'^\d{2}:\d{2}:\d{2}$')));
-      expect(first[index], contains('0.38'));
+      expect(first[index], contains('0.50'));
       expect(
         first[index],
         contains('rank 5'),
@@ -43,7 +43,7 @@ void main() {
         for (final row in data.tableData)
           if (row[index].isNotEmpty) row.first: row[index],
       };
-      expect(byBlock['3'], contains('0.44'));
+      expect(byBlock['3'], contains('0.55'));
       expect(byBlock['3'], byBlock['4']);
       // The R row leaves them blank rather than repeating them.
       expect(data.tableData[1][time], isEmpty);
@@ -71,15 +71,10 @@ void main() {
       final byName = {for (final r in data.response) r.name: r};
       expect(
         byName.keys,
-        containsAll([
-          'MDS-UPDRS 3.3 Rigidity RUE',
-          'MDS-UPDRS 3.4 Finger tapping RUE',
-          'MDS-UPDRS 3.17 Rest tremor RUE',
-          'MDS-UPDRS 3.10 Gait',
-        ]),
+        containsAll(['Obsessions', 'Compulsions', 'Anxiety', 'Mood']),
       );
-      expect(byName['MDS-UPDRS 3.3 Rigidity RUE']!.first, 3);
-      expect(byName['MDS-UPDRS 3.3 Rigidity RUE']!.last, 1);
+      expect(byName['Obsessions']!.first, 6);
+      expect(byName['Obsessions']!.last, 2);
     });
 
     test('n scales rated per block, so the index is interpretable', () {
@@ -106,26 +101,26 @@ void main() {
     test(
       'parameters list their distinct values and the blocks that used them',
       () {
-        // A "5.0 - 7.0 mA" range hides that the right side went 5.0 -> 6.0 ->
-        // 7.0 -> 5.0 -> 7.0 -> 6.0, implying a titration that never happened.
+        // A "5.0 - 7.5 mA" range hides that the right side went 5.0 -> 6.0 ->
+        // 7.0 -> 6.0 -> 7.5 -> 6.0, implying a titration that never happened.
         expect(
           data.ampL,
-          '5.0 mA (configurations 1-5), 4.0 mA (configurations 6-7)',
+          '5.0 mA (configurations 1-5), 6.0 mA (configurations 6-7)',
         );
-        expect(data.ampR, contains('5.0 mA (configurations 2, 6-7)'));
+        expect(data.ampR, contains('6.0 mA (configurations 2, 4, 6-7)'));
       },
     );
 
     test('an unchanged parameter says so instead of a degenerate range', () {
       expect(data.freqL, '130 Hz (unchanged)');
-      expect(data.pwR, '60 µs (unchanged)');
+      expect(data.pwR, '90 µs (unchanged)');
     });
 
     test('what changed names a dose change on unchanged contacts', () {
-      // The right lead keeps its contacts while its amplitude goes 4 to 5 mA;
+      // The right lead keeps its contacts while its amplitude goes 5 to 6 mA;
       // the contact notation alone would report no change at all.
-      expect(data.configChanges, contains('Right amplitude: 4.0 -> 5.0 mA'));
-      expect(data.configChanges, contains('Left amplitude: 5.0 -> 4.0 mA'));
+      expect(data.configChanges, contains('Right amplitude: 5.0 -> 6.0 mA'));
+      expect(data.configChanges, contains('Left amplitude: 5.0 -> 6.0 mA'));
       expect(
         data.configChanges.any((l) => l.startsWith('Left contacts:')),
         isTrue,
@@ -136,7 +131,7 @@ void main() {
     test('the figure carries frequency and pulse width per side', () {
       // The live view in the app shows them; the report did not.
       expect(data.chart.frequency.keys, containsAll(['Left', 'Right']));
-      expect(data.chart.pulseWidth['Left']!.values.toSet(), {60});
+      expect(data.chart.pulseWidth['Left']!.values.toSet(), {90});
       expect(data.figureCaption, contains('pulse width'));
     });
 
@@ -256,7 +251,7 @@ void main() {
       // on the third decimal.
       expect(
         rankedReportData(_example()).targetsText,
-        contains('MDS-UPDRS 3.3 Rigidity RUE: min of 0-4'),
+        contains('Obsessions: min of 0-10'),
       );
     });
   });

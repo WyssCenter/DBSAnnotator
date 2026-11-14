@@ -19,7 +19,6 @@ const _uvx = String.fromEnvironment('VIDEO_UVX', defaultValue: 'uvx');
 /// Each line of the script: its spoken WAV, empty without a voice, and how
 /// long it takes to say.
 final _spoken = <String, ({String wav, int ms})>{};
-var _speechEnds = DateTime.now();
 
 /// A fresh, empty folder whose path names no user: under the Windows public
 /// profile, else the system temp folder.
@@ -72,22 +71,21 @@ int _wavMs(List<int> bytes) {
   throw StateError('No data chunk in the WAV file');
 }
 
-/// Caption and speak [line] of the script, once the previous line has
-/// finished, and log when it starts and ends for the recorder.
+/// Captions and speaks [line] of the script, logged for the recorder, and
+/// returns once it has been said, so the actions it describes follow it.
 Future<void> say(WidgetTester tester, String line) async {
   final spoken = _spoken[line];
   if (spoken == null) throw ArgumentError('Not in the script: $line');
-  final wait = _speechEnds.difference(DateTime.now()).inMilliseconds;
-  if (wait > 0) await pause(tester, wait);
   final start = DateTime.now();
-  _speechEnds = start.add(Duration(milliseconds: spoken.ms + 400));
+  final end = start.add(Duration(milliseconds: spoken.ms + 300));
   if (_marks.isNotEmpty) {
     File('$_marks/captions.tsv').writeAsStringSync(
       '${start.millisecondsSinceEpoch}\t'
-      '${_speechEnds.millisecondsSinceEpoch}\t${spoken.wav}\t$line\n',
+      '${end.millisecondsSinceEpoch}\t${spoken.wav}\t$line\n',
       mode: FileMode.append,
     );
   }
+  await pause(tester, spoken.ms + 300);
 }
 
 final _tap = ValueNotifier<Offset?>(null);
@@ -107,7 +105,7 @@ Future<void> startVideo(WidgetTester tester, Widget home) async {
   await windowManager.ensureInitialized();
   // Its own title, so ffmpeg never records another open copy of the app.
   await windowManager.setTitle('DBS Annotator video');
-  await windowManager.setSize(const Size(1280, 800));
+  await windowManager.setSize(const Size(1600, 900));
   await windowManager.center();
   await tester.pumpWidget(
     MaterialApp(
@@ -129,15 +127,17 @@ Future<void> startVideo(WidgetTester tester, Widget home) async {
     ),
   );
   await pause(tester, 500);
+}
+
+/// Starts the recording: what happened before is setup, kept off camera.
+Future<void> rolling(WidgetTester tester) async {
   _mark('ready');
   await pause(tester, 1000);
 }
 
-/// Lets the last line finish, tells the recorder to stop, then holds the last
-/// frame briefly.
+/// Holds the last frame, then tells the recorder to stop.
 Future<void> endVideo(WidgetTester tester) async {
-  final wait = _speechEnds.difference(DateTime.now()).inMilliseconds;
-  await pause(tester, wait > 1500 ? wait : 1500);
+  await pause(tester, 1500);
   _mark('done');
   await pause(tester, 1000);
 }
@@ -172,6 +172,15 @@ Future<void> tapAt(WidgetTester tester, Offset at, {bool fast = false}) async {
   await pause(tester, fast ? 150 : 700);
 }
 
+/// Shows the marker on [finder] without tapping it.
+Future<void> point(WidgetTester tester, Finder finder) async {
+  await center(tester, finder);
+  _tap.value = tester.getCenter(finder.first);
+  await pause(tester, 1200);
+  _tap.value = null;
+  await pause(tester, 300);
+}
+
 Future<void> tap(WidgetTester tester, Finder finder) async {
   await center(tester, finder);
   await tapAt(tester, tester.getCenter(finder.first));
@@ -186,8 +195,10 @@ Future<void> typeInto(
   String label,
   String text, {
   int at = 0,
-}) async {
-  final field = find.widgetWithText(TextField, label).at(at);
+}) => typeIn(tester, find.widgetWithText(TextField, label).at(at), text);
+
+/// Types [text] into [field], one key at a time.
+Future<void> typeIn(WidgetTester tester, Finder field, String text) async {
   await tap(tester, field);
   for (var i = 1; i <= text.length; i++) {
     await tester.enterText(field, text.substring(0, i));

@@ -152,7 +152,7 @@ void main() {
   test('the patient history comes from the last visit', () async {
     expect(await participantsIn(_root), ['01']);
     final history = await patientHistory(_root, '01');
-    expect(history.indication, 'PD');
+    expect(history.indication, 'OCD');
     expect(history.lastVisit['session_id'], 'ses-20260918');
   });
 }

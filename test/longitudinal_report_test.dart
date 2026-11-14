@@ -291,10 +291,7 @@ void main() {
     );
     expect(real.visits, hasLength(1));
     expect(real.visits.first.blocks, [1, 2, 3, 4, 5, 6, 7]);
-    expect(
-      real.visits.first.clinicalScales.keys,
-      contains('MDS-UPDRS Part III'),
-    );
+    expect(real.visits.first.clinicalScales.keys, contains('Y-BOCS'));
     expect(real.sessionChart.xs, hasLength(7));
   });
 }

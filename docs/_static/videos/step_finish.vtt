@@ -1,0 +1,17 @@
+WEBVTT
+
+00:00:01.017 --> 00:00:10.187
+Next asks which configuration the patient leaves on. The one marked as the final settings is chosen already; Not noted is also possible.
+
+00:00:17.832 --> 00:00:24.401
+Finish summarises the session: how many configurations were tested, and the final settings as their values.
+
+00:00:28.216 --> 00:00:33.694
+Reports for the patient record come out as PDF or Word, on A4 or US Letter.
+
+00:00:39.367 --> 00:00:42.906
+For research, the BIDS folder is exported as a zip.
+
+00:00:44.884 --> 00:00:48.434
+Close ends the session. Everything is already saved.
+

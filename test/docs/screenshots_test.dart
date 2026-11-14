@@ -101,6 +101,10 @@ const _textDialogs = {
 /// recording step is ~4800 px with its charts and entries table laid out.
 const double _maxHeight = 3000;
 
+/// The window height the screen lays out for, as on a desktop monitor; a
+/// capture's own height only fits its content.
+const double _windowHeight = 1000;
+
 /// Device pixels of background kept below the last painted row of a trimmed
 /// capture. 32 device pixels is 16 logical, which reads as a margin.
 const int _trimMargin = 32;
@@ -113,14 +117,13 @@ const _fixture = exampleFixture;
 const _defaultModel = 'Medtronic SenSight B33005';
 const _subjectId = '01';
 const _runId = '01';
-const _preset = 'PD';
-const _frequency = '125';
-const _amplitude = '5.5';
+const _preset = 'OCD';
+const _frequency = '130';
+const _amplitude = '5';
 const _pulseWidth = '90';
-const _initialNotes =
-    'Rest tremor in the right hand; walks slowly with short steps.';
+const _initialNotes = 'Tense and anxious; checks the door twice.';
 const _recordingNotes =
-    'Tremor much reduced at rest; mild tingling in the right hand, fading.';
+    'Calmer, no urge to check; mild warmth in the left arm, fading.';
 
 /// Ratings as a fraction of each scale's range, cycled across the rows.
 const _ratings = <double>[0.62, 0.35, 0.48, 0.7, 0.25];
@@ -223,10 +226,16 @@ Future<void> _pump(
       theme: _withFont(dbsTheme(brightness)),
       builder: (context, child) => RepaintBoundary(
         key: _boundary,
-        child: MediaQuery.withClampedTextScaling(
-          minScaleFactor: textScale,
-          maxScaleFactor: textScale,
-          child: child!,
+        child: LayoutBuilder(
+          builder: (context, box) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(size: Size(box.maxWidth, _windowHeight)),
+            child: MediaQuery.withClampedTextScaling(
+              minScaleFactor: textScale,
+              maxScaleFactor: textScale,
+              child: child!,
+            ),
+          ),
         ),
       ),
       home: home,
@@ -268,6 +277,10 @@ Future<void> _shoot(
   String name, {
   bool trim = false,
 }) async {
+  debugDisableShadows = false;
+  for (final r in tester.allRenderObjects) {
+    r.markNeedsPaint();
+  }
   for (final e in find.byType(ScaffoldMessenger).evaluate()) {
     ((e as StatefulElement).state as ScaffoldMessengerState)
         .removeCurrentSnackBar();
@@ -1121,23 +1134,6 @@ void main() {
       await _shootDialog(tester, file);
       await _tapText(tester, close);
     }
-  });
-
-  testWidgets('dialogs: help / about', (tester) async {
-    final (catalog, limits, presets) = await _contracts();
-    await _pump(
-      tester,
-      SessionScreen(
-        catalog: catalog,
-        limits: limits,
-        scalePresets: presets,
-        authoring: SessionAuthoring(),
-      ),
-      size: const Size(_narrow, 1200),
-    );
-    await _tapTooltip(tester, 'Open navigation menu');
-    await _tapText(tester, 'Help and about');
-    await _shootDialog(tester, 'dialog_about');
   });
 
   testWidgets('reports: nothing imported', (tester) async {

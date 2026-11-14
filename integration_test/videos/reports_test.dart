@@ -39,6 +39,7 @@ void main() {
     ];
     await prepareScript(_Line.values.map((l) => l.text));
     await startVideo(tester, const SessionScreen());
+    await rolling(tester);
     await _say(tester, _Line.import);
     await tapText(tester, 'Import session files');
     await pause(tester, 2000);

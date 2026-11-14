@@ -132,6 +132,7 @@ def main() -> int:
     _write(_lockup(720, BLACK), ROOT / "docs/_static/logo.png")
     for px in (16, 32, 48):
         _write(rounded.resize((px, px), Image.LANCZOS), ROOT / f"docs/_static/favicon-{px}.png")
+    _write(rounded.resize((128, 128), Image.LANCZOS), ROOT / "docs/_static/app_icon.png")
     ico = ROOT / "docs/_static/favicon.ico"
     rounded.resize((48, 48), Image.LANCZOS).save(ico, "ICO", sizes=[(16, 16), (32, 32), (48, 48)])
     print(f"  {ico.relative_to(ROOT).as_posix():54} 16/32/48")

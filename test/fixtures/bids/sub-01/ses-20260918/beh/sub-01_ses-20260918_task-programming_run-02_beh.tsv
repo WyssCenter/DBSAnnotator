@@ -1,8 +1,8 @@
-acq_time	is_final	is_starred	program_id	left_stim_freq	left_anode	left_cathode	left_amplitude	left_pulse_width	right_stim_freq	right_anode	right_cathode	right_amplitude	right_pulse_width	scale_mds_updrs_3_3_rigidity_rue	scale_mds_updrs_3_4_finger_tapping_rue	scale_mds_updrs_3_17_rest_tremor_rue	scale_mds_updrs_3_10_gait	notes
-2026-09-18T09:03:20+00:00	0	0	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	4.0	60	2	3	1	2	right arm still stiff, finger tapping slow
-2026-09-18T09:05:05+00:00	0	0	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	5.0	60	2	2	1	2	n/a
-2026-09-18T09:07:40+00:00	0	0	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E3	6.0	60	2	3	1	2	n/a
-2026-09-18T09:09:15+00:00	0	0	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E2a_E2b_E2c	2.0_2.0_2.0	60	2	3	1	2	transient tingling in the left hand, settled within a minute
-2026-09-18T09:11:50+00:00	0	0	B	130	case	E1b_E1c	3.0_2.0	60	130	case	E2a_E2b_E2c	2.5_2.5_2.5	60	2	3	3	3	slurred speech and unsteady gait
-2026-09-18T09:14:30+00:00	0	0	B	130	case	E1c	4.0	60	130	case	E3	5.0	60	2	1	1	2	tremor gone at rest, rigidity much reduced
-2026-09-18T09:14:39+00:00	1	1	B	130	case	E1c	4.0	60	130	case	E3	5.0	60	1	1	0	2	walks steadily, speech clear
+acq_time	is_final	is_starred	program_id	left_stim_freq	left_anode	left_cathode	left_amplitude	left_pulse_width	right_stim_freq	right_anode	right_cathode	right_amplitude	right_pulse_width	scale_obsessions	scale_compulsions	scale_anxiety	scale_mood	notes
+2026-09-18T09:03:20+00:00	0	0	B	130	case	E1b_E1c	3.0_2.0	90	130	case	E3	5.0	90	4	6	2	4	still anxious, checks the door once
+2026-09-18T09:05:05+00:00	0	0	B	130	case	E1b_E1c	3.0_2.0	90	130	case	E3	6.0	90	4	4	2	4	n/a
+2026-09-18T09:07:40+00:00	0	0	B	130	case	E1b_E1c	3.0_2.0	90	130	case	E3	7.0	90	4	6	2	4	n/a
+2026-09-18T09:09:15+00:00	0	0	B	130	case	E1b_E1c	3.0_2.0	90	130	case	E2a_E2b_E2c	2.0_2.0_2.0	90	4	6	2	4	transient warmth in the left arm, settled within a minute
+2026-09-18T09:11:50+00:00	0	0	B	130	case	E1b_E1c	3.0_2.0	90	130	case	E2a_E2b_E2c	2.5_2.5_2.5	90	4	6	6	6	restless, talks fast, laughs easily
+2026-09-18T09:14:30+00:00	0	0	B	130	case	E1c	6.0	90	130	case	E3	6.0	90	4	2	2	4	calmer, no urge to check, mood lighter
+2026-09-18T09:14:39+00:00	1	1	B	130	case	E1c	6.0	90	130	case	E3	6.0	90	2	2	0	4	smiles, relaxed, talks about plans

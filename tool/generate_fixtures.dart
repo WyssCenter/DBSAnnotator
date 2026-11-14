@@ -13,22 +13,22 @@
 // expected values:
 //
 //  * 1 initial-assessment block (`is_initial=1`, clinical scales) + 7
-//    recording blocks × 4 MDS-UPDRS III items = 28 rated rows.
+//    recording blocks × 4 OCD session scales = 28 rated rows.
 //  * Blocks 6 and 7 are a replicate pair: byte-identical across all ten
 //    stimulation columns, rated 9 seconds apart. They are the session's own
 //    measure of re-rating noise.
 //  * Blocks 3 and 4 carry the same four ratings under different stimulation,
 //    so the record cannot tell a re-rating from values carried forward.
-//  * Replicate spread must exceed between-setting separation: 0.125 (blocks
-//    6 to 7) against 0.0625 (blocks 2 vs 3). A test asserts that inequality
+//  * Replicate spread must exceed between-setting separation: 0.1 (blocks
+//    6 to 7) against 0.05 (blocks 2 vs 3). A test asserts that inequality
 //    directly, because it is what makes the report's own warning true.
 //  * 6 distinct stimulation settings across the 7 recording blocks.
 //  * At least one current-split block, so percentage rendering is covered
 //    (block 4 splits three ways, exercising the 33/33/34 remainder case).
 //
-// Every item is scored 0 to 4 in whole steps and targeted `min` over 0 to 4,
-// so a block's aggregate index is the mean of `1 - value/4` over its four
-// ratings, in steps of 1/16. The designed ranking is
+// Every scale is rated in even whole points and targeted `min` over 0 to 10,
+// so a block's aggregate index is the mean of `1 - value/10` over its four
+// ratings, in steps of 1/20. The designed ranking is
 // 7, 6, 2, 3, 4, 1, 5: the best setting is blocks 6+7 and block 1 is rank 6.
 // `main` prints the indices themselves.
 
@@ -46,12 +46,12 @@ import 'package:dbs_annotator/core/tsv.dart';
 final DateTime _start = DateTime.utc(2026, 2, 3, 9);
 
 const String _model = 'Medtronic SenSight B33005';
-const String _pathology = 'PD';
-const String _target = 'STN';
+const String _pathology = 'OCD';
+const String _target = 'VC/VS';
 const String _ipg = 'Medtronic Percept PC';
 const String _program = 'B';
 const String _freq = '130';
-const String _pulseWidth = '60';
+const String _pulseWidth = '90';
 
 /// One recording block: when it was rated, its stimulation, and its ratings.
 typedef _Block = ({
@@ -65,10 +65,10 @@ typedef _Block = ({
 });
 
 const List<String> _sessionScales = [
-  'MDS-UPDRS 3.3 Rigidity RUE',
-  'MDS-UPDRS 3.4 Finger tapping RUE',
-  'MDS-UPDRS 3.17 Rest tremor RUE',
-  'MDS-UPDRS 3.10 Gait',
+  'Obsessions',
+  'Compulsions',
+  'Anxiety',
+  'Mood',
 ];
 
 const List<_Block> _blocks = [
@@ -77,17 +77,17 @@ const List<_Block> _blocks = [
     leftCathode: 'E1b_E1c',
     leftAmplitude: '3.0_2.0',
     rightCathode: 'E3',
-    rightAmplitude: '4.0',
-    ratings: [3, 3, 2, 2],
-    notes: 'right arm still stiff, finger tapping slow',
+    rightAmplitude: '5.0',
+    ratings: [6, 6, 4, 4],
+    notes: 'still anxious, checks the door once',
   ),
   (
     seconds: 305,
     leftCathode: 'E1b_E1c',
     leftAmplitude: '3.0_2.0',
     rightCathode: 'E3',
-    rightAmplitude: '5.0',
-    ratings: [2, 2, 2, 2],
+    rightAmplitude: '6.0',
+    ratings: [4, 4, 4, 4],
     notes: '',
   ),
   (
@@ -95,8 +95,8 @@ const List<_Block> _blocks = [
     leftCathode: 'E1b_E1c',
     leftAmplitude: '3.0_2.0',
     rightCathode: 'E3',
-    rightAmplitude: '6.0',
-    ratings: [2, 3, 2, 2],
+    rightAmplitude: '7.0',
+    ratings: [4, 6, 4, 4],
     notes: '',
   ),
   (
@@ -105,8 +105,8 @@ const List<_Block> _blocks = [
     leftAmplitude: '3.0_2.0',
     rightCathode: 'E2a_E2b_E2c',
     rightAmplitude: '2.0_2.0_2.0',
-    ratings: [2, 3, 2, 2],
-    notes: 'transient tingling in the left hand, settled within a minute',
+    ratings: [4, 6, 4, 4],
+    notes: 'transient warmth in the left arm, settled within a minute',
   ),
   (
     seconds: 710,
@@ -114,36 +114,36 @@ const List<_Block> _blocks = [
     leftAmplitude: '3.0_2.0',
     rightCathode: 'E2a_E2b_E2c',
     rightAmplitude: '2.5_2.5_2.5',
-    ratings: [3, 3, 3, 3],
-    notes: 'slurred speech and unsteady gait',
+    ratings: [6, 6, 6, 6],
+    notes: 'restless, talks fast, laughs easily',
   ),
   (
     seconds: 870,
     leftCathode: 'E1c',
-    leftAmplitude: '4.0',
+    leftAmplitude: '6.0',
     rightCathode: 'E3',
-    rightAmplitude: '5.0',
-    ratings: [2, 1, 1, 2],
-    notes: 'tremor gone at rest, rigidity much reduced',
+    rightAmplitude: '6.0',
+    ratings: [4, 2, 2, 4],
+    notes: 'calmer, no urge to check, mood lighter',
   ),
   // Nine seconds after block 6, on identical stimulation: too short to be a
   // plausible re-administration, which makes this pair the noise floor.
   (
     seconds: 879,
     leftCathode: 'E1c',
-    leftAmplitude: '4.0',
+    leftAmplitude: '6.0',
     rightCathode: 'E3',
-    rightAmplitude: '5.0',
-    ratings: [1, 1, 0, 2],
-    notes: 'walks steadily, speech clear',
+    rightAmplitude: '6.0',
+    ratings: [2, 2, 0, 4],
+    notes: 'smiles, relaxed, talks about plans',
   ),
 ];
 
 /// The initial assessment: clinical instruments, before any change.
 const List<ScaleEntry> _clinicalScales = [
-  (name: 'MDS-UPDRS Part III', value: '38'),
-  (name: 'PDQ-39', value: '31'),
-  (name: 'UDysRS', value: '14'),
+  (name: 'Y-BOCS', value: '28'),
+  (name: 'MADRS', value: '18'),
+  (name: 'OCI-R', value: '30'),
 ];
 
 List<SessionRow> _rows() => [
@@ -159,10 +159,10 @@ List<SessionRow> _rows() => [
     target: _target,
     leftIpgModel: _ipg,
     rightIpgModel: _ipg,
-    medications: 'Levodopa/carbidopa 100/25 mg four times a day',
+    medications: 'Fluoxetine 60 mg daily',
     notes:
-        'stiff and slow, rest tremor in the right hand, one hour after '
-        'the morning dose',
+        'tense and anxious, checks the door twice, avoids touching the '
+        'table',
     leftStimFreq: _freq,
     leftAnode: 'case',
     leftCathode: _blocks.first.leftCathode,
@@ -284,7 +284,7 @@ void main() {
   }
   for (final block in byBlock.keys) {
     final v = byBlock[block]!;
-    final index = 1 - (v.reduce((a, b) => a + b) / v.length) / 4;
+    final index = 1 - (v.reduce((a, b) => a + b) / v.length) / 10;
     stdout.writeln('  block $block  index ${index.toStringAsFixed(4)}');
   }
 }

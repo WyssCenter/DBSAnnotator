@@ -51,7 +51,7 @@ An example BIDS folder
 ----------------------
 
 The repository holds a complete, synthetic example: two visits of one patient
-with Parkinson's disease, written by the app's own export code, in
+with obsessive-compulsive disorder (OCD), written by the app's own export code, in
 `test/fixtures/bids <https://github.com/neuromodulation/DBSAnnotator/tree/main/test/fixtures/bids>`_.
 It is the folder the tests read back, so it always matches what the current
 version writes, and it is a convenient place to try an analysis before you
