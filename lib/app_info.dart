@@ -10,7 +10,7 @@ const String appName = 'Wyss DBS Annotator';
 /// pubspec at runtime would need a native plugin. The value reaches report
 /// footers and document metadata, so `version_parity_test.dart` guards it
 /// against drift.
-const String appVersion = '0.6.0';
+const String appVersion = '0.7.0';
 const String repoUrl = 'https://github.com/neuromodulation/DBSAnnotator';
 const String issuesUrl = '$repoUrl/issues';
 const String docsUrl = 'https://dbs-annotator.readthedocs.io/';

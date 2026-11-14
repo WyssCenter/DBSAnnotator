@@ -18,7 +18,7 @@ publish_to: "none"
 # 0.5.x continues the product's own line: the Qt implementation shipped through
 # v0.4.0 and this app is its successor. The +N build number must only ever
 # increase once something has been published.
-version: 0.6.0+2
+version: 0.7.0+3
 
 environment:
   # Must not understate what the app actually needs. pubspec.lock resolves
@@ -132,7 +132,7 @@ msix_config:
   # field for Store use. That is why this cannot be derived from the pubspec
   # `version: x.y.z+build` above; the build number is not a revision.
   # Keep the first three equal to it; test/version_parity_test.dart enforces it.
-  msix_version: 0.6.0.0
+  msix_version: 0.7.0.0
   # One 1024x1024 source for every tile except the badge, which comes from windows/msix/.
   logo_path: assets/icon/app_icon.png
   architecture: x64
