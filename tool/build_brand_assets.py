@@ -35,14 +35,14 @@ ADAPTIVE_INK = 0.747
 SUPERSAMPLE = 4
 
 
-def _icon_ink() -> Image.Image:
+def _icon_ink(size: int = SIZE) -> Image.Image:
     """Ink coverage of the icon master: 255 on black, 0 on mint."""
     with pymupdf.open(ICON_MASTER) as doc:
         page = doc[0]
-        big = SIZE * SUPERSAMPLE
+        big = size * SUPERSAMPLE
         pix = page.get_pixmap(matrix=pymupdf.Matrix(big / page.rect.width, big / page.rect.height))
         rendered = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-    grey = rendered.convert("L").resize((SIZE, SIZE), Image.LANCZOS)
+    grey = rendered.convert("L").resize((size, size), Image.LANCZOS)
     mint = round(0.299 * MINT[0] + 0.587 * MINT[1] + 0.114 * MINT[2])
     return Image.eval(grey, lambda v: max(0, min(255, round((mint - v) * 255 / mint))))
 
@@ -110,6 +110,14 @@ def main() -> int:
         _centred(_rounded(square, MACOS_CORNER), MACOS_BODY), ROOT / "assets/icon/macos_icon.png"
     )
     _write(square.resize((512, 512), Image.LANCZOS), ROOT / "assets/store/play_store_icon_512.png")
+    _write(
+        square.resize((300, 300), Image.LANCZOS).convert("RGB"),
+        ROOT / "assets/store/ms_store_tile_300.png",
+    )
+    _write(
+        _paint(_icon_ink(2160), BLACK, MINT).convert("RGB"),
+        ROOT / "assets/store/ms_store_box_art_2160.png",
+    )
 
     circle = ink.crop(ink.getbbox())
     _write(
