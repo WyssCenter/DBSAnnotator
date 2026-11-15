@@ -29,6 +29,9 @@ import 'dart:io';
 import 'dart:typed_data' show ByteData;
 import 'dart:ui' as ui;
 
+import 'package:dbs_annotator/app_info.dart'
+    show appIconAsset, lockupWhiteAsset;
+import 'package:dbs_annotator/core/brand_palette.dart';
 import 'package:dbs_annotator/core/electrode/electrode_model.dart';
 import 'package:dbs_annotator/core/electrode/geometry.dart';
 import 'package:dbs_annotator/core/electrode/stimulation_rule.dart';
@@ -64,11 +67,19 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart'
     show FontLoader, MethodChannel, rootBundle;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 
 import 'example_visits.dart';
 
 /// Where PNGs are written; unset means the default `flutter test` does nothing.
 final String? _outDir = Platform.environment['DOCS_SCREENSHOT_DIR'];
+
+final String? _storeDir = Platform.environment['STORE_SCREENSHOT_DIR'];
+
+const _storeDevices = <(String, Size, double)>[
+  ('phone', Size(405, 720), 8 / 3),
+  ('tablet', Size(1280, 720), 2),
+];
 
 const _boundary = ValueKey('docs-screenshot');
 
@@ -213,6 +224,7 @@ Future<void> _pump(
   Widget home, {
   Brightness brightness = Brightness.light,
   Size size = const Size(_wide, _maxHeight),
+  double windowHeight = _windowHeight,
   double textScale = 1.0,
 }) async {
   debugDisableShadows = false;
@@ -229,7 +241,7 @@ Future<void> _pump(
         child: LayoutBuilder(
           builder: (context, box) => MediaQuery(
             data: MediaQuery.of(context)
-                .copyWith(size: Size(box.maxWidth, _windowHeight)),
+                .copyWith(size: Size(box.maxWidth, windowHeight)),
             child: MediaQuery.withClampedTextScaling(
               minScaleFactor: textScale,
               maxScaleFactor: textScale,
@@ -276,6 +288,8 @@ Future<void> _shoot(
   WidgetTester tester,
   String name, {
   bool trim = false,
+  String? dir,
+  double pixelRatio = 2,
 }) async {
   debugDisableShadows = false;
   for (final r in tester.allRenderObjects) {
@@ -299,7 +313,7 @@ Future<void> _shoot(
     find.byKey(_boundary),
   );
   final bytes = await tester.runAsync(() async {
-    var image = await boundary.toImage(pixelRatio: 2);
+    var image = await boundary.toImage(pixelRatio: pixelRatio);
 
     if (trim) {
       final raw = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
@@ -329,11 +343,20 @@ Future<void> _shoot(
     return data!.buffer.asUint8List();
   });
 
-  final file = File('$_outDir/$name.png')..createSync(recursive: true);
+  final file = File('${dir ?? _outDir}/$name.png')..createSync(recursive: true);
   file.writeAsBytesSync(bytes!);
 
   // Restore before the test body ends; see [_pump].
   debugDisableShadows = true;
+}
+
+void _dropAlpha(String path) {
+  final png = File(path);
+  png.writeAsBytesSync(
+    img.encodePng(
+      img.decodePng(png.readAsBytesSync())!.convert(numChannels: 3),
+    ),
+  );
 }
 
 /// The screen's own vertical scroll view, or null when it has none. The first
@@ -601,11 +624,11 @@ Future<void> _tapElectrode(
 }) async {
   final view = find.byType(ElectrodeView).at(index);
   if (view.evaluate().isEmpty) return;
-  await tester.ensureVisible(view);
-  final origin = tester.getTopLeft(view);
-  final layout = computeLayout(model, tester.getSize(view));
   for (var i = 0; i < taps; i++) {
-    await tester.tapAt(origin + target(layout));
+    await tester.ensureVisible(view);
+    await tester.pumpAndSettle();
+    final layout = computeLayout(model, tester.getSize(view));
+    await tester.tapAt(tester.getTopLeft(view) + target(layout));
     await tester.pumpAndSettle();
   }
 }
@@ -711,11 +734,11 @@ Future<void> _seedRatings(WidgetTester tester) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  if (_outDir == null) {
+  if (_outDir == null && _storeDir == null) {
     test(
       'docs screenshots',
       () {},
-      skip: 'set DOCS_SCREENSHOT_DIR to generate',
+      skip: 'set DOCS_SCREENSHOT_DIR or STORE_SCREENSHOT_DIR to generate',
     );
     return;
   }
@@ -742,6 +765,140 @@ void main() {
       );
     }
   });
+
+  if (_storeDir != null) {
+    for (final (device, size, ratio) in _storeDevices) {
+      testWidgets('store: $device', (tester) async {
+        final tall = Size(size.width, _maxHeight);
+        Future<void> shoot(String name, [Finder? top]) async {
+          FocusManager.instance.primaryFocus?.unfocus();
+          await tester.binding.setSurfaceSize(size);
+          await tester.pumpAndSettle();
+          if (top != null) {
+            await Scrollable.ensureVisible(
+              tester.element(top.first),
+              alignment: 0,
+              duration: Duration.zero,
+            );
+            final page = _pageScroll(tester)!.position;
+            page.jumpTo((page.pixels - 16).clamp(0, page.maxScrollExtent));
+            await tester.pumpAndSettle();
+          }
+          final shot = '${device}_$name';
+          await _shoot(tester, shot, dir: _storeDir, pixelRatio: ratio);
+          _dropAlpha('$_storeDir/$shot.png');
+          await tester.binding.setSurfaceSize(tall);
+          await tester.pumpAndSettle();
+        }
+
+        final (catalog, limits, presets) = await _contracts();
+        await _pump(
+          tester,
+          SessionScreen(
+            catalog: catalog,
+            limits: limits,
+            scalePresets: presets,
+            authoring: _seededAuthoring(),
+          ),
+          size: tall,
+          windowHeight: size.height,
+        );
+        await _seedFileStep(tester);
+        await _next(tester);
+        await shoot('4_devices', find.text('DBS indication and target'));
+        await _next(tester);
+        await _seedConfiguration(tester, catalog.models[_defaultModel]!);
+        await shoot('2_contacts', find.text('Contacts'));
+        await _next(tester);
+        await _seedRatings(tester);
+        await _type(tester, 'Notes', _recordingNotes);
+        await shoot(
+          '1_programming',
+          find.text('Symptom and side effect ratings'),
+        );
+        await _tapText(tester, 'Comparison charts');
+        await shoot('3_charts', find.textContaining('Configurations tested'));
+
+        await _pump(
+          tester,
+          _panel(ImportExportPanel(initialFiles: exampleVisits())),
+          size: tall,
+          windowHeight: size.height,
+        );
+        await shoot('5_reports');
+      });
+    }
+
+    for (final (name, size, ratio) in const [
+      ('feature_graphic', Size(1024, 500), 1.0),
+      ('poster_art', Size(720, 1080), 2.0),
+    ]) {
+      testWidgets('store: $name', (tester) async {
+        final wide = size.width > size.height;
+        final icon = wide ? 220.0 : 360.0;
+        final align = wide ? TextAlign.start : TextAlign.center;
+        TextStyle text(double fontSize, int color, [FontWeight? weight]) =>
+            TextStyle(
+              fontFamily: _textFont,
+              fontSize: fontSize,
+              fontWeight: weight,
+              height: 1.35,
+              color: Color(color),
+            );
+        await _pump(
+          tester,
+          Material(
+            color: const Color(kBlack),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 80),
+              child: Flex(
+                direction: wide ? Axis.horizontal : Axis.vertical,
+                mainAxisAlignment: wide
+                    ? MainAxisAlignment.start
+                    : MainAxisAlignment.center,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(icon * 0.2),
+                    child: Image.asset(appIconAsset, width: icon),
+                  ),
+                  const SizedBox.square(dimension: 56),
+                  Flexible(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: wide
+                          ? CrossAxisAlignment.start
+                          : CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Wyss DBS Annotator',
+                          textAlign: align,
+                          style: text(54, 0xFFFFFFFF, FontWeight.bold),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Document DBS programming visits.\n'
+                          'Get reports for the patient record.',
+                          textAlign: align,
+                          style: text(28, kGreenLighter),
+                        ),
+                        const SizedBox(height: 40),
+                        Image.asset(lockupWhiteAsset, height: 34),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          size: size,
+          windowHeight: size.height,
+        );
+        await _shoot(tester, name, dir: _storeDir, pixelRatio: ratio);
+        _dropAlpha('$_storeDir/$name.png');
+      });
+    }
+  }
+  if (_outDir == null) return;
 
   testWidgets('session: file step', (tester) async {
     final (catalog, limits, presets) = await _contracts();

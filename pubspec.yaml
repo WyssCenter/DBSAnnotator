@@ -70,6 +70,7 @@ dev_dependencies:
   cross_file: ^0.3.4
   file_selector_platform_interface: ^2.7.0
   flutter_lints: ^6.0.0
+  image: ^4.9.2
   # App icon generation (run: dart run flutter_launcher_icons). See .github/RELEASING.md.
   flutter_launcher_icons: ^0.14.1
   # Windows MSIX packaging. See msix_config below

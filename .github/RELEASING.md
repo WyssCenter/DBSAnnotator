@@ -25,7 +25,20 @@ from the bundled asset. The MSIX tiles are rendered from `logo_path` at packagin
 time, so none are committed.
 
 `assets/store/play_store_icon_512.png` is the high-resolution icon the Play
-Console listing asks for; upload it by hand.
+Console listing asks for, and `ms_store_box_art_2160.png` and
+`ms_store_tile_300.png` beside it are the 1:1 box art and app tile icon of the
+Partner Center Store logos; upload them by hand.
+
+The store screenshots come from the docs screenshot generator, with the same
+synthetic visit: 1080x1920 for Play phones, and 2560x1440 for Play tablets and
+the Microsoft Store. The same run renders the 1024x500 Play feature graphic and
+the 1440x2160 poster art of the Partner Center Store logos.
+None has an alpha channel, which Play rejects, and none is committed:
+
+```powershell
+$env:STORE_SCREENSHOT_DIR = "build/store_screenshots"
+flutter test test/docs/screenshots_test.dart
+```
 
 ## 2. Android signing (signed APK on the GitHub Release)
 
