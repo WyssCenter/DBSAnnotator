@@ -23,7 +23,7 @@ jobs:
           checksum: f68d291c75783122dad58ab77def0e13f3233f358731db5d6d7e8715603b928f
       - run: uvx pre-commit@4.7.0 autoupdate --freeze
 
-      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+      - uses: peter-evans/create-pull-request@15733dbdfeedb4f7fdb73d13c6f5ac83b710fab8 # v8.1.2
         with:
           branch: chore/pre-commit-autoupdate
           delete-branch: true
