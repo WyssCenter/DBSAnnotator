@@ -60,7 +60,7 @@ void main() {
     await point(tester, find.byTooltip('Add a BIDS folder'));
 
     await _say(tester, _Line.patient);
-    await pick(tester, 'Patient already in this folder', '02');
+    await pick(tester, 'Patient', '02');
 
     await _say(tester, _Line.visit);
     await point(tester, find.widgetWithText(TextField, 'Session ID'));

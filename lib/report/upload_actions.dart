@@ -94,10 +94,10 @@ enum ReportAction {
     'Single session report',
     'One visit, as PDF or Word.',
     how:
-        'The imported session is rendered as a report, with the sections you '
+        'The chosen session is rendered as a report, with the sections you '
         'choose. Add to a BIDS folder saves the session, the report, or both, '
         'into a BIDS folder you already have.',
-    needs: 'Exactly one imported session.',
+    needs: 'Exactly one session, chosen in the visit list.',
     creates:
         'One PDF or Word file named after the session. Added to a BIDS folder, '
         'the session goes under sub-<participant>/ses-<session>/beh/ and the '
@@ -107,7 +107,7 @@ enum ReportAction {
     'Report across visits',
     'Change across visits.',
     how:
-        'Every imported file is brought into one report, one visit per session '
+        'Every chosen file is brought into one report, one visit per session '
         'in date order. A note from an older notes file goes to the visit of '
         'its day; a day with notes and no session gets its own Visits row and '
         'table.',
@@ -123,7 +123,7 @@ enum ReportAction {
     'Combined table (TSV)',
     'Every visit in one analysis table.',
     how:
-        'One row per configuration of every imported session, and one per '
+        'One row per configuration of every chosen session, and one per '
         'visit for its initial assessment, with the participant, session and '
         'run added as columns and one column per scale. A note from an older '
         'notes file becomes a row of its own, with its time and text.',
@@ -132,7 +132,7 @@ enum ReportAction {
         'entities.',
     creates:
         'A zip holding the table and the JSON sidecar describing its columns. '
-        'Imported from a BIDS folder, both can be saved back into it.',
+        'Both can be saved back into the BIDS folder they were read from.',
   ),
   bidsDataset(
     'BIDS folder (zip)',
@@ -205,12 +205,12 @@ String? unavailableReason(
   List<Uploaded> files, {
   bool canWriteFolder = true,
 }) {
-  if (files.isEmpty) return 'Import a session first.';
+  if (files.isEmpty) return 'Choose a visit first.';
 
   switch (action) {
     case ReportAction.sessionReport:
       if (files.length > 1) {
-        return 'Import one session; several give a report across visits.';
+        return 'Choose one run; several give a report across visits.';
       }
       if (files.single.kind != TsvKind.programming) {
         return 'A notes file from an earlier version has no report of its own.';
@@ -231,7 +231,7 @@ String? unavailableReason(
     case ReportAction.bidsDataset:
     case ReportAction.addToDataset:
       if (withBidsEntities(files).isEmpty) {
-        return 'No imported file name carries a sub- entity.';
+        return 'No chosen file name carries a sub- entity.';
       }
       return null;
   }
@@ -263,7 +263,7 @@ List<AggregateSource> aggregateSources(List<Uploaded> files) => [
 
 /// One line describing what was uploaded, for the header.
 String uploadSummary(List<Uploaded> files) {
-  if (files.isEmpty) return 'No files imported.';
+  if (files.isEmpty) return 'No visits.';
   final sessions = _programming(files).length;
   final notes = _notes(files).length;
   final parts = <String>[

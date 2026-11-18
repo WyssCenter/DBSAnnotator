@@ -9,6 +9,7 @@ import 'dart:io';
 
 import 'package:dbs_annotator/core/bids.dart';
 import 'package:dbs_annotator/core/prefs/user_prefs.dart';
+import 'package:dbs_annotator/core/session/bids_session.dart' show isBehHeader;
 import 'package:dbs_annotator/ui/close_guard.dart';
 import 'package:dbs_annotator/ui/wizard_parts.dart';
 import 'package:flutter/material.dart';
@@ -17,14 +18,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'screen_test_helpers.dart';
 
 const _recoveredName = 'sub-07_ses-20260203_task-tuning_run-03_beh.tsv';
-const _openedName = 'sub-08_ses-20260204_task-tuning_run-02_beh.tsv';
 const _guardTitle = 'Keep a recovery copy of this session?';
 const _recoveryTitle = 'Unfinished session found';
 const _newSnack = 'New session in Cohort.';
 
 String _planted(String text) => sessionTsv(notes: text);
 String _blank() => sessionTsv().split('\n').first;
-String _opened(String file) => 'Opened $file (0 configurations tested so far).';
 
 Future<void> _show(WidgetTester tester) async {
   await pumpScreen(tester, sessionScreen());
@@ -32,7 +31,7 @@ Future<void> _show(WidgetTester tester) async {
 }
 
 Finder _entryStep() => find.text('Save configuration').hitTestable();
-Finder _setupStep() => find.text('Open saved session').hitTestable();
+Finder _setupStep() => find.text('This session').hitTestable();
 
 String _field(WidgetTester tester, String label) => tester
     .widget<TextField>(
@@ -317,142 +316,6 @@ void main() {
     });
   });
 
-  group('Open', () {
-    Future<(Directory, Directory, File, FakePicker)> prepare(
-      WidgetTester tester,
-    ) async {
-      final dirs = useTempDirs();
-      final file = File('${dirs.saved.path}/$_openedName')
-        ..writeAsStringSync(_planted('opened entry'));
-      final picker = useFakePicker()..file = pickedFile(file);
-      await _show(tester);
-      return (dirs.working, dirs.saved, file, picker);
-    }
-
-    testWidgets('a file of the right kind loads and is written back to', (
-      tester,
-    ) async {
-      final (working, _, file, _) = await prepare(tester);
-
-      await tester.tap(find.text('Open saved session'));
-      await pumpUntilFound(tester, find.text(_opened(_openedName)));
-      await tester.pumpAndSettle();
-
-      expect(find.text(_opened(_openedName)), findsOneWidget);
-      expect(_setupStep(), findsOneWidget);
-      expect(_field(tester, 'Patient ID'), '08');
-      expect(_field(tester, 'Task ID'), 'tuning');
-      expect(_field(tester, 'Run ID'), '02');
-
-      await _add(tester, working, 'after opening');
-      await settleUntil(
-        tester,
-        working,
-        () => file.readAsStringSync().contains('after opening'),
-      );
-      final written = file.readAsStringSync();
-      expect(written, contains('opened entry'));
-      expect(
-        written.indexOf('opened entry'),
-        lessThan(written.indexOf('after opening')),
-      );
-      expect(workingText(working), contains('opened entry'));
-      expect(workingText(working), contains('after opening'));
-    });
-
-    testWidgets('a file of the other kind is refused and changes nothing', (
-      tester,
-    ) async {
-      final (working, saved, _, picker) = await prepare(tester);
-      final other = File('${saved.path}/$_openedName')
-        ..writeAsStringSync(notesTsv());
-      picker.file = pickedFile(other);
-
-      await tester.tap(find.text('Open saved session'));
-      const refused =
-          '$_openedName is an annotations (notes) file; this view needs a '
-          'programming session.';
-      await pumpUntilFound(tester, find.text(refused));
-      await tester.pumpAndSettle();
-
-      expect(find.text(refused), findsOneWidget);
-      expect(find.textContaining('Opened '), findsNothing);
-      expect(_setupStep(), findsOneWidget);
-      expect(
-        Directory('${working.path}/work').listSync().whereType<File>(),
-        isEmpty,
-      );
-      expect(other.readAsStringSync(), notesTsv());
-    });
-
-    testWidgets('a picker that fails says so and changes nothing', (
-      tester,
-    ) async {
-      final (working, _, _, picker) = await prepare(tester);
-      picker.failure = Exception('no dialog');
-
-      await tester.tap(find.text('Open saved session'));
-      await pumpUntilFound(
-        tester,
-        find.text('Could not open the file picker. (Exception: no dialog)'),
-      );
-
-      expect(find.textContaining('Opened '), findsNothing);
-      expect(
-        Directory('${working.path}/work').listSync().whereType<File>(),
-        isEmpty,
-      );
-    });
-
-    testWidgets('a file that is not text cannot be read', (tester) async {
-      final (_, saved, _, picker) = await prepare(tester);
-      final binary = File('${saved.path}/$_openedName')
-        ..writeAsBytesSync([0xff, 0xfe, 0xfd]);
-      picker.file = pickedFile(binary);
-
-      await tester.tap(find.text('Open saved session'));
-      await pumpUntilFound(tester, find.text('Could not read $_openedName.'));
-
-      expect(find.textContaining('Opened '), findsNothing);
-    });
-
-    testWidgets('with entries recorded, the leave question comes first', (
-      tester,
-    ) async {
-      final dataset = _dataset();
-      final (working, _, file, _) = await prepare(tester);
-      await _newVisit(tester, dataset);
-      await _add(tester, working, 'first entry');
-      final oldCopy = Directory('${working.path}/work')
-          .listSync()
-          .whereType<File>()
-          .single;
-      await _toSetup(tester);
-
-      await tester.tap(find.text('Open saved session'));
-      await pumpUntilFound(tester, find.text(_guardTitle));
-      await tester.pumpAndSettle();
-      expect(find.text('Discard copy'), findsOneWidget);
-      expect(find.textContaining('Opened '), findsNothing);
-
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
-      await awaitRecoveryCheck(tester);
-      expect(find.textContaining('Opened '), findsNothing);
-      expect(oldCopy.readAsStringSync(), contains('first entry'));
-
-      await tester.tap(find.text('Open saved session'));
-      await pumpUntilFound(tester, find.text(_guardTitle));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Discard copy'));
-      await pumpUntilFound(tester, find.text(_opened(_openedName)));
-      await tester.pumpAndSettle();
-
-      expect(oldCopy.existsSync(), isFalse);
-      expect(file.readAsStringSync(), _planted('opened entry'));
-    });
-  });
-
   group('recording into a BIDS folder', () {
     testWidgets('is filed at its BIDS path on the first entry', (tester) async {
       final dirs = useTempDirs();
@@ -496,6 +359,42 @@ void main() {
       expect(_behTsvs(dataset), hasLength(1));
     });
 
+    testWidgets('a filing error writes nothing there, and the next save files '
+        'the visit again in BIDS form', (tester) async {
+      final dirs = useTempDirs();
+      final dataset = _dataset();
+      await _show(tester);
+      await _newVisit(tester, dataset);
+      await _add(tester, dirs.working, 'first entry');
+      await pumpUntilFound(tester, find.textContaining('Saved as '));
+      await tester.pumpAndSettle();
+      final rel = _toSlashes(_behTsvs(dataset).single.path)
+          .substring(_toSlashes(dataset.path).length + 1);
+
+      dataset.deleteSync(recursive: true);
+      File(dataset.path).writeAsStringSync('in the way');
+      await _add(tester, dirs.working, 'while away');
+      await pumpUntilFound(
+        tester,
+        find.textContaining('The next save tries again.'),
+      );
+      await tester.pumpAndSettle();
+      expect(File(dataset.path).readAsStringSync(), 'in the way');
+
+      File(dataset.path).deleteSync();
+      dataset.createSync();
+      await _add(tester, dirs.working, 'back again');
+      await pumpUntilFound(
+        tester,
+        find.textContaining('Saved into the BIDS folder again.'),
+      );
+
+      final text = File('${dataset.path}/$rel').readAsStringSync();
+      expect(isBehHeader(text.split('\n').first.split('\t')), isTrue);
+      expect(text, contains('while away'));
+      expect(text, contains('back again'));
+    });
+
     testWidgets('a name the folder already holds is refused and kept in the '
         'app', (tester) async {
       final dirs = useTempDirs();
@@ -523,43 +422,6 @@ void main() {
       );
       expect(taken.readAsStringSync(), _planted('someone else'));
       expect(workingText(dirs.working), contains('dataset entry'));
-    });
-
-    testWidgets('Open afterwards records into the opened file only', (
-      tester,
-    ) async {
-      final dirs = useTempDirs();
-      final dataset = _dataset();
-      final picker = useFakePicker();
-      final loose = File('${dirs.saved.path}/$_openedName')
-        ..writeAsStringSync(_planted('opened entry'));
-      await _show(tester);
-      await _newVisit(tester, dataset, session: 'visitA');
-      await _add(tester, dirs.working, 'dataset entry');
-      await pumpUntilFound(tester, find.textContaining('Saved as '));
-      final filed = _behTsvs(dataset).single;
-      final filedText = filed.readAsStringSync();
-
-      picker.file = pickedFile(loose);
-      await _toSetup(tester);
-      await tester.tap(find.text('Open saved session'));
-      await pumpUntilFound(tester, find.text(_guardTitle));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Keep copy'));
-      await pumpUntilFound(tester, find.text(_opened(_openedName)));
-      await tester.pumpAndSettle();
-      await _add(tester, dirs.working, 'after opening');
-      await settleUntil(
-        tester,
-        dirs.working,
-        () => loose.readAsStringSync().contains('after opening'),
-      );
-
-      expect(filed.readAsStringSync(), filedText);
-      expect(_behTsvs(dataset), hasLength(1));
-      expect(filed.path, contains('ses-visitA'));
-      await _toSetup(tester);
-      expect(_field(tester, 'Session ID'), '20260204');
     });
   });
 

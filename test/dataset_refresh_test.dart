@@ -164,16 +164,6 @@ Future<void> _pressNew(WidgetTester tester) async {
   }
 }
 
-Future<void> _pressOpen(
-  WidgetTester tester,
-  FakePicker picker,
-  File file,
-) async {
-  picker.file = pickedFile(file);
-  await _toSetup(tester);
-  await tester.tap(find.text('Open saved session'));
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -376,9 +366,7 @@ void main() {
 
   group('the session screen', () {
     late Directory working;
-    late Directory saved;
     late Directory dataset;
-    late FakePicker picker;
 
     File table() => File('${dataset.path}/$_tablePath');
     String tableText() =>
@@ -388,14 +376,9 @@ void main() {
       ..parent.createSync(recursive: true)
       ..writeAsStringSync(text);
 
-    File looseFile() =>
-        File('${saved.path}/sub-09_ses-20260204_task-tuning_run-01_beh.tsv')
-          ..writeAsStringSync(sessionTsv(notes: 'opened entry'));
-
     Future<void> startVisit(WidgetTester tester) async {
       final dirs = useTempDirs();
       working = dirs.working;
-      saved = dirs.saved;
       dataset = Directory.systemTemp.createTempSync('dbs_refresh_ds');
       addTearDown(() {
         debugRefreshHold = null;
@@ -403,7 +386,7 @@ void main() {
         removeQuietly(dataset);
       });
       _useFolder(dataset);
-      picker = useFakePicker();
+      useFakePicker();
       await _pumpScreen(tester, sessionScreen());
       await awaitRecoveryCheck(tester);
       await pumpUntilFound(tester, find.text(dataset.path));
@@ -480,42 +463,6 @@ void main() {
       await pumpUntilFound(tester, find.textContaining(_newSnack));
 
       expect(tableText(), contains('last entry'));
-    });
-
-    testWidgets('Open refreshes the table before the visit is replaced', (
-      tester,
-    ) async {
-      await startFiledVisit(tester);
-      plant('stale');
-
-      await _pressOpen(tester, picker, looseFile());
-      await keepCopy(tester);
-      await pumpUntilFound(tester, find.textContaining('Opened '));
-
-      expect(tableText(), contains('last entry'));
-      expect(tableText(), isNot(contains('opened entry')));
-    });
-
-    testWidgets('a file opened outside any BIDS folder refreshes nothing', (
-      tester,
-    ) async {
-      await startFiledVisit(tester);
-      await _pressOpen(tester, picker, looseFile());
-      await keepCopy(tester);
-      await pumpUntilFound(tester, find.textContaining('Opened '));
-      await tester.pumpAndSettle();
-      plant('sentinel');
-
-      var started = 0;
-      debugRefreshHold = () async => started++;
-
-      await _add(tester, working, 'loose entry');
-      await leave(tester);
-      await pumpUntilGone(tester, screen());
-
-      expect(started, 0);
-      expect(tableText(), 'sentinel');
-      expect(find.textContaining('combined table'), findsNothing);
     });
 
     testWidgets('a visit with nothing filed refreshes nothing', (tester) async {
@@ -882,70 +829,6 @@ void main() {
       debugRefreshHold = () => gate.future;
 
       await _pressNew(tester);
-      await keepCopy(tester);
-      await pumpUntilFound(tester, find.text(_progress));
-      breakDerivatives();
-      var closed = false;
-      final second = activeSessionGuard!(closingWindow: true).then((may) {
-        closed = may;
-        return may;
-      });
-      await tester.pump();
-
-      gate.complete();
-      await _untilAcknowledge(tester);
-
-      expect(
-        find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.textContaining(_failure),
-        ),
-        findsOneWidget,
-      );
-      expect(closed, isFalse);
-
-      await tester.tap(find.text('OK'));
-      await tester.pumpAndSettle();
-
-      expect(await second, isTrue);
-      await drainDatasetQueue(tester);
-    });
-
-    testWidgets('a later window close does not show an earlier refresh '
-        'message again', (tester) async {
-      await startFiledVisit(tester);
-      breakDerivatives();
-      await _pressOpen(tester, picker, looseFile());
-      await keepCopy(tester);
-      await pumpUntilFound(tester, find.textContaining('Opened '));
-      await tester.pumpAndSettle(const Duration(seconds: 10));
-      await _add(tester, working, 'loose entry');
-      await tester.pumpAndSettle(const Duration(seconds: 10));
-
-      await tester.binding.handlePopRoute();
-      await pumpUntilFound(tester, find.text('Keep copy'));
-      final second = activeSessionGuard!(closingWindow: true);
-      await tester.pump();
-      await tester.tap(find.text('Keep copy'));
-      for (var i = 0; i < 20; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 20)),
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-      }
-
-      expect(find.text('Combined table'), findsNothing);
-      expect(await second, isTrue);
-      await drainDatasetQueue(tester);
-    });
-
-    testWidgets('a window close during an Open refresh shows its message in '
-        'a dialog', (tester) async {
-      await startFiledVisit(tester);
-      final gate = Completer<void>();
-      debugRefreshHold = () => gate.future;
-
-      await _pressOpen(tester, picker, looseFile());
       await keepCopy(tester);
       await pumpUntilFound(tester, find.text(_progress));
       breakDerivatives();

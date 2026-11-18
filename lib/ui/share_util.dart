@@ -52,8 +52,7 @@ Rect safeOrigin(Rect? origin, Size screen) {
 
 /// Deliver [file] to the user: the OS share sheet on mobile, or a saved copy
 /// on desktop, where `share_plus` has none. Never throws, and always reports
-/// the outcome via [messenger], so an export cannot fail silently. A desktop
-/// save that ends on [avoid] is refused with its reason, writing nothing new.
+/// the outcome via [messenger], so an export cannot fail silently.
 /// [confirmReplace] is asked before an existing file is replaced, where the
 /// save dialog does not ask itself.
 ///
@@ -67,7 +66,6 @@ Future<ExportOutcome> shareOrSaveFile(
   Rect? origin,
   Size screen = const Size(768, 1024),
   required ConfirmReplace confirmReplace,
-  AvoidFile? avoid,
   String? initialDirectory,
   void Function(String path)? onSaved,
 }) async {
@@ -103,21 +101,7 @@ Future<ExportOutcome> shareOrSaveFile(
   }
   final String? saved;
   try {
-    saved = await _saveToDisk(
-      file,
-      filename,
-      avoid,
-      confirmReplace,
-      initialDirectory,
-    );
-  } on SameFileException catch (refused) {
-    messenger.showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 6),
-        content: Text(refused.reason),
-      ),
-    );
-    return ExportOutcome.notDelivered;
+    saved = await _saveToDisk(file, filename, confirmReplace, initialDirectory);
   } on FileSystemException catch (e) {
     messenger.showSnackBar(
       SnackBar(
@@ -159,7 +143,6 @@ Future<ExportOutcome> exportFile(
   required Future<ExportPayload> Function() build,
   GlobalKey? anchor,
   String failureLabel = 'Export failed',
-  AvoidFile? avoid,
 
   /// Where a desktop Save-As dialog opens, and what to call with the saved
   /// path, such as to remember the folder.
@@ -186,7 +169,6 @@ Future<ExportOutcome> exportFile(
       filename,
       origin: origin,
       screen: screen,
-      avoid: avoid,
       confirmReplace: (name) => askReplace(context, name),
       initialDirectory: initialDirectory,
       onSaved: onSaved,
@@ -236,23 +218,17 @@ Future<void> _sweepStaleExports(Directory root) async {
 /// Save [file] to a user-visible location: a native Save-As dialog first, then
 /// the first writable well-known directory. Null when the user cancelled the
 /// dialog or nothing was writable, and empty when the dialog saved it
-/// somewhere with no file path, as Android's document picker does. Throws
-/// [SameFileException] only when the dialog's choice is [avoid], and a
+/// somewhere with no file path, as Android's document picker does. Throws a
 /// [FileSystemException] when the chosen path cannot be written.
 Future<String?> _saveToDisk(
   File file,
   String filename,
-  AvoidFile? avoid,
   ConfirmReplace confirmReplace,
   String? initialDirectory,
 ) async {
   if (debugSaveDir case final dir?) {
-    final dest = '${dir.path}/$filename';
-    refuseIfAvoided(dest, avoid);
-    return (await file.copy(dest)).path;
+    return (await file.copy('${dir.path}/$filename')).path;
   }
-  // 1) Native Save-As dialog. On desktop `file_selector` only returns the
-  //    path, so it is checked against [avoid] before anything is written.
   if (hasDesktopSaveDialog) {
     final String? path;
     try {
@@ -260,11 +236,10 @@ Future<String?> _saveToDisk(
         suggestedName: filename,
         extension: _ext(filename).replaceFirst('.', '').toLowerCase(),
         confirmReplace: confirmReplace,
-        avoid: avoid,
         initialDirectory: initialDirectory,
       );
     } on SaveDialogUnavailable {
-      return _saveToKnownFolder(file, filename, avoid);
+      return _saveToKnownFolder(file, filename);
     }
     if (path == null) return null;
     await file.copy(path);
@@ -286,18 +261,13 @@ Future<String?> _saveToDisk(
   } catch (_) {
     // No dialog available; auto-save below.
   }
-  return _saveToKnownFolder(file, filename, avoid);
+  return _saveToKnownFolder(file, filename);
 }
 
-/// The first writable well-known directory, under an unused name and skipping
-/// [avoid]. Application
+/// The first writable well-known directory, under an unused name. Application
 /// support resolves even on a minimal Linux box where XDG Downloads/Documents
 /// are unset. Null when none was writable.
-Future<String?> _saveToKnownFolder(
-  File file,
-  String filename,
-  AvoidFile? avoid,
-) async {
+Future<String?> _saveToKnownFolder(File file, String filename) async {
   final getters = <Future<Directory?> Function()>[
     getDownloadsDirectory,
     getApplicationDocumentsDirectory,
@@ -309,7 +279,6 @@ Future<String?> _saveToKnownFolder(
       if (dir == null) continue;
       await Directory(dir.path).create(recursive: true);
       final dest = unusedPath(dir.path, filename);
-      if (isAvoided(dest, avoid)) continue;
       await file.copy(dest);
       return dest;
     } catch (_) {

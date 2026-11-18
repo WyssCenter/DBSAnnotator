@@ -1,7 +1,5 @@
-import 'dart:convert';
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:file_selector/file_selector.dart'
     show FileSaveLocation, XTypeGroup, getSaveLocation;
 import 'package:flutter/material.dart';
@@ -9,20 +7,6 @@ import 'package:path_provider/path_provider.dart';
 
 import '../core/bids.dart';
 import '../core/prefs/user_prefs.dart';
-
-/// Whether a path from the document picker autosaves back to the file the
-/// user chose. False on iOS/iPadOS (`UIDocumentPickerViewController`) and
-/// Android (file_picker copies into the cache), which hand back a sandbox
-/// copy: autosaving to it is still worth doing, but the UI must not imply the
-/// original changed.
-bool pickedPathAutosavesToOriginal(String? path) =>
-    path != null && !Platform.isIOS && !Platform.isAndroid;
-
-/// Shown wherever a sandbox-copy save path is in effect, so "autosaved" is
-/// never read as "written back to your file".
-const String sandboxCopyNotice =
-    'Autosave keeps edits inside the app only. The file you opened is not '
-    'updated. Use Export to save your changes.';
 
 /// The final segment of [path], handling both separators. A wrong answer is
 /// silent: it feeds `sourceFile`, and reports drop provenance when empty.
@@ -34,16 +18,6 @@ String pickedBasename(String path) =>
 /// only `file` can back an autosave, so anything else yields null.
 String? pickerUriToPath(Uri? uri) =>
     uri != null && uri.scheme == 'file' ? uri.toFilePath() : null;
-
-/// Read a picked file as text, or null if it could not be read. Null rather
-/// than a throw, because every call site names the file in its own message.
-Future<String?> readPickedText(PlatformFile picked) async {
-  try {
-    return utf8.decode(await picked.readAsBytes());
-  } catch (_) {
-    return null;
-  }
-}
 
 /// Stands in for app storage under `flutter_test`, which has no platform
 /// channel to resolve it. Mirrors `debugPainterFontFamily`.
@@ -101,49 +75,6 @@ Future<void> discardWork(String? path) async {
 bool get hasDesktopSaveDialog =>
     Platform.isWindows || Platform.isMacOS || Platform.isLinux;
 
-/// A file a save dialog must not end on, and the refusal to show when it is
-/// chosen.
-typedef AvoidFile = ({String path, String reason});
-
-/// Thrown when the user picks an [AvoidFile]; [toString] is the reason.
-class SameFileException implements Exception {
-  SameFileException(this.reason);
-
-  final String reason;
-
-  @override
-  String toString() => reason;
-}
-
-/// Whether [path] is the [avoid] file, spelled any way.
-bool isAvoided(String path, AvoidFile? avoid) =>
-    avoid != null && _samePath(path, avoid.path);
-
-/// Throws [SameFileException] when [path] is the [avoid] file.
-void refuseIfAvoided(String path, AvoidFile? avoid) {
-  if (avoid != null && isAvoided(path, avoid)) {
-    throw SameFileException(avoid.reason);
-  }
-}
-
-bool _samePath(String a, String b) {
-  String norm(String p) {
-    final slashed = p.replaceAll('\\', '/');
-    return Platform.isWindows || Platform.isMacOS
-        ? slashed.toLowerCase()
-        : slashed;
-  }
-
-  if (norm(a) == norm(b)) return true;
-  try {
-    return File(a).existsSync() &&
-        File(b).existsSync() &&
-        FileSystemEntity.identicalSync(a, b);
-  } catch (_) {
-    return false;
-  }
-}
-
 /// Asks whether to replace the file called [fileName]; false means keep it.
 typedef ConfirmReplace = Future<bool> Function(String fileName);
 
@@ -189,13 +120,12 @@ class SaveDialogUnavailable implements Exception {}
 /// it appended here (the Windows dialog does not add it), and that final path
 /// was never confirmed by the dialog, so it is checked and confirmed here on
 /// every platform. A path as typed is confirmed here only where the dialog does
-/// not ask itself ([dialogConfirmsReplace]). Throws [SameFileException] when
-/// the path is [avoid], and [SaveDialogUnavailable] when no dialog could open.
+/// not ask itself ([dialogConfirmsReplace]). Throws [SaveDialogUnavailable]
+/// when no dialog could open.
 Future<String?> chooseSavePath({
   required String suggestedName,
   required String extension,
   required ConfirmReplace confirmReplace,
-  AvoidFile? avoid,
   String? initialDirectory,
 }) async {
   final FileSaveLocation? chosen;
@@ -214,7 +144,6 @@ Future<String?> chooseSavePath({
   final suffix = '.$extension';
   final typed = chosen.path;
   final path = typed.toLowerCase().endsWith(suffix) ? typed : '$typed$suffix';
-  refuseIfAvoided(path, avoid);
   final unconfirmed = path != typed || !dialogConfirmsReplace;
   if (unconfirmed && File(path).existsSync()) {
     if (!await confirmReplace(pickedBasename(path))) return null;

@@ -129,9 +129,9 @@ void main() {
     expect(find.text('Annotate programming session'), findsOneWidget);
     expect(find.text('BIDS folder'), findsWidgets);
     expect(find.byTooltip('Add a BIDS folder'), findsOneWidget);
-    expect(find.text('Other sessions'), findsOneWidget);
+    expect(find.text('Visits'), findsOneWidget);
     expect(find.text('DBS indication'), findsNothing);
-    expect(find.text('Import'), findsOneWidget);
+    expect(find.text('Import'), findsNothing);
     expect(find.text('Import session files'), findsNothing);
   });
 
@@ -344,7 +344,7 @@ void main() {
   ) async {
     await pumpWizard(tester, open: false);
     expect(find.text('New session'), findsNothing);
-    expect(find.text('Open saved session'), findsOneWidget);
+    expect(find.text('Open saved session'), findsNothing);
   });
 
   testWidgets('wizard: setup, the initial assessment saves itself on Next, '
@@ -364,10 +364,8 @@ void main() {
     }
     expect(find.text('Ratings'), findsNothing);
 
-    // Session: patient and run, New / Open; no devices, no stimulation.
     expect(find.text('Patient ID'), findsOneWidget);
     expect(find.text('New session'), findsOneWidget);
-    expect(find.text('Open saved session'), findsOneWidget);
     expect(find.text('Same lead on both sides'), findsNothing);
     expect(find.text('Frequency'), findsNothing);
 

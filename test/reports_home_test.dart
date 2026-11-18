@@ -17,7 +17,9 @@ Future<ElectrodeCatalog> _catalog() async => ElectrodeCatalog.fromJson(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('opens on a prompt, with every action disabled', (tester) async {
+  testWidgets('opens on a prompt, with no action until a visit is listed', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
@@ -31,12 +33,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Import'), findsOneWidget);
-    expect(find.text('Import session files'), findsNothing);
+    expect(find.text('Import'), findsNothing);
     expect(
-      find.text('Choose a BIDS folder above to import from it.'),
+      find.text('Choose a BIDS folder above to see its visits.'),
       findsOneWidget,
     );
+    expect(find.text('Single session report'), findsNothing);
   });
 
   test('the panel composes rather than reimplements', () {

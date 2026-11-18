@@ -55,10 +55,6 @@ old. Two helper libraries keep copies of their own, outside the app's control:
   header file of a new session is also written there, named after the session,
   and is not deleted.
 
-On iOS and Android, changes made after opening a file are autosaved into
-the picker's copy of that file in the app's cache or temporary folder, not into
-the file you opened.
-
 The operating system clears these folders when it needs the space, and they are
 removed when the app is uninstalled.
 

@@ -212,7 +212,6 @@ void main() {
       bool workingFailed = false,
       bool fileFailed = false,
       bool hasSavePath = true,
-      bool savePathIsSandboxCopy = false,
       bool exportedSinceChange = false,
       bool hasEntries = true,
       bool stillSaving = false,
@@ -220,7 +219,6 @@ void main() {
       workingFailed: workingFailed,
       fileFailed: fileFailed,
       hasSavePath: hasSavePath,
-      savePathIsSandboxCopy: savePathIsSandboxCopy,
       exportedSinceChange: exportedSinceChange,
       hasEntries: hasEntries,
       stillSaving: stillSaving,
@@ -258,12 +256,6 @@ void main() {
         state(workingFailed: true, hasSavePath: false).entriesUnsaved,
         isTrue,
       );
-    });
-
-    test('a sandbox copy is not the user file', () {
-      final g = state(workingFailed: true, savePathIsSandboxCopy: true);
-      expect(g.onlyCopy, isTrue);
-      expect(g.entriesUnsaved, isTrue);
     });
 
     test('exported: no only-copy or unsaved warning', () {
@@ -322,7 +314,6 @@ void main() {
         workingFailed: workingFailed,
         fileFailed: fileFailed,
         hasSavePath: true,
-        savePathIsSandboxCopy: false,
         exportedSinceChange: exported,
         hasEntries: true,
         stillSaving: stillSaving,

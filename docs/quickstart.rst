@@ -63,7 +63,7 @@ to a value. Until you do, no configuration is ranked. This is deliberate; see
 Getting the report
 ------------------
 
-On Finish, under **For the patient record**, choose **Report (PDF)** or **Report (Word)**; Session
-offers the same under **Export this session**. For a session annotated earlier, import it on the
-Session step (see :doc:`screens/import_export`) and choose *Single session report*. You will be
-asked which sections to include and can set the scale targets at that point. See :doc:`reports`.
+On Finish, under **For the patient record**, choose **Report (PDF)** or **Report (Word)**. For a
+session annotated earlier, choose the patient on the Session step, click the run in the list of
+visits (see :doc:`screens/import_export`) and choose *Single session report*. You will be asked
+which sections to include and can set the scale targets at that point. See :doc:`reports`.

@@ -48,12 +48,6 @@ void main() {
     });
   });
 
-  group('pickedPathAutosavesToOriginal', () {
-    test('a null path never autosaves anywhere', () {
-      expect(pickedPathAutosavesToOriginal(null), isFalse);
-    });
-  });
-
   group('workingPath', () {
     test('never reuses a name another session holds', () async {
       final dir = Directory.systemTemp.createTempSync('dbs_work');
@@ -65,13 +59,6 @@ void main() {
       final second = await workingPath('sub-01_ses-20260203_beh.tsv');
       expect(second, isNot(first));
       expect(second, endsWith('sub-01_ses-20260203_beh-2.tsv'));
-    });
-  });
-
-  group('sandboxCopyNotice', () {
-    test('says both what autosave does and what to do instead', () {
-      expect(sandboxCopyNotice, contains('not'));
-      expect(sandboxCopyNotice.toLowerCase(), contains('export'));
     });
   });
 }

@@ -35,6 +35,7 @@ import 'package:dbs_annotator/core/brand_palette.dart';
 import 'package:dbs_annotator/core/electrode/electrode_model.dart';
 import 'package:dbs_annotator/core/electrode/geometry.dart';
 import 'package:dbs_annotator/core/electrode/stimulation_rule.dart';
+import 'package:dbs_annotator/core/prefs/user_prefs.dart' show debugPrefsDir;
 import 'package:dbs_annotator/core/session/authoring.dart';
 import 'package:dbs_annotator/core/session/session_file.dart';
 import 'package:dbs_annotator/core/session/scale_presets.dart';
@@ -69,6 +70,7 @@ import 'package:flutter/services.dart'
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
+import '../screen_test_helpers.dart' show settleUntil;
 import 'example_visits.dart';
 
 /// Where PNGs are written; unset means the default `flutter test` does nothing.
@@ -902,6 +904,28 @@ void main() {
 
   testWidgets('session: file step', (tester) async {
     final (catalog, limits, presets) = await _contracts();
+    final temp = Directory.systemTemp.createTempSync('dbs_shots');
+    addTearDown(() => temp.deleteSync(recursive: true));
+    final bids = Directory('build/OCD-DBS');
+    if (bids.existsSync()) bids.deleteSync(recursive: true);
+    addTearDown(() => bids.deleteSync(recursive: true));
+    final source = Directory('test/fixtures/bids');
+    for (final f in source.listSync(recursive: true).whereType<File>()) {
+      final to = File(
+        '${bids.path}/${f.path.substring(source.path.length + 1)}',
+      );
+      to.parent.createSync(recursive: true);
+      f.copySync(to.path);
+    }
+    File('${temp.path}/dbs_user_prefs.json').writeAsStringSync(
+      jsonEncode({
+        'bids_folders': [
+          {'name': 'OCD-DBS', 'path': bids.path},
+        ],
+      }),
+    );
+    debugPrefsDir = temp;
+    addTearDown(() => debugPrefsDir = null);
     await _pump(
       tester,
       SessionScreen(
@@ -910,6 +934,18 @@ void main() {
         scalePresets: presets,
         authoring: _seededAuthoring(),
       ),
+    );
+    await settleUntil(
+      tester,
+      bids,
+      () => find.text('Patient').evaluate().isNotEmpty,
+    );
+    await _tapText(tester, 'Patient');
+    await tester.tap(find.text(_subjectId).last);
+    await settleUntil(
+      tester,
+      bids,
+      () => find.text('All visits').evaluate().isNotEmpty,
     );
     await _seedFileStep(tester);
     await _shootFitted(tester, 'session_step0_file');
@@ -1302,46 +1338,6 @@ void main() {
       await _shootDialog(tester, file);
       await _tapText(tester, close);
     }
-  });
-
-  testWidgets('reports: nothing imported', (tester) async {
-    final contracts = await _contracts();
-    await _pump(
-      tester,
-      _panel(ImportExportPanel(catalog: contracts.$1)),
-      size: const Size(_narrow, 1000),
-    );
-    await _shootFitted(tester, 'reports_empty', width: _narrow, height: 620);
-  });
-
-  testWidgets('reports: import from a BIDS folder', (tester) async {
-    String beh(String sub, String ses) =>
-        'sub-$sub/ses-$ses/beh/'
-        'sub-${sub}_ses-${ses}_task-programming_run-01_beh.tsv';
-    debugDataset = (
-      root: 'C:/Studies/OCD-DBS',
-      files: [
-        for (final (sub, ses) in const [
-          ('01', '20260203'),
-          ('01', '20260401'),
-          ('02', '20260210'),
-          ('03', '20260215'),
-        ])
-          (path: beh(sub, ses), content: 'x'),
-      ],
-    );
-    addTearDown(() => debugDataset = null);
-    await _pump(
-      tester,
-      _panel(
-        ImportExportPanel(
-          catalog: (await _contracts()).$1,
-          folder: 'C:/Studies/OCD-DBS',
-        ),
-      ),
-    );
-    await _tapText(tester, 'Import');
-    await _shootDialog(tester, 'dialog_load_participants');
   });
 
   testWidgets('reports: one session', (tester) async {
