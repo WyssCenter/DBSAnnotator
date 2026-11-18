@@ -57,10 +57,12 @@ import 'bids_folders.dart';
 import 'devices_dialog.dart';
 import 'import_export_panel.dart';
 import 'recording_file.dart';
+import 'report_action_row.dart';
 import 'stim_defaults_dialog.dart';
 import 'wizard_parts.dart';
 import 'stim_params_form.dart';
 import 'theme.dart';
+import 'visit_list.dart' show kAllPatients;
 
 /// A programming session in five steps, from the session files to Finish,
 /// saved into a BIDS folder.
@@ -224,7 +226,6 @@ const RecordingWords _words = (
   newDialogTitle: 'Create new session file',
   newFileSaid: 'New session',
   recoveryTitle: 'Unfinished session found',
-  pickerFailed: 'Could not open the file picker.',
 );
 
 class _SessionScreenState extends State<SessionScreen>
@@ -297,6 +298,7 @@ class _SessionScreenState extends State<SessionScreen>
   /// The BIDS folder new sessions are saved in, and the patients it holds.
   BidsFolder? _folder;
   List<String> _patients = const [];
+  String? _browsed;
 
   /// Whether the clinical details were filled from the patient's last visit.
   bool _fromLastVisit = false;
@@ -711,8 +713,8 @@ class _SessionScreenState extends State<SessionScreen>
       if (_ids.subject.text.trim().isEmpty) {
         setState(() => _subjectError = 'Enter or choose the patient ID');
         _snack(
-          'Enter or choose the patient ID, or open a saved session, so the '
-          'data has somewhere to be saved.',
+          'Enter or choose the patient ID, so the data has somewhere to be '
+          'saved.',
         );
         return;
       }
@@ -973,11 +975,6 @@ class _SessionScreenState extends State<SessionScreen>
       SessionAuthoring()..loadExisting(parseAnySessionTsv(content));
 
   @override
-  Future<SessionAuthoring> readFile(String content, String? path) async =>
-      SessionAuthoring()
-        ..loadExisting(await readSessionFile(content, path: path));
-
-  @override
   DatasetEntry datasetEntry(BidsName name, Map<String, dynamic> contract) =>
       sessionEntry(name: name, rows: _authoring.rows, contract: contract);
 
@@ -987,10 +984,6 @@ class _SessionScreenState extends State<SessionScreen>
   @override
   String recoveredCount(SessionAuthoring content) =>
       _configurations(testedCount(content.rows));
-
-  @override
-  String openedSummary(SessionAuthoring content) =>
-      '${_configurations(testedCount(content.rows))} so far';
 
   @override
   void show(SessionAuthoring content, {required bool reopened}) {
@@ -1161,11 +1154,17 @@ class _SessionScreenState extends State<SessionScreen>
     );
   }
 
-  /// Reload the patients of the chosen BIDS folder.
   Future<void> _loadPatients() async {
     final root = _folder?.path;
     final found = root == null ? const <String>[] : await participantsIn(root);
-    if (mounted) setState(() => _patients = found);
+    if (!mounted) return;
+    setState(() {
+      _patients = found;
+      if (found.isEmpty ||
+          _browsed != kAllPatients && !found.contains(_browsed)) {
+        _browsed = null;
+      }
+    });
   }
 
   /// Fill the DBS indication, target, leads and IPGs from [subject]'s last
@@ -1460,7 +1459,6 @@ class _SessionScreenState extends State<SessionScreen>
       () => exportBidsDataset(
         context,
         anchor: exportKey,
-        avoid: exportAvoid,
         entries: [
           sessionEntry(
             name: _ids.name,
@@ -1498,7 +1496,6 @@ class _SessionScreenState extends State<SessionScreen>
       context,
       filename: filename,
       anchor: exportKey,
-      avoid: exportAvoid,
       failureLabel: 'Report export failed',
       initialDirectory: reportFolderFor(
         _prefs,
@@ -1577,19 +1574,9 @@ class _SessionScreenState extends State<SessionScreen>
                 '${leftOn == null ? 'not noted' : _settingsOf(leftOn)}',
               ),
               if (saved != null) Text('Saved to: $saved'),
-              if (savePathIsSandboxCopy)
-                Text(
-                  sandboxCopyNotice,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
             ],
           ),
         ),
-        if (unkeptNotice case final notice?)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Text(notice, style: Theme.of(context).textTheme.bodySmall),
-          ),
         const Divider(height: 48),
         TitledSection(
           title: 'For the patient record',
@@ -1608,7 +1595,7 @@ class _SessionScreenState extends State<SessionScreen>
                 'Report (Word)',
                 () => _exportReport(leads, docx: true),
               ),
-              _pageSizeMenu(),
+              PageSizeMenu(prefs: _prefs),
             ],
           ),
         ),
@@ -2291,8 +2278,6 @@ class _SessionScreenState extends State<SessionScreen>
     ),
   );
 
-  /// The visit's files: where it is saved, this session's exports, and the
-  /// import and export of other sessions.
   Widget _setupStep(ElectrodeCatalog catalog) {
     final started = _started;
     final thisSession = TitledSection(
@@ -2300,42 +2285,19 @@ class _SessionScreenState extends State<SessionScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_patients.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            DropdownMenu<String>(
-              expandedInsets: EdgeInsets.zero,
-              label: const Text('Patient already in this folder'),
-              dropdownMenuEntries: [
-                for (final p in _patients)
-                  DropdownMenuEntry(value: p, label: p),
-              ],
-              onSelected: (p) {
-                if (p == null) return;
-                setState(() => _ids.subject.text = p);
-                _prefillFromHistory(p);
-              },
-            ),
-          ],
           const SizedBox(height: 12),
           BidsNameFields(entries: _ids, subjectError: _subjectError),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              if (started)
-                FilledButton.icon(
-                  onPressed: _newSession,
-                  icon: const Icon(Icons.note_add_outlined),
-                  label: const Text('New session'),
-                ),
-              OutlinedButton.icon(
-                onPressed: openFile,
-                icon: const Icon(Icons.folder_open),
-                label: const Text('Open saved session'),
+          if (started) ...[
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.icon(
+                onPressed: _newSession,
+                icon: const Icon(Icons.note_add_outlined),
+                label: const Text('New session'),
               ),
-            ],
-          ),
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             children: [
@@ -2350,60 +2312,44 @@ class _SessionScreenState extends State<SessionScreen>
                       ? 'Session started for patient ${_ids.name.subject}, '
                             'session ${_ids.name.session}'
                             '${_ids.name.run == '01' ? '' : ', run ${_ids.name.run}'}'
-                      : 'Enter or choose the patient ID and press Next, or '
-                            'open a saved session.',
+                      : 'Enter or choose the patient ID and press Next.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
             ],
           ),
-          if (unkeptNotice case final notice?)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(notice, style: Theme.of(context).textTheme.bodySmall),
-            ),
         ],
       ),
     );
-    final left = Column(
+    final leading = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        thisSession,
-        if (_authoring.rows.isNotEmpty) ...[
-          const Divider(height: 48),
-          TitledSection(
-            title: 'Export this session',
-            child: Wrap(
-              key: exportKey,
-              spacing: 12,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _exportReport(_leads(catalog), docx: false),
-                  icon: const Icon(Icons.picture_as_pdf_outlined),
-                  label: const Text('Report (PDF)'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => _exportReport(_leads(catalog), docx: true),
-                  icon: const Icon(Icons.description_outlined),
-                  label: const Text('Report (Word)'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _exportBids,
-                  icon: const Icon(Icons.folder_zip_outlined),
-                  label: const Text('BIDS folder (zip)'),
-                ),
-                _pageSizeMenu(),
-              ],
-            ),
+        if (_patients.isNotEmpty) ...[
+          DropdownMenu<String>(
+            key: ValueKey(_folder?.path),
+            expandedInsets: EdgeInsets.zero,
+            label: const Text('Patient'),
+            initialSelection: _browsed,
+            dropdownMenuEntries: [
+              const DropdownMenuEntry(
+                value: kAllPatients,
+                label: 'All patients',
+              ),
+              for (final p in _patients) DropdownMenuEntry(value: p, label: p),
+            ],
+            onSelected: (p) {
+              if (p == null) return;
+              setState(() {
+                _browsed = p;
+                if (p != kAllPatients) _ids.subject.text = p;
+              });
+              if (p != kAllPatients) _prefillFromHistory(p);
+            },
           ),
+          const SizedBox(height: 24),
         ],
+        thisSession,
       ],
-    );
-    final others = TitledSection(
-      title: 'Other sessions',
-      child: ImportExportPanel(catalog: catalog, folder: _folder?.path),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2448,7 +2394,13 @@ class _SessionScreenState extends State<SessionScreen>
             child: Text(f.path, style: Theme.of(context).textTheme.bodySmall),
           ),
         const Divider(height: 48),
-        _twoColumns(left, others),
+        ImportExportPanel(
+          catalog: catalog,
+          folder: _folder?.path,
+          patient: _browsed,
+          prefs: _prefs,
+          leading: leading,
+        ),
       ],
     );
   }
@@ -2548,25 +2500,6 @@ class _SessionScreenState extends State<SessionScreen>
               Expanded(child: b),
             ],
           ),
-  );
-
-  Widget _pageSizeMenu() => DropdownMenu<String>(
-    initialSelection: _prefs.reportPageSize ?? kDefaultReportPageSize,
-    label: const Text('Page size'),
-    width: 160,
-    requestFocusOnTap: false,
-    dropdownMenuEntries: [
-      for (final size in kReportPageSizes)
-        DropdownMenuEntry(
-          value: size,
-          label: size == 'letter' ? 'US Letter' : 'A4',
-        ),
-    ],
-    onSelected: (size) {
-      if (size == null) return;
-      setState(() => _prefs.reportPageSize = size);
-      saveUserPrefs(_prefs);
-    },
   );
 
   /// Load the session pathology's clinical scales and ratings.

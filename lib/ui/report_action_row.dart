@@ -1,6 +1,35 @@
 import 'package:flutter/material.dart';
 
+import '../core/prefs/user_prefs.dart';
 import '../report/upload_actions.dart';
+
+/// The report page size, saved into [prefs] when changed.
+class PageSizeMenu extends StatelessWidget {
+  const PageSizeMenu({super.key, required this.prefs});
+
+  final UserPrefs prefs;
+
+  @override
+  Widget build(BuildContext context) => DropdownMenu<String>(
+    key: ObjectKey(prefs),
+    initialSelection: prefs.reportPageSize ?? kDefaultReportPageSize,
+    label: const Text('Page size'),
+    width: 160,
+    requestFocusOnTap: false,
+    dropdownMenuEntries: [
+      for (final size in kReportPageSizes)
+        DropdownMenuEntry(
+          value: size,
+          label: size == 'letter' ? 'US Letter' : 'A4',
+        ),
+    ],
+    onSelected: (size) {
+      if (size == null) return;
+      prefs.reportPageSize = size;
+      saveUserPrefs(prefs);
+    },
+  );
+}
 
 /// One button on an action row: what it says, what it does, and why it is off
 /// when it is. A per-button reason exists because the two ways of merging do
@@ -33,51 +62,49 @@ class ReportActionRow extends StatelessWidget {
     final enabled = reason == null;
     final ink = enabled ? null : theme.disabledColor;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        action.label,
-                        style: theme.textTheme.titleSmall?.copyWith(color: ink),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.info_outline, size: 18),
-                      tooltip: 'About this export',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => _showInfo(context, action),
-                    ),
-                  ],
+          Row(
+            children: [
+              Flexible(
+                child: Text(
+                  action.label,
+                  style: theme.textTheme.titleSmall?.copyWith(color: ink),
                 ),
-                Text(
-                  reason ?? action.description,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: enabled ? theme.colorScheme.onSurfaceVariant : ink,
-                  ),
-                ),
-              ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.info_outline, size: 18),
+                tooltip: 'About this export',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _showInfo(context, action),
+              ),
+            ],
+          ),
+          Text(
+            reason ?? action.description,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: enabled ? theme.colorScheme.onSurfaceVariant : ink,
             ),
           ),
-          const SizedBox(width: 12),
-          for (final button in buttons) ...[
-            Tooltip(
-              message: button.unavailable ?? '',
-              child: OutlinedButton(
-                onPressed: enabled && button.unavailable == null
-                    ? button.run
-                    : null,
-                child: Text(button.label),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final button in buttons)
+                Tooltip(
+                  message: button.unavailable ?? '',
+                  child: OutlinedButton(
+                    onPressed: enabled && button.unavailable == null
+                        ? button.run
+                        : null,
+                    child: Text(button.label),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );

@@ -115,8 +115,9 @@ Then start it with ``dbs-annotator``. If the shell says the command is not found
 ``~/.local/share/dbs-annotator/dbs_annotator`` directly.
 
 * **Requirements**: a 64-bit (x86-64) desktop with GTK 3, which every mainstream
-  desktop distribution already has. The open dialog comes from the XDG desktop
-  portal of your session; without it, opening a file fails with a message.
+  desktop distribution already has. The dialog for choosing a folder or a file
+  comes from the XDG desktop portal of your session; without it, choosing one
+  fails with a message.
 * **Updating**: run the same command again. It replaces the program files; your
   sessions and preferences are kept.
 * **Uninstalling**: ``rm -rf ~/.local/share/dbs-annotator ~/.local/bin/dbs-annotator``.
@@ -187,9 +188,10 @@ Linux
 
      sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev
 
-  The save dialog is drawn by GTK. The open dialog comes from the XDG desktop
-  portal of your session; without it, opening a file fails with a message. If a
-  save dialog cannot open, the app saves to a fixed folder and tells you where.
+  The save dialog is drawn by GTK. The dialog for choosing a folder or a file
+  comes from the XDG desktop portal of your session; without it, choosing one
+  fails with a message. If a save dialog cannot open, the app saves to a fixed
+  folder and tells you where.
 * **Run**: ``flutter run -d linux``
 * **Release build**: ``flutter build linux --release``. The program is
   ``build/linux/x64/release/bundle/dbs_annotator``; copy the whole ``bundle``

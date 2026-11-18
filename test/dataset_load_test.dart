@@ -1,4 +1,5 @@
-/// Importing from a BIDS folder, and the combined table written back into it.
+/// Reading a patient's visits from a BIDS folder, and the combined table
+/// written back into it.
 library;
 
 import 'dart:convert';
@@ -7,10 +8,14 @@ import 'dart:io';
 import 'package:dbs_annotator/core/bids_dataset.dart';
 import 'package:dbs_annotator/core/bids_merge.dart';
 import 'package:dbs_annotator/core/electrode/electrode_model.dart';
+import 'package:dbs_annotator/core/schema_columns.dart';
+import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:dbs_annotator/core/session/tsv_kind.dart';
 import 'package:dbs_annotator/report/upload_actions.dart';
 import 'package:dbs_annotator/ui/bids_merge_ui.dart';
 import 'package:dbs_annotator/ui/import_export_panel.dart';
+import 'package:dbs_annotator/ui/session/entries_table.dart';
+import 'package:dbs_annotator/ui/visit_list.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -232,25 +237,57 @@ void main() {
     });
   });
 
-  testWidgets(
-    'importing from a BIDS folder fills the list with the chosen participants',
-    (tester) async {
-      debugDataset = (
-        root: 'C:/Studies/OCD-DBS',
-        files: [
-          (path: _beh('01', 'a', 'programming'), content: _session),
-          (path: _beh('01', 'b', 'programming'), content: _session),
-          (path: _beh('02', 'a', 'programming'), content: _session),
-          (path: 'dataset_description.json', content: '{}'),
-        ],
-      );
-      addTearDown(() => debugDataset = null);
-      await tester.binding.setSurfaceSize(const Size(1400, 1600));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      final catalog = ElectrodeCatalog.fromJson(
-        jsonDecode(File('schema/electrode_models.json').readAsStringSync())
-            as Map<String, dynamic>,
-      );
+  test('a zip description that cannot be read still marks the root', () {
+    final found = recordedFiles([
+      (path: 'study/dataset_description.json', content: kUnreadContent),
+      (path: 'study/${_beh('01', 'a', 'programming')}', content: _session),
+      (path: 'study/old/${_beh('09', 'a', 'programming')}', content: _session),
+      (path: 'other/${_beh('08', 'a', 'programming')}', content: _session),
+    ], inZip: true);
+
+    expect(found.keys, ['01']);
+  });
+
+  group('folderVisits', () {
+    const root = 'test/fixtures/bids';
+
+    test('reads each run joined with its visit, run and participant', () async {
+      final found = await folderVisits(root, '01');
+
+      expect(found.rejected, isEmpty);
+      expect(found.visits, hasLength(2));
+      for (final visit in found.visits) {
+        expect(
+          visit.rows.where((r) => isInitialValue(r.isInitial)),
+          isNotEmpty,
+          reason: '${visit.name} carries its initial assessment',
+        );
+        expect(electrodeModelIn(visit.rows), 'Medtronic SenSight B33005');
+      }
+    });
+
+    test('lists one patient, every patient, or none', () async {
+      expect((await folderVisits(root, kAllPatients)).visits, hasLength(2));
+      expect((await folderVisits(root, '02')).visits, isEmpty);
+    });
+  });
+
+  testWidgets('choosing a patient lists their visits, and choosing a run '
+      'previews it', (tester) async {
+    debugDataset = [
+      (path: _beh('01', 'a', 'programming'), content: _session),
+      (path: _beh('01', 'b', 'programming'), content: _session),
+      (path: _beh('02', 'a', 'programming'), content: _session),
+      (path: 'dataset_description.json', content: '{}'),
+    ];
+    addTearDown(() => debugDataset = null);
+    await tester.binding.setSurfaceSize(const Size(1400, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final catalog = ElectrodeCatalog.fromJson(
+      jsonDecode(File('schema/electrode_models.json').readAsStringSync())
+          as Map<String, dynamic>,
+    );
+    Future<void> show(String patient) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -258,58 +295,34 @@ void main() {
               child: ImportExportPanel(
                 catalog: catalog,
                 folder: 'C:/Studies/OCD-DBS',
+                patient: patient,
               ),
             ),
           ),
         ),
       );
-
-      await tester.tap(find.text('Import'));
       await tester.pumpAndSettle();
-      expect(find.text('Import which participants?'), findsOneWidget);
-      await tester.tap(find.text('sub-02'));
-      await tester.pump();
-      await tester.tap(find.text('Import').last);
-      await tester.pumpAndSettle();
+    }
 
-      expect(find.textContaining('sub-01_ses-a_'), findsOneWidget);
-      expect(find.textContaining('sub-01_ses-b_'), findsOneWidget);
-      expect(find.textContaining('sub-02_'), findsNothing);
-      expect(find.text('Needs two or more files.'), findsNothing);
-    },
-  );
+    await show('01');
+    expect(find.text('sub-01, ses-a'), findsOneWidget);
+    expect(find.text('sub-01, ses-b'), findsOneWidget);
+    expect(find.text('sub-02, ses-a'), findsNothing);
+    expect(find.text('All visits of sub-01'), findsOneWidget);
+    const several = 'Choose one run; several give a report across visits.';
+    expect(find.text(several), findsOneWidget);
 
-  testWidgets('a zip description that cannot be read still marks the root', (
-    tester,
-  ) async {
-    debugDataset = (
-      root: null,
-      files: [
-        (path: 'study/dataset_description.json', content: kUnreadContent),
-        (path: 'study/${_beh('01', 'a', 'programming')}', content: _session),
-        (
-          path: 'study/old/${_beh('09', 'a', 'programming')}',
-          content: _session,
-        ),
-        (path: 'other/${_beh('08', 'a', 'programming')}', content: _session),
-      ],
-    );
-    addTearDown(() => debugDataset = null);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) => TextButton(
-            onPressed: () => loadDatasetTsvs(context, (_) {}, folder: 'study'),
-            child: const Text('load'),
-          ),
-        ),
-      ),
-    );
-    await tester.tap(find.text('load'));
+    await tester.tap(find.textContaining('Run 01').first);
     await tester.pumpAndSettle();
+    expect(find.text(several), findsNothing);
+    expect(find.byType(SessionEntriesTable), findsOneWidget);
+    expect(find.textContaining('sub-01, ses-a, Run 01'), findsOneWidget);
 
-    expect(find.text('sub-01'), findsOneWidget);
-    expect(find.text('sub-09'), findsNothing);
-    expect(find.text('sub-08'), findsNothing);
+    await show(kAllPatients);
+    expect(find.text('sub-02, ses-a'), findsOneWidget);
+    expect(
+      find.text('No chart is drawn across different patients.'),
+      findsOneWidget,
+    );
   });
 }

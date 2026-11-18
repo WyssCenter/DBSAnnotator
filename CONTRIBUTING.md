@@ -125,7 +125,7 @@ tables and the sidecar example in `output_format` are rendered from
 
 ### Screenshots
 
-The 31 images under `docs/_static/screenshots/` are generated from widget tests,
+The 29 images under `docs/_static/screenshots/` are generated from widget tests,
 never edited by hand, and committed, because Read the Docs cannot run a Flutter
 SDK inside its build limits. To regenerate after a UI change:
 

@@ -1,16 +1,17 @@
-Import and export
-=================
+Reports and exports
+===================
 
-On the :ref:`Session step <setup-step>`, **Import** reads the sessions saved in
-the BIDS folder chosen at the top of the step, then you take whatever they
-support. Only sessions filed in a BIDS folder are imported, not single session
-files. This never changes the files it reads: it shows what is in them, and
-produces documents and BIDS folders from them. Into a BIDS folder you choose it
-writes only what you ask it to add, and only after you have confirmed the list
-of files.
+On the :ref:`Session step <setup-step>`, choosing a patient lists their visits
+from the BIDS folder chosen at the top of the step (see :ref:`the patient's
+visits <patient-visits>`). **Reports and exports**, under the list, makes
+documents and BIDS folders from the runs chosen there. Only sessions filed in a
+BIDS folder are listed, not single session files. Nothing here changes the
+files it reads: it shows what is in them, and produces documents and BIDS
+folders from them. Into a BIDS folder you choose it writes only what you ask it
+to add, and only after you have confirmed the list of files.
 
-The whole screen scrolls as one page, from the Import button down through the
-actions to the preview, so a long session table never squeezes the rest.
+The whole step scrolls as one page, so a long session table never squeezes the
+rest.
 
 .. raw:: html
 
@@ -21,48 +22,33 @@ actions to the preview, so a long session table never squeezes the rest.
             label="English" default>
    </video>
 
-Two visits imported, the report across visits's sections
+Two visits of one patient listed, the sections of the report across visits
 chosen, the scale targets it ranks by, then the export.
-
-.. figure:: ../_static/screenshots/reports_empty.png
-   :alt: The Import and export screen before anything is imported, with
-         every action listed and disabled
-   :width: 100%
-
-   Before anything is imported. Every action is listed, disabled, with the
-   reason underneath rather than hidden until you tap it.
 
 .. _load-from-dataset:
 
-Importing
----------
+Reading the BIDS folder
+-----------------------
 
-**Import** reads the BIDS folder chosen at the top of the Session step; with no
-folder chosen, it stays disabled. Every session and notes TSV under
+The visits are read from the BIDS folder chosen at the top of the Session step,
+for the patient chosen in the **Patient** list, or for every patient with
+**All patients**. Every session and notes TSV under
 ``sub-<participant>/ses-<session>/beh/`` is found, including older
 ``_events.tsv`` files. Sidecars, imaging, other datatypes and everything under
 ``derivatives/`` are left alone, and copies kept under ``old/``,
 ``sourcedata/`` and similar folders are skipped. Each file is classified by its
 **columns**, not its name, so a file renamed by hand still opens as what it is,
 and a file that is neither a programming session nor a notes file is left out
-by name rather than loaded as a screen of blank rows. A file already in the
-list is refused by name, so nothing is counted twice.
+by name rather than loaded as a screen of blank rows.
 
-A checklist then shows each participant with the number of files found, all
-ticked: untick the ones you do not want, for example to keep a report across
-visits to one patient.
+Each session is read together with the rows the folder keeps for it: the
+initial assessment from the visit's ``scans.tsv``, the target, leads and IPGs
+from the patient's ``sessions.tsv``, the DBS indication from
+``participants.tsv``, and the scale names from the sidecars. A report made
+here therefore carries the same initial assessment and lead diagrams as a
+report made during the visit.
 
-.. figure:: ../_static/screenshots/dialog_load_participants.png
-   :alt: The checklist of participants found in the dataset, all ticked, with
-         the number of files for each
-   :width: 42%
-   :align: center
-
-The chosen
-files join the list exactly as if you had imported them, so every action below
-works the same way, and a single file can still be removed.
-
-What each import enables
+What each choice enables
 ------------------------
 
 .. list-table::
@@ -72,12 +58,15 @@ What each import enables
    * - Action
      - Available when
    * - Single session report
-     - Exactly **one** imported TSV: a session, or a notes file on its own
+     - Exactly **one** run chosen in the list, a session rather than a notes
+       file
    * - Report across visits
-     - Two or more TSVs **naming the same patient**. A notes file counts, so a
-       session and its notes file give a report across visits
+     - **All visits** chosen, two or more files **naming the same patient**.
+       A notes file counts, so a session and its notes file give a report
+       across visits
    * - Combined table (TSV)
-     - Two or more TSVs, of any patients. Notes files count
+     - **All visits** chosen, two or more files, of any patients. Notes files
+       count
    * - Create a BIDS folder (zip)
      - At least one file whose name carries a ``sub-`` entity
    * - Add to an existing dataset
@@ -89,10 +78,10 @@ description.
 Every action has an info button beside its name. It opens a short explanation
 in three parts: how the export is made, which data it needs, and which files it
 creates. The button works on a greyed-out action too, so you can see what that
-action would need before importing anything.
+action would need.
 
 .. figure:: ../_static/screenshots/reports_one_session.png
-   :alt: One session imported: the single session report and BIDS folder are
+   :alt: One run chosen: the single session report and BIDS folder are
          available, the report across visits and combined table are not
    :width: 100%
 
@@ -125,35 +114,39 @@ run because its name was taken, the report follows it to that run.
 Several visits of one patient
 -----------------------------
 
-With two or more sessions naming the same patient, every action is available and
-the preview shows the symptom and side effect ratings figure of the report
-across visits: every configuration of every visit, grouped under the visit's
-date, with the two best configurations
-of each visit banded, exactly as the report will draw it.
+With **All visits** chosen for a patient with two or more sessions, every action
+is available and the preview shows the two figures of the report across
+visits, exactly as the report will draw them. The first is the clinical scales
+of each visit's initial assessment, one point per visit. The second is the
+symptom and side effect ratings: every configuration of every visit, grouped
+under the visit's date, with the two best configurations of each visit banded.
+Each figure has its own zoom buttons, for a long history where the
+configurations crowd together.
 
 .. figure:: ../_static/screenshots/reports_visits.png
-   :alt: Several visits imported, with the session-scales figure across all of them
+   :alt: All visits of one patient chosen, with the clinical scales by visit
+         and the session-scales figure across all of them
    :width: 100%
 
 Different patients
 ------------------
 
-If the imported files name more than one patient, the screen says so and the
-report across visits stays off. Combining two people into one report across visits
-is a safety problem, not a formatting one. A combined table and a BIDS folder
-across several patients are ordinary things to want, so those stay available. No
-preview chart is drawn: one line across two patients would read as one
-patient's trend.
+With **All patients** chosen, the files listed name more than one patient, so
+the report across visits stays off and says why. Combining two people into one
+report across visits is a safety problem, not a formatting one. A combined
+table and a BIDS folder across several patients are ordinary things to want, so
+those stay available. No preview chart is drawn: one line across two patients
+would read as one patient's trend.
 
 .. figure:: ../_static/screenshots/reports_mismatch.png
-   :alt: Two patients imported: a warning banner, and the report across visits
-         disabled with its reason
+   :alt: Visits of two patients listed: no preview chart, and the report across
+         visits disabled with its reason
    :width: 100%
 
 Notes alongside a session
 -------------------------
 
-A ``task-notes`` file imported together with a session makes two files, so it
+A ``task-notes`` file chosen together with a session makes two files, so it
 gives a **report across visits**, with the data aggregated as for any set of
 visits. Each note joins the session table of the visit on its own day (when two
 sessions share a day, the one under way at the note's time), placed by its own
@@ -164,7 +157,7 @@ happen in. Such a day gets its own numbered row in the Visits table, with only
 its date filled, and its own table in the session data, under its date and in
 the same columns as a visit's, with only Time and Notes filled. The session
 tables are the **Combined session data table** section, which is off by
-default and ticked for you when a notes file is imported.
+default and ticked for you when a notes file is among the files chosen.
 
 Two or more notes files with no session also give a report across visits. It has
 no visits, so it says that no session TSV was imported and lists every note by
@@ -182,8 +175,8 @@ readable timestamp is left out, since there is nowhere on a time axis to put it.
 Adding to a dataset you already have
 ------------------------------------
 
-**Add to an existing dataset** folds the imported files into a BIDS folder you
-already have, rather than producing a separate one to reconcile by hand. It
+**Add to an existing dataset** folds the chosen files into another BIDS folder
+you already have, rather than producing a separate one to reconcile by hand. It
 offers both ways of doing that, so the choice is yours:
 
 * **Add** writes into the folder you choose. Available on Windows, macOS and
@@ -334,7 +327,8 @@ over 0 to 10, and the preview on this screen uses the same. The report prints
 the targets it ranked by under the session-scales figure and the session
 tables; check them before filing it, and set any scale that should rise, such
 as mood or energy, before exporting.
-When a notes file is imported, **Combined session data table** starts ticked,
+When a notes file is among the files chosen, **Combined session data table**
+starts ticked,
 since that is where notes from a visit day are printed. The clinical figure's
 axis takes each scale's range from your :ref:`clinical scales settings
 <dialog-clinical-scales>`, because a TSV records scores but not ranges.
@@ -370,17 +364,17 @@ See :doc:`../reports` for what each document contains, and
 The combined table
 ------------------
 
-Every imported file goes into the combined table. A notes file adds one row
-per note, with its time and text; the stimulation and scale columns of those
-rows are ``n/a``.
+Every chosen file goes into the combined table. A notes file adds one row per
+note, with its time and text; the stimulation and scale columns of those rows
+are ``n/a``.
 
 The combined table always comes with its ``.json`` sidecar, which documents the
 four key columns and every session column, so the table can be read without this
 documentation at hand.
 
-When every session in the list was :ref:`loaded from a dataset folder
-<load-from-dataset>`, **Export** saves the table into that dataset first, where
-BIDS puts a table that spans sessions:
+**Export** first saves the table into the BIDS folder the files were
+:ref:`read from <load-from-dataset>`, where BIDS puts a table that spans
+sessions:
 
 .. code-block:: text
 
@@ -397,20 +391,19 @@ version is kept beside it with a ``.bak-`` suffix, and the dataset's
 the raw ``sub-*`` tree is written. The app then asks whether to save a copy
 somewhere else too, as a ``.zip`` holding the table and its sidecar.
 
-Adding visits to a dataset from Reports, into a folder or as a merged ``.zip``,
+Adding visits to a dataset from Reports and exports, into a folder or as a
+merged ``.zip``,
 works differently: the table in the dataset is rebuilt from every session and
 notes file the dataset holds afterwards, not only from the files just added.
 A visit recorded straight into a dataset is added to the table when the
-recording ends: on leaving the screen, closing the window, or choosing New or
-Open. The app shows a short progress message while it does so, and names any
+recording ends: on leaving the screen, closing the window, or choosing New.
+The app shows a short progress message while it does so, and names any
 file it had to leave out. If the recording is interrupted instead, for example
 because the app crashes, the table leaves out that visit until the next merge
-from Reports or the next visit recorded into the dataset refreshes it. Saving
+from Reports and exports or the next visit recorded into the dataset refreshes
+it. Saving
 this combined table into the dataset, as described above, is different again:
 it holds only the files you chose, and the next merge replaces it with the
 table of the whole dataset. The ``.bak-`` copies that adding into a folder
 leaves are hidden from the validator through ``.bidsignore``; see
 :ref:`the merge rules <dataset-merge-rules>`.
-
-If the list mixes files imported from two BIDS folders, nothing is written into
-either and the table and sidecar are exported as a ``.zip`` as usual.

@@ -7,9 +7,9 @@ import 'visit.dart';
 
 /// What the video says, in order: its captions and its voice.
 enum _Line {
-  import(
-    'Import, under Other sessions, reads the visits saved in the BIDS folder '
-    'chosen above: here, two visits of the same patient.',
+  patient(
+    'Choose a patient, and the visits saved for them in the BIDS folder are '
+    'listed, beside a preview: here, two visits of the same patient.',
   ),
   report(
     'A report across visits can be exported as PDF or Word. Choose the '
@@ -39,13 +39,12 @@ void _seed(Directory study) {
 void main() {
   initVideoBinding();
 
-  testWidgets('reports from imported sessions', (tester) async {
+  testWidgets('reports from a patient\'s visits', (tester) async {
     await prepareScript(_Line.values.map((l) => l.text));
     await openApp(tester, seed: _seed);
     await rolling(tester);
-    await _say(tester, _Line.import);
-    await tapText(tester, 'Import');
-    await tap(tester, find.text('Import').last);
+    await _say(tester, _Line.patient);
+    await pick(tester, 'Patient', '01');
     await pause(tester, 2000);
     await _say(tester, _Line.report);
     await tap(tester, find.text('PDF').at(1));

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../core/bids.dart';
@@ -9,8 +8,6 @@ import '../core/bids_dataset.dart';
 import '../core/bids_merge.dart';
 import '../core/bids_sidecar.dart';
 import '../core/safe_file.dart';
-import '../core/schema_columns.dart';
-import '../core/session/bids_folder.dart' show bidsRootOf;
 import '../core/session/tsv_kind.dart';
 import 'bids_merge_ui.dart';
 import 'close_guard.dart';
@@ -29,11 +26,10 @@ typedef RecordingWords = ({
   String newDialogTitle,
   String newFileSaid,
   String recoveryTitle,
-  String pickerFailed,
 });
 
-/// The file lifecycle of a recording screen: autosave, New, Open, recovery,
-/// export bookkeeping and the leave question, for content of type [C].
+/// The file lifecycle of a recording screen: autosave, New, recovery, export
+/// bookkeeping and the leave question, for content of type [C].
 mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
   RecordingWords get words;
   TsvKind get tsvKind;
@@ -49,10 +45,6 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
   /// Parse [content]; throws when it cannot be read.
   C readTsv(String content);
 
-  /// Parse the file at [path] holding [content]; a screen whose files need
-  /// their BIDS folder to be read whole overrides this.
-  Future<C> readFile(String content, String? path) async => readTsv(content);
-
   /// This screen's content as an entry of a BIDS folder named [name].
   DatasetEntry datasetEntry(BidsName name, Map<String, dynamic> contract);
   bool isBlank(C content);
@@ -60,25 +52,14 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
   /// What a recovered file holds, for the question, such as `3 blocks`.
   String recoveredCount(C content);
 
-  /// What an opened file holds, for the snack, such as `3 notes`.
-  String openedSummary(C content);
-
   /// Replace the content with [content]; runs inside setState.
   void show(C content, {required bool reopened});
 
   /// Fill the label fields from [name]; runs inside setState.
   void fillLabels(BidsName name);
 
-  /// Show [message] once a file was opened or reopened.
+  /// Show [message] once a file was reopened.
   Future<void> announceLoaded(String message) async => _snack(message);
-
-  /// Set while the opened file has columns the app does not keep: the line to
-  /// show beside Export. Null otherwise.
-  String? get unkeptNotice => _unkept.isEmpty
-      ? null
-      : 'The file you opened is not updated. It has columns the app does not '
-            'keep (${_unkept.join(', ')}). Export saves ${words.thing} without '
-            'them.';
 
   /// Share-popover anchor. ONE key, on the Export button: a menu item is
   /// already unmounted by the time the iPad share sheet asks for its rect.
@@ -87,17 +68,15 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
   String? get savePath => _savePath;
   bool get hasFile => _workingPath != null;
 
-  /// Where the file is kept: the chosen file, the dataset, or the app's copy.
+  /// Where the file is kept: the filed file, the dataset, or the app's copy.
   String? get savedLocation => _savePath ?? _datasetRoot ?? _workingPath;
 
   /// The BIDS folder this visit is filed into, when there is one.
   String? get datasetRoot => _datasetRoot;
-  bool get savePathIsSandboxCopy => _savePathIsSandboxCopy;
   BidsName? get datasetName => _datasetName;
 
   final _writer = SafeFileWriter();
 
-  // Chosen save path (from New/Open); when set, entries autosave to it.
   String? _savePath;
   // Working copy in the app's own storage, written on every entry whatever
   // the picker returned. It is only deleted when the user discards it.
@@ -107,24 +86,15 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
   // scans.tsv lists is a dataset that does not validate.
   String? _datasetRoot;
   BidsName? _datasetName;
-  // True when _savePath is a mobile sandbox copy, not the user's own file.
-  bool _savePathIsSandboxCopy = false;
-  // The opened file's columns the app does not keep, and its path. Autosave
-  // never writes that file: it has no save path while these are set.
-  List<String> _unkept = const [];
-  String? _openedPath;
   bool _exportedSinceChange = false;
   // Bumped on every change, so an export started before one is not counted.
   int _changes = 0;
-  // Whether the last autosave failed to write the recovery copy / the user's
-  // file, so that file is stale.
   bool _workingFailed = false;
   bool _fileFailed = false;
   // Autosaves run one at a time: a second one starting before the first has
   // filed the dataset copy would file it again.
   Future<void> _saving = Future.value();
   int _pendingSaves = 0;
-  // New or Open is in progress; a second one must not start meanwhile.
   bool _switching = false;
   // A leave question is open; a second close or Back must not stack another.
   bool _leaveAsked = false;
@@ -188,41 +158,23 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
       _workingFailed = true;
       if (mounted) {
         _snack(
-          _savePath == null && datasetRoot == null
+          datasetRoot == null
               ? 'Could not save this ${words.entry}: $e'
               : "Could not update the app's recovery copy: $e",
         );
       }
     }
-    if (datasetRoot != null) {
-      if (entriesNow) await _fileIntoDataset();
-      return;
-    }
-    final path = _savePath;
-    if (path == null) {
-      _fileFailed = false;
-      return;
-    }
-    try {
-      await _writer.write(path, text);
-      _fileFailed = false;
-    } catch (e) {
-      _fileFailed = true;
-      if (mounted) {
-        _snack(
-          'Autosave to your file failed: $e.'
-          '${_workingFailed ? ' This ${words.entry} is not saved anywhere yet.' : ' The ${words.entry} is saved in the app.'}',
-        );
-      }
-    }
+    if (datasetRoot != null && entriesNow) await _fileIntoDataset();
   }
 
-  /// Place the file in the chosen dataset; see [fileIntoDataset].
+  /// Place the file in the chosen dataset; see [fileIntoDataset]. A failure
+  /// keeps the dataset, so the next save files it again in BIDS form.
   Future<void> _fileIntoDataset() async {
     final root = _datasetRoot;
     final name = _datasetName;
     if (root == null || name == null) return;
     final first = _savePath == null;
+    final retried = _fileFailed;
     try {
       final filed = await fileIntoDataset(
         root: root,
@@ -240,22 +192,30 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
         if (mounted) setState(() => _datasetRoot = null);
         return;
       }
+      _fileFailed = false;
       if (!mounted) return;
       setState(() => _savePath = filed.path);
-      if (!first && filed.unread.isEmpty && filed.warning == null) return;
+      if (!first && !retried && filed.unread.isEmpty && filed.warning == null) {
+        return;
+      }
       _snack(
-        '${first ? 'Saved as ${name.relativeDir}/${name.filename}.' : ''}'
+        '${first
+            ? 'Saved as ${name.relativeDir}/${name.filename}.'
+            : retried
+            ? 'Saved into the BIDS folder again.'
+            : ''}'
         '${filed.unread.isEmpty ? '' : ' ${unreadIndexNotice(filed.unread)}'}'
         '${filed.warning == null ? '' : ' ${filed.warning}'}',
       );
     } catch (e) {
+      _fileFailed = true;
       if (mounted) {
         _snack(
           'Could not file into the BIDS folder: $e.'
-          '${_workingFailed ? ' This ${words.entry} is not saved anywhere yet.' : ' ${words.savedInApp}'}',
+          '${_workingFailed ? ' This ${words.entry} is not saved anywhere yet.' : ' ${words.savedInApp}'}'
+          ' The next save tries again.',
         );
       }
-      if (mounted) setState(() => _datasetRoot = null);
     }
   }
 
@@ -267,18 +227,11 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
 
   /// Point the screen at a new file; runs inside setState.
   void _useFile({
-    required String? savePath,
-    required bool sandboxCopy,
     required String? workingPath,
     required String? datasetRoot,
     required BidsName? datasetName,
-    List<String> unkept = const [],
-    String? openedPath,
   }) {
-    _unkept = unkept;
-    _openedPath = openedPath;
-    _savePath = savePath;
-    _savePathIsSandboxCopy = sandboxCopy;
+    _savePath = null;
     _workingPath = workingPath;
     _datasetRoot = datasetRoot;
     _datasetName = datasetName;
@@ -294,13 +247,9 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
     required LeaveChoice leave,
     required String? oldWork,
     required String workingName,
-    required String? savePath,
-    required bool sandboxCopy,
     required String? datasetRoot,
     required BidsName? datasetName,
     required void Function() show,
-    List<String> unkept = const [],
-    String? openedPath,
   }) async {
     final String work;
     try {
@@ -315,13 +264,9 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
     setState(() {
       show();
       _useFile(
-        savePath: savePath,
-        sandboxCopy: sandboxCopy,
         workingPath: work,
         datasetRoot: datasetRoot,
         datasetName: datasetName,
-        unkept: unkept,
-        openedPath: openedPath,
       );
     });
     if (leave == LeaveChoice.discard) await discardWork(oldWork);
@@ -346,8 +291,6 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
         leave: leave,
         oldWork: _workingPath,
         workingName: name.filename,
-        savePath: null,
-        sandboxCopy: false,
         datasetRoot: root,
         datasetName: name,
         show: start,
@@ -355,92 +298,6 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
     } finally {
       _switching = false;
     }
-  }
-
-  /// Open an existing TSV of this screen's kind.
-  Future<void> openFile() async {
-    if (_switching) return;
-    _switching = true;
-    try {
-      await _openFlow();
-    } finally {
-      _switching = false;
-    }
-  }
-
-  Future<void> _openFlow() async {
-    // `pickFile`, not `pickFiles`: `allowMultiple` defaults to TRUE, so
-    // `pickFiles` here would silently accept a multi-selection.
-    final PlatformFile? chosen;
-    try {
-      chosen = await FilePicker.pickFile(type: FileType.any);
-    } catch (e) {
-      if (mounted) _snack('${words.pickerFailed} ($e)');
-      return;
-    }
-    if (chosen == null) return;
-    final picked = chosen;
-    final content = await readPickedText(picked);
-    if (content == null) {
-      if (mounted) _snack('Could not read ${picked.name}.');
-      return;
-    }
-    // Refuse the wrong workflow's file before anything sets the save path.
-    //
-    // The session columns are a superset of the notes columns, so a session
-    // TSV parses as notes, one "note" per row. The
-    // save path would then point at the clinician's session file, and the
-    // first autosave would replace it with the five annotation columns: every
-    // block, parameter and rating gone, atomically and with no `.tmp` to
-    // recover from.
-    final kind = sniffTsvKind(content);
-    if (kind != tsvKind) {
-      if (mounted) _snack(tsvKindMismatch(picked.name, kind, tsvKind));
-      return;
-    }
-
-    final C loaded;
-    try {
-      loaded = await readFile(content, picked.path);
-    } catch (e) {
-      if (mounted) _snack('Could not read ${picked.name}: $e');
-      return;
-    }
-    final leave = await _askLeave();
-    if (leave == null || !mounted || _refuseWhileSaving()) return;
-    final oldWork = _workingPath;
-    final bids = BidsName.parse(picked.name);
-    final unkept = unkeptColumns(content, tsvKind);
-    final keepsFile = unkept.isEmpty;
-    final sandboxCopy =
-        keepsFile && !pickedPathAutosavesToOriginal(picked.path);
-    final root = keepsFile && bids != null && picked.path != null
-        ? bidsRootOf(picked.path!)
-        : null;
-    final replaced = await _replaceFile(
-      leave: leave,
-      oldWork: oldWork,
-      workingName: picked.name,
-      savePath: keepsFile ? picked.path : null,
-      sandboxCopy: sandboxCopy,
-      unkept: unkept,
-      openedPath: picked.path,
-      datasetRoot: root,
-      datasetName: root == null ? null : bids,
-      show: () {
-        show(loaded, reopened: false);
-        if (bids != null) fillLabels(bids);
-      },
-    );
-    if (!replaced) return;
-    final opened = 'Opened ${picked.name} (${openedSummary(loaded)}).';
-    await announceLoaded(
-      keepsFile
-          ? (sandboxCopy ? '$opened $sandboxCopyNotice' : opened)
-          : '$opened The app does not keep these columns: ${unkept.join(', ')}. '
-                'Your file is left unchanged. Export saves ${words.thing} without '
-                'them.',
-    );
   }
 
   /// Offer back a recording the app stopped in the middle of. Asking rather
@@ -484,35 +341,13 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
     final bids = BidsName.parse(name);
     setState(() {
       show(restored, reopened: true);
-      // No save path: guessing it would autosave over a file not chosen here.
-      _useFile(
-        savePath: null,
-        sandboxCopy: false,
-        workingPath: found.path,
-        datasetRoot: null,
-        datasetName: null,
-      );
+      _useFile(workingPath: found.path, datasetRoot: null, datasetName: null);
       if (bids != null) fillLabels(bids);
     });
     await announceLoaded(
       'Reopened $name. Export it to save it outside the app.',
     );
   }
-
-  /// The opened file as an [AvoidFile] while it has unkept columns, else null.
-  AvoidFile? _unkeptFile(String reason) {
-    final opened = _openedPath;
-    if (_unkept.isEmpty || opened == null || !File(opened).existsSync()) {
-      return null;
-    }
-    return (path: opened, reason: reason);
-  }
-
-  /// The file an export must not end on, or null when there is none.
-  AvoidFile? get exportAvoid => _unkeptFile(
-    'That is the file you opened. It has columns the app does not keep, so '
-    'Export cannot save over it. Choose another name.',
-  );
 
   /// Run [export] and, when it delivered and nothing changed meanwhile, lift
   /// the leave warning about an unexported file.
@@ -538,7 +373,6 @@ mixin RecordingFile<W extends StatefulWidget, C> on State<W> {
         workingFailed: _workingFailed,
         fileFailed: _fileFailed,
         hasSavePath: _savePath != null,
-        savePathIsSandboxCopy: _savePathIsSandboxCopy,
         exportedSinceChange: _exportedSinceChange,
         hasEntries: hasEntries,
         stillSaving: stillSaving,

@@ -37,7 +37,7 @@ void main() {
   test('nothing uploaded leaves every action off', () {
     expect(availableActions(const []), isEmpty);
     for (final action in ReportAction.values) {
-      expect(unavailableReason(action, const []), 'Import a session first.');
+      expect(unavailableReason(action, const []), 'Choose a visit first.');
     }
   });
 
@@ -93,7 +93,7 @@ void main() {
     expect(availableActions(files), contains(ReportAction.aggregateTsv));
     expect(
       unavailableReason(ReportAction.sessionReport, files),
-      'Import one session; several give a report across visits.',
+      'Choose one run; several give a report across visits.',
     );
   });
 
@@ -130,7 +130,7 @@ void main() {
   test('several sessions turn the single report off, with a reason', () {
     expect(
       unavailableReason(ReportAction.sessionReport, [session(a), session(b)]),
-      'Import one session; several give a report across visits.',
+      'Choose one run; several give a report across visits.',
     );
   });
 
@@ -153,7 +153,7 @@ void main() {
     final files = [session('my notes export.tsv')];
     expect(
       unavailableReason(ReportAction.bidsDataset, files),
-      'No imported file name carries a sub- entity.',
+      'No chosen file name carries a sub- entity.',
     );
     expect(
       unavailableReason(ReportAction.sessionReport, files),
@@ -163,7 +163,7 @@ void main() {
   });
 
   test('the summary names what was uploaded', () {
-    expect(uploadSummary(const []), 'No files imported.');
+    expect(uploadSummary(const []), 'No visits.');
     expect(uploadSummary([session(a)]), '1 session');
     expect(uploadSummary([session(a), session(b)]), '2 sessions');
     expect(

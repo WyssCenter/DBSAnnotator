@@ -388,42 +388,6 @@ void main() {
     });
   });
 
-  group('Open', () {
-    testWidgets('a file naming an unknown electrode model says so after '
-        'Opened', (tester) async {
-      final dirs = useTempDirs();
-      final file = File('${dirs.saved.path}/sub-08_ses-20260204_task-x_beh.tsv')
-        ..writeAsStringSync(sessionTsv(model: 'Unknown Lead 9'));
-      useFakePicker().file = pickedFile(file);
-      await pumpScreen(tester, sessionScreen());
-      await awaitRecoveryCheck(tester);
-
-      await tester.tap(find.text('Open saved session'));
-      await pumpUntilFound(tester, find.textContaining('Opened '));
-      await tester.pump(const Duration(milliseconds: 500));
-
-      expect(
-        find.text(
-          'Opened sub-08_ses-20260204_task-x_beh.tsv (0 configurations tested '
-          'so far).',
-        ),
-        findsOneWidget,
-      );
-      expect(find.textContaining('not in the catalogue'), findsNothing);
-
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pumpAndSettle();
-      expect(
-        find.text(
-          'This file names an electrode model, "Unknown Lead 9", that is not '
-          'in the catalogue. The diagrams show Medtronic SenSight B33005 '
-          'instead.',
-        ),
-        findsOneWidget,
-      );
-    });
-  });
-
   group('recovery', () {
     testWidgets('a copy naming an unknown electrode model says so after '
         'Reopened', (tester) async {
@@ -461,8 +425,14 @@ void main() {
       final (working, saved, _) = await _show(tester);
       await _add(tester, working, 'first visit');
 
-      await tester.tap(find.text('Session'));
+      await tester.tap(find.text('Finish'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm'));
+      await settleUntil(
+        tester,
+        working,
+        () => find.text('For research').evaluate().isNotEmpty,
+      );
       await tester.tap(find.text('BIDS folder (zip)').first);
       await settleUntil(
         tester,

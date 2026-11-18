@@ -23,14 +23,12 @@ Future<bool> Function({bool closingWindow})? activeSessionGuard;
   required bool workingFailed,
   required bool fileFailed,
   required bool hasSavePath,
-  required bool savePathIsSandboxCopy,
   required bool exportedSinceChange,
   required bool hasEntries,
   required bool stillSaving,
 }) {
   final onlyCopy =
-      !exportedSinceChange &&
-      (!hasSavePath || savePathIsSandboxCopy || fileFailed || stillSaving);
+      !exportedSinceChange && (!hasSavePath || fileFailed || stillSaving);
   return (
     onlyCopy: onlyCopy,
     copyMayBeStale: workingFailed && hasEntries,

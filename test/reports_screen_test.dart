@@ -14,7 +14,7 @@ Widget _host(ImportExportPanel panel, {Key? key}) => MaterialApp(
 );
 
 void main() {
-  testWidgets('with nothing imported, the actions wait for a session', (
+  testWidgets('with no patient chosen, the actions wait for a visit', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1600));
@@ -24,20 +24,15 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('No files imported.'), findsOneWidget);
-    expect(find.textContaining('appear once a session is imported'), findsOne);
+    expect(find.text('Choose a patient to see their visits.'), findsOneWidget);
     expect(find.text('Single session report'), findsNothing);
-    ButtonStyleButton load() => tester.widget<ButtonStyleButton>(
-      find.ancestor(
-        of: find.text('Import'),
-        matching: find.bySubtype<ButtonStyleButton>(),
-      ),
-    );
-    expect(load().onPressed, isNotNull);
 
     await tester.pumpWidget(_host(const ImportExportPanel()));
     await tester.pump();
-    expect(load().onPressed, isNull, reason: 'no BIDS folder chosen above');
+    expect(
+      find.text('Choose a BIDS folder above to see its visits.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('every action explains itself once a session is imported', (
@@ -165,12 +160,15 @@ void main() {
       );
       await tester.pump();
       expect(charted(), isTrue);
-      final painter = tester
+      final painters = tester
           .widgetList<CustomPaint>(find.byType(CustomPaint))
           .map((p) => p.painter)
           .whereType<ScalesChartPainter>()
-          .single;
-      expect(painter.spec.bestXs, isNotEmpty);
+          .toList();
+      expect(painters, hasLength(2));
+      expect(find.text('Clinical scales by visit'), findsOneWidget);
+      expect(painters.first.spec.series, isNotEmpty);
+      expect(painters.last.spec.bestXs, isNotEmpty);
 
       await tester.pumpWidget(
         _host(
@@ -188,4 +186,101 @@ void main() {
       );
     },
   );
+
+  _enlargeAndZoom();
+}
+
+Uploaded _visit(String ses) => classifyUpload(
+  'sub-01_ses-${ses}_task-programming_run-01_beh.tsv',
+  File('test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv')
+      .readAsStringSync(),
+).file!;
+
+void _enlargeAndZoom() {
+  testWidgets('zoom widens a figure across visits, and narrows it back', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _host(
+        ImportExportPanel(
+          initialFiles: [_visit('20260203'), _visit('20260310')],
+        ),
+      ),
+    );
+    await tester.pump();
+    double width() => tester
+        .getSize(
+          find
+              .ancestor(
+                of: find.byType(CustomPaint).last,
+                matching: find.byType(SizedBox),
+              )
+              .first,
+        )
+        .width;
+    final before = width();
+
+    await tester.tap(find.byTooltip('Zoom in').last);
+    await tester.pump();
+    expect(width(), closeTo(before * 2, 1));
+
+    await tester.tap(find.byTooltip('Zoom out').last);
+    await tester.pump();
+    expect(width(), closeTo(before, 1));
+  });
+
+  testWidgets('one run zooms its own charts', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _host(ImportExportPanel(initialFiles: [_visit('20260203')])),
+    );
+    await tester.pump();
+    expect(find.textContaining('All 7 configurations'), findsOneWidget);
+
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.byTooltip('Show fewer configurations (zoom in)'));
+      await tester.pump();
+    }
+    expect(find.textContaining('of 7'), findsOneWidget);
+  });
+
+  testWidgets('Enlarge fills the window, and Close returns to the same run', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _host(
+        ImportExportPanel(
+          initialFiles: [_visit('20260203'), _visit('20260310')],
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.textContaining('Run 01, ').last);
+    await tester.pumpAndSettle();
+    const title = 'sub-01, ses-20260310, Run 01';
+    expect(find.textContaining(title), findsOneWidget);
+
+    await tester.tap(find.text('Enlarge'));
+    await tester.pumpAndSettle();
+    final dialog = find.byType(Dialog);
+    expect(tester.getSize(dialog), const Size(1200, 1600));
+    expect(
+      find.descendant(of: dialog, matching: find.textContaining(title)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: dialog, matching: find.byType(SessionEntriesTable)),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.textContaining(title), findsOneWidget);
+  });
 }

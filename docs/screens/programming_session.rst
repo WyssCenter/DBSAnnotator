@@ -27,7 +27,8 @@ clip that also shows its other options.
 Step 1: Session
 ---------------
 
-Session is where a visit starts, and where files from other visits come in and reports go out.
+Session is where a visit starts, and where you look back over a patient's earlier visits and make
+reports and exports from them.
 
 .. raw:: html
 
@@ -42,12 +43,13 @@ The Session step: a patient already in the folder, the session ID, and the resea
 naming.
 
 .. figure:: ../_static/screenshots/session_step0_file.png
-   :alt: The Session step: the BIDS folder bar at the top, This session on the left with the
-         patient ID, session ID and research file naming, and Other sessions on the right with
-         the Import button
+   :alt: The Session step: the BIDS folder bar at the top; on the left the patient list, This
+         session with the patient ID, session ID and research file naming, the patient's visits
+         and the reports and exports; on the right the preview of the visits chosen
    :width: 100%
 
-   The Session step with a session started for patient 01.
+   The Session step with a session started for patient 01, and patient 01's two earlier
+   visits listed and previewed together.
 
 BIDS folder
 ~~~~~~~~~~~
@@ -60,13 +62,22 @@ folder this app or another tool wrote, or an empty folder to start one in (see
 after a session has started; see
 :ref:`changing the patient or the folder <changing-patient-or-folder>`.
 
+Patient
+~~~~~~~
+
+When the BIDS folder already holds patients, the **Patient** list at the top of the left column
+offers them, with **All patients** first. Choosing a patient does two things. It lists the
+patient's earlier visits further down the column, with a preview on the right (see
+:ref:`the patient's visits <patient-visits>`). And it fills in the **Patient ID** for a new
+session: for a known patient the app also fills in the DBS indication, the anatomical target, the
+leads and the IPGs from the patient's last visit, and says so on the next step. **All patients**
+lists every visit in the folder and leaves the Patient ID as it is.
+
 This session
 ~~~~~~~~~~~~
 
-**Patient ID** is required. When the BIDS folder already holds patients, a list offers them;
-otherwise, or for a new patient, type the ID. For a known patient the app fills in the DBS
-indication, the anatomical target, the leads and the IPGs from the patient's last visit, and says
-so on the next step.
+**Patient ID** is required. Choose the patient from the list above, or type the ID of a new
+patient.
 
 **Session ID** is the visit date unless you type another label, such as ``preop`` or ``3mo``.
 
@@ -89,6 +100,12 @@ from **Reports** gets one too. A line under the buttons says which patient, visi
 session was started for. Once a session is open, a **New session** button appears to start
 another one without closing the app.
 
+If a save cannot reach the BIDS folder, for example because a network drive was disconnected, the
+app says so and keeps every configuration in its recovery copy. The visit is only ever written into
+the folder in BIDS form: the next save that reaches the folder files the whole visit again, and
+says so. If you leave in the meantime, the question about the recovery copy warns that it is the
+only complete copy.
+
 .. _changing-patient-or-folder:
 
 **Changing the patient or the folder after the start.** Every field on this step stays editable.
@@ -99,22 +116,43 @@ details, keeping the devices and the initial assessment on screen so they are sa
 **Keep current file** puts the fields back as they were. When nothing has been recorded yet, the
 new details are simply used.
 
-**Open saved session** continues a visit already saved, or opens a session file from an earlier
-version of the app, which is saved in the current form from the next save. Opening a file also
-adopts the lead models named in it, one per side, so the contact diagrams show the patient's
-actual hardware. If the file names a model that is not in the catalogue, the app says so rather
-than drawing the wrong lead. A file that is not a programming session, a notes file for instance,
-is refused with an explanation rather than opened as empty rows.
+A saved session is not reopened for recording. To record more for a visit, start a new session
+with the same patient and session ID: it is saved as the next run of that visit, with the initial
+assessment filled in from the earlier run, and both runs are listed under the visit.
 
-Once the visit has a saved configuration, **Export this session** offers its report as PDF or
-Word, its BIDS folder as a zip, and the page size, A4 or US Letter, as Finish does.
+From its first save, the session being recorded is in the BIDS folder, so when you come back to
+this step it is listed among the patient's visits, and its report and exports are made there like
+any other visit's. The Finish step offers its report and BIDS folder at the end of the visit.
 
-Other sessions
-~~~~~~~~~~~~~~
+.. _patient-visits:
 
-Beside this session, **Other sessions** has one button, **Import**, which reads the earlier visits
-saved in the BIDS folder chosen at the top, and produces reports across visits, the combined table
-and BIDS folders. The actions appear once a session is imported. See :doc:`import_export`.
+The patient's visits
+~~~~~~~~~~~~~~~~~~~~
+
+Under This session, **Visits** lists every session the chosen patient has in the BIDS folder,
+grouped by visit (``ses-``), with each recorded run under its visit: the run number, the date and
+time it started, and how many configurations it holds. A notes file from an earlier version of the
+app is listed as a run of its own, with its number of notes.
+
+Click a run to preview it on the right: the comparison charts and the table of its
+configurations. The zoom buttons above the charts show fewer or more configurations at a time.
+With more than one run, **All visits** at the top of the list previews them together, as the
+report across visits will draw them: the clinical scales of each visit's initial assessment, then
+the symptom and side effect ratings by visit and configuration. Each of the two figures has its
+own zoom: zooming in widens the figure, which you then drag or scroll sideways, and zooming out
+narrows it back. The heading of the preview always names the patient and the visit shown. Each run
+is read together with the rows the BIDS folder keeps for its visit, so its initial assessment,
+target and leads go into every report made from it, as they do in a report made during the visit.
+
+**Enlarge**, beside the heading, opens the preview over the whole window, with the figures
+stretched to its height. **Close** brings you back to the list with the same run chosen.
+
+Under the list, **Reports and exports** makes documents and BIDS folders from what is chosen: a
+single session report for one run, a report across visits for all of them, the combined table,
+the BIDS folder as a zip, and adding to another BIDS folder. The page size of the reports, A4 or
+US Letter, is chosen at the top of that section, before the reports. On a narrow window, such as
+a tablet held upright, the preview moves below the list, and choosing a run scrolls to it. See
+:doc:`import_export`.
 
 The recovery copy
 ~~~~~~~~~~~~~~~~~
@@ -141,24 +179,6 @@ When a copy was kept, the next time you open the app it is offered back:
 
    Reopen continues the session; Discard deletes the copy. Closing the dialog any other way keeps
    it for next time.
-
-Files with columns the app does not keep
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-A session file can carry columns this app does not keep: one added by hand or by another tool, a
-header name that appears twice, a value under a blank header, or a row with more cells than the
-header. The app writes only the columns of the format, so saving over such a file would delete
-that data. When **Open saved session** finds any, the message names them (for example *The app
-does not keep these columns: lab_flag. Your file is left unchanged.*) and the app never writes to
-that file. You can still annotate the visit: every configuration is saved in the app's own
-recovery copy, so leaving the session asks whether to keep that copy. A line in Session and in
-Finish repeats the names of the unkept columns for as long as the file is open. An export then
-saves the session without them, under a name you choose, and on the desktop refuses the file you
-opened as a target, as does **New session**. On Android and iOS the opened file is the app's own
-copy of your file, so there is nothing to refuse. Opening another file, or starting or reopening
-a session, ends this mode. Older files that spell a column the way earlier versions did, such as
-``block_ID`` or a separate ``date``, ``time`` and ``timezone``, are read as before and do not
-count as unkept.
 
 Step 2: Indication and devices
 ------------------------------

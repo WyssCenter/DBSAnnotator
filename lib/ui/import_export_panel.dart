@@ -1,9 +1,5 @@
-/// Import and export on the Session step: import sessions from the BIDS
-/// folder chosen above, then produce whatever they support.
-///
-/// The actions are always listed, and the ones the imported files cannot
-/// support are disabled with the reason in place of their description, rather
-/// than accepting the tap and answering with a snackbar.
+/// The patient browser of the Session step: the chosen patient's visits in the
+/// BIDS folder, what can be made from the ones chosen, and their preview.
 library;
 
 import 'dart:typed_data';
@@ -21,7 +17,6 @@ import '../core/electrode/electrode_model.dart';
 import '../core/prefs/user_prefs.dart';
 import '../core/session/aggregate.dart';
 import '../core/session/longitudinal.dart';
-import '../core/session/scale_presets.dart';
 import '../core/session/scale_scoring.dart';
 import '../core/session/session_row.dart';
 import '../core/session/tsv_kind.dart';
@@ -47,6 +42,9 @@ import 'scales_chart_painter.dart';
 import 'session/entries_table.dart';
 import 'session/entry_charts_view.dart';
 import 'share_util.dart';
+import 'theme.dart';
+import 'visit_list.dart';
+import 'preview_parts.dart';
 
 class ImportExportPanel extends StatefulWidget {
   const ImportExportPanel({
@@ -54,25 +52,45 @@ class ImportExportPanel extends StatefulWidget {
     this.catalog,
     this.initialFiles,
     this.folder,
+    this.patient,
+    this.prefs,
+    this.leading,
   });
 
   /// Injected by tests and the screenshot build, which have no asset bundle.
   final ElectrodeCatalog? catalog;
   final List<Uploaded>? initialFiles;
 
-  /// The BIDS folder chosen on the Session step, the one Import reads.
+  /// The BIDS folder chosen on the Session step, the one the visits come from.
   final String? folder;
+
+  /// The patient whose visits are listed, or [kAllPatients].
+  final String? patient;
+
+  /// The screen's preferences, shared so that neither copy saves over the other.
+  final UserPrefs? prefs;
+
+  /// Shown above the visit list.
+  final Widget? leading;
 
   @override
   State<ImportExportPanel> createState() => _ImportExportPanelState();
 }
 
 class _ImportExportPanelState extends State<ImportExportPanel> {
-  late final List<Uploaded> _files = chronological(widget.initialFiles ?? []);
+  late List<Uploaded> _visits = chronological(widget.initialFiles ?? []);
+  late String? _run = _visits.length == 1 ? _visits.single.name : null;
+  bool _loading = false;
+  int _loads = 0;
+  bool _stacked = false;
   final _exportKey = GlobalKey();
+  final _previewKey = GlobalKey();
+  final _revision = ValueNotifier(0);
+  int _visibleConfigs = kDefaultVisibleConfigs;
+  Map<String, (double, double)> _ranges = const {};
 
   ElectrodeCatalog? _catalog;
-  UserPrefs _prefs = UserPrefs();
+  UserPrefs _ownPrefs = UserPrefs();
   List<ScalePref>? _targets;
   Set<ReportSection> _sections = kAllReportSections;
 
@@ -84,7 +102,6 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
   void initState() {
     super.initState();
     _catalog = widget.catalog;
-    // Without the catalog no lead model resolves, so no report draws a lead.
     if (_catalog == null) {
       loadElectrodeCatalog().then(
         (c) {
@@ -93,13 +110,38 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
         onError: (Object e) => debugPrint('Electrode catalog unavailable: $e'),
       );
     }
-    loadUserPrefs().then((p) {
-      if (mounted) setState(() => _prefs = p);
+    if (widget.prefs == null) {
+      loadUserPrefs().then((p) {
+        if (mounted) setState(() => _ownPrefs = p);
+      });
+    }
+    if (widget.initialFiles == null) _load();
+    clinicalRanges(_prefs).then((r) {
+      if (mounted) _changed(() => _ranges = r);
     });
   }
 
+  @override
+  void dispose() {
+    _revision.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(ImportExportPanel old) {
+    super.didUpdateWidget(old);
+    if (old.folder != widget.folder || old.patient != widget.patient) _load();
+  }
+
+  UserPrefs get _prefs => widget.prefs ?? _ownPrefs;
+
   void _snack(String msg) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+
+  List<Uploaded> get _files => [
+    for (final f in _visits)
+      if (_run == null || f.name == _run) f,
+  ];
 
   List<Uploaded> get _sessions =>
       _files.where((f) => f.kind == TsvKind.programming).toList();
@@ -115,47 +157,65 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
   bool get _letter =>
       (_prefs.reportPageSize ?? kDefaultReportPageSize) == 'letter';
 
-  /// Load the recorded TSVs of [folder], for the participants chosen.
-  Future<void> _loadDataset(String folder) async {
-    final loaded = await loadDatasetTsvs(context, _snack, folder: folder);
-    if (loaded == null || !mounted) return;
-    final added = _add(loaded.files);
-    if (loaded.root case final root? when added.isNotEmpty) {
-      _datasetSource = (root: root, names: added.toSet());
+  Future<void> _load() async {
+    final root = widget.folder;
+    final patient = widget.patient;
+    final load = ++_loads;
+    _visits = const [];
+    _run = null;
+    _targets = null;
+    _datasetSource = null;
+    _loading = root != null && patient != null;
+    if (root == null || patient == null) return;
+    final ({List<Uploaded> visits, List<String> rejected}) found;
+    try {
+      found = await folderVisits(root, patient);
+    } catch (e) {
+      if (!mounted || load != _loads) return;
+      setState(() => _loading = false);
+      _snack('Could not read that folder: $e');
+      return;
     }
+    if (!mounted || load != _loads) return;
+    setState(() {
+      _visits = found.visits;
+      _run = _visits.length == 1 ? _visits.single.name : null;
+      _datasetSource = _visits.isEmpty
+          ? null
+          : (root: root, names: {for (final f in _visits) f.name});
+      _loading = false;
+    });
+    if (found.rejected.isNotEmpty) _snack(found.rejected.join('; '));
   }
 
-  /// Classify [files] by their headers and add them, saying which were left
-  /// out and why. A null content is a file that could not be read. Returns
-  /// the names added.
-  List<String> _add(List<({String name, String? content})> files) {
-    final added = <Uploaded>[];
-    final rejected = <String>[];
-    for (final (:name, :content) in files) {
-      if (content == null) {
-        rejected.add('$name could not be read');
-      } else if (_files.any((f) => f.name == name) ||
-          added.any((f) => f.name == name)) {
-        rejected.add('$name is already imported');
-      } else {
-        final c = classifyUpload(name, content);
-        if (c.file case final file?) added.add(file);
-        if (c.rejected case final why?) rejected.add(why);
+  void _select(String? run) {
+    setState(() {
+      _run = run;
+      _targets = null;
+    });
+    if (!_stacked) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final preview = _previewKey.currentContext;
+      if (preview != null && preview.mounted) {
+        Scrollable.ensureVisible(
+          preview,
+          duration: const Duration(milliseconds: 300),
+        );
       }
+    });
+  }
+
+  String get _title {
+    if (_run != null) {
+      final f = _files.single;
+      return '${visitLabel(f)}, ${runLabel(f)}';
     }
-    if (!mounted) return const [];
-    if (added.isNotEmpty) {
-      setState(() {
-        final sorted = chronological([..._files, ...added]);
-        _files
-          ..clear()
-          ..addAll(sorted);
-        // A new upload is not the old upload's ranking.
-        _targets = null;
-      });
-    }
-    if (rejected.isNotEmpty) _snack(rejected.join('; '));
-    return [for (final f in added) f.name];
+    final subjects = {
+      for (final f in _visits) BidsName.parse(f.name)?.subject ?? '',
+    };
+    return subjects.length == 1 && subjects.single.isNotEmpty
+        ? 'All visits of sub-${subjects.single}'
+        : 'All visits';
   }
 
   /// The targets set, else the defaults the targets dialog offers, so a
@@ -170,12 +230,26 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
   Future<void> _editTargets() async {
     final seed = _targetsOrDefault;
     if (seed.isEmpty) {
-      _snack('The imported files have no session scale ratings to rank.');
+      _snack('The chosen files have no session scale ratings to rank.');
       return;
     }
     final updated = await showScaleTargetsDialog(context, seed);
-    if (updated != null && mounted) setState(() => _targets = updated);
+    if (updated != null && mounted) _changed(() => _targets = updated);
   }
+
+  void _changed(VoidCallback fn) {
+    setState(fn);
+    _revision.value++;
+  }
+
+  Future<void> _enlarge() => showEnlarged(
+    context,
+    title: _title,
+    body: (context) => ValueListenableBuilder(
+      valueListenable: _revision,
+      builder: (context, _, _) => _preview(Theme.of(context), enlarged: true),
+    ),
+  );
 
   String? _warn(bool lost) => lost
       ? 'Some characters could not be rendered in the PDF and were replaced '
@@ -336,15 +410,7 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
     final attestation = await askAttestation(context, rated: true);
     if (attestation == null || !mounted) return;
 
-    // A TSV records scale names and scores only, so the clinical figure's
-    // ranges come from the user's clinical presets.
-    var ranges = <String, (double, double)>{};
-    try {
-      final presets = mergeScalePresets(await loadScalePresets(), _prefs);
-      ranges = numericRanges(presets.clinicalRanges);
-    } catch (e) {
-      debugPrint('Clinical scale ranges unavailable: $e');
-    }
+    final ranges = await clinicalRanges(_prefs);
     if (!mounted) return;
     final data = buildLongitudinalReportData(
       clinicalRanges: ranges,
@@ -357,7 +423,7 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
       scalePrefs: _targetsOrDefault,
     );
     if (data.isEmpty && data.notesWithoutVisit.isEmpty) {
-      _snack('The imported files contain no visits or notes to report.');
+      _snack('The chosen files contain no visits or notes to report.');
       return;
     }
     // The creation date goes inside the desc- label: BIDS wants the suffix
@@ -434,8 +500,8 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
     if (out.rowCount == 0) {
       _snack(
         out.skipped.isEmpty
-            ? 'The imported files contain no rows to combine.'
-            : 'No imported file carries BIDS entities in its name.',
+            ? 'The chosen files contain no rows to combine.'
+            : 'No chosen file carries BIDS entities in its name.',
       );
       return;
     }
@@ -476,7 +542,7 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
       }
     } else if (source != null) {
       _snack(
-        'Not saved into the BIDS folder: some of these files were not imported '
+        'Not saved into the BIDS folder: some of these files were not read '
         'from it.',
       );
     }
@@ -520,7 +586,7 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
     final built = datasetFromUploads(_files, contract);
     if (built.files.isEmpty) {
       if (mounted) {
-        _snack('No imported file carries BIDS entities in its name.');
+        _snack('No chosen file carries BIDS entities in its name.');
       }
       return;
     }
@@ -668,7 +734,7 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
     final built = datasetFromUploads(_files, contract);
     if (!mounted) return;
     if (built.entries.isEmpty) {
-      _snack('No imported file carries BIDS entities in its name.');
+      _snack('No chosen file carries BIDS entities in its name.');
       return;
     }
     await exportBidsDataset(
@@ -693,118 +759,93 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
+    final left = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _uploadBar(theme),
-        if (_files.isNotEmpty) ...[const SizedBox(height: 8), _fileList(theme)],
-        const SizedBox(height: 12),
-        if (_files.isEmpty)
-          Text(
-            'Reports, the combined table and the BIDS export appear once a '
-            'session is imported.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+        if (widget.leading case final leading?) ...[
+          leading,
+          const Divider(height: 48),
+        ],
+        TitledSection(title: 'Visits', child: _visitList(theme)),
+        if (_visits.isNotEmpty) ...[
+          const Divider(height: 48),
+          TitledSection(
+            title: 'Reports and exports',
+            child: Column(
+              key: _exportKey,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: PageSizeMenu(prefs: _prefs),
+                ),
+                const SizedBox(height: 8),
+                _actions(theme),
+              ],
             ),
-          )
-        else ...[
-          _actions(theme),
-          const Divider(height: 24),
+          ),
+        ],
+      ],
+    );
+    final right = Column(
+      key: _previewKey,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_visits.isNotEmpty) ...[
+          Row(
+            children: [
+              Expanded(child: Text(_title, style: theme.textTheme.titleLarge)),
+              TextButton.icon(
+                onPressed: _enlarge,
+                icon: const Icon(Icons.open_in_full, size: 18),
+                label: const Text('Enlarge'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           _preview(theme),
         ],
       ],
     );
+    return LayoutBuilder(
+      builder: (context, c) {
+        _stacked = c.maxWidth < 900;
+        return _stacked
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  left,
+                  if (_visits.isNotEmpty) ...[const Divider(height: 48), right],
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 2, child: left),
+                  const SizedBox(width: 48),
+                  Expanded(flex: 3, child: right),
+                ],
+              );
+      },
+    );
   }
 
-  Widget _uploadBar(ThemeData theme) => Wrap(
-    spacing: 8,
-    runSpacing: 8,
-    crossAxisAlignment: WrapCrossAlignment.center,
-    children: [
-      FilledButton.icon(
-        key: _exportKey,
-        onPressed: switch (widget.folder) {
-          final folder? => () => _loadDataset(folder),
-          null => null,
-        },
-        icon: const Icon(Icons.folder_open),
-        label: const Text('Import'),
-      ),
-      Text(
+  Widget _visitList(ThemeData theme) {
+    if (_loading) return const LinearProgressIndicator();
+    if (_visits.isEmpty) {
+      return Text(
         widget.folder == null
-            ? 'Choose a BIDS folder above to import from it.'
-            : uploadSummary(_files),
-        style: theme.textTheme.bodyMedium,
-      ),
-      if (_files.isNotEmpty)
-        TextButton.icon(
-          onPressed: () => setState(() {
-            _files.clear();
-            _targets = null;
-            _datasetSource = null;
-          }),
-          icon: const Icon(Icons.clear_all),
-          label: const Text('Clear'),
+            ? 'Choose a BIDS folder above to see its visits.'
+            : widget.patient == null
+            ? 'Choose a patient to see their visits.'
+            : 'No session or notes files found. $kBidsFolderRule',
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
         ),
-    ],
-  );
-
-  Widget _fileList(ThemeData theme) {
-    final mismatch =
-        _files.length > 1 &&
-        !patientIdsMatch(_files.map((f) => f.name).toList());
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (mismatch)
-          Container(
-            padding: const EdgeInsets.all(10),
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.errorContainer,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.warning_amber),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'These files name different patients. A combined table or '
-                    'a BIDS folder may be what you want; a report across '
-                    'visits is not, so it stays off.',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        for (final f in _files)
-          ListTile(
-            dense: true,
-            leading: Icon(
-              f.kind == TsvKind.programming
-                  ? Icons.table_chart_outlined
-                  : Icons.sticky_note_2_outlined,
-              size: 20,
-            ),
-            title: Text(f.name, style: theme.textTheme.bodyMedium),
-            subtitle: Text(
-              f.kind == TsvKind.programming
-                  ? '${testedCount(f.rows)} configurations'
-                  : '${f.notes.length} notes',
-            ),
-            trailing: IconButton(
-              icon: const Icon(Icons.close, size: 18),
-              tooltip: 'Remove',
-              onPressed: () => setState(() {
-                _files.remove(f);
-                _targets = null;
-              }),
-            ),
-          ),
-      ],
-    );
+      );
+    }
+    return VisitList(visits: _visits, selected: _run, onSelect: _select);
   }
 
   /// Every action, always listed. A disabled one shows why in place of its
@@ -866,7 +907,7 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
 
   static const _shown = ReportAction.values;
 
-  Widget _preview(ThemeData theme) {
+  Widget _preview(ThemeData theme, {bool enlarged = false}) {
     if (_sessions.length == 1) {
       final rows = _sessions.single.rows;
       return Column(
@@ -902,14 +943,14 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
             ),
           EntryChartsView(
             data: buildEntryChartData(rows, scalePrefs: _targets ?? const []),
-            visibleConfigs: kDefaultVisibleConfigs,
+            visibleConfigs: _visibleConfigs,
+            onVisibleConfigsChanged: (n) => _changed(() => _visibleConfigs = n),
           ),
           SessionEntriesTable(rows: rows),
         ],
       );
     }
     if (_sessions.length > 1) {
-      // One line across two patients would read as one patient's trend.
       if (!patientIdsMatch(_sessions.map((f) => f.name).toList())) {
         return Text(
           'No chart is drawn across different patients.',
@@ -917,28 +958,13 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
           textAlign: TextAlign.center,
         );
       }
-      // The longitudinal report's own figure, so the screen and the PDF agree.
-      final chart = buildLongitudinalReportData(
-        files: {for (final f in _sessions) f.name: f.rows},
-        scalePrefs: _targetsOrDefault,
-      ).sessionChart;
-      if (chart.series.isEmpty) {
-        return Text(
-          'No session scale values in the imported files.',
-          style: theme.textTheme.bodyLarge,
-          textAlign: TextAlign.center,
-        );
-      }
-      return SizedBox(
-        height: 360,
-        child: CustomPaint(
-          painter: ScalesChartPainter(
-            spec: chart,
-            background: theme.colorScheme.surface,
-            ink: theme.colorScheme.onSurface,
-          ),
-          child: const SizedBox.expand(),
+      return AcrossVisitsCharts(
+        data: buildLongitudinalReportData(
+          clinicalRanges: _ranges,
+          files: {for (final f in _sessions) f.name: f.rows},
+          scalePrefs: _targetsOrDefault,
         ),
+        enlarged: enlarged,
       );
     }
     return Column(

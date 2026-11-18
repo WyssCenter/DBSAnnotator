@@ -100,11 +100,6 @@ Troubleshooting
    well-known directory and the confirmation message names the exact path
    used.
 
-**Opening a file says it is the wrong kind.**
-   The app checks a file's columns before opening it, so a notes file from an
-   earlier version cannot be opened as a session. Import it on the Session step
-   instead, where it joins the report across visits and the combined table.
-
 **The lead diagram does not match the patient's implant.**
    Check the lead model of each side on the Indication and devices step; it
    stays editable for the whole visit. When a saved session is opened, the app

@@ -42,13 +42,11 @@ void main() {
   group('chooseSavePath', () {
     Future<String?> choose(
       ConfirmReplace confirm, {
-      AvoidFile? avoid,
       String fileName = 'a_beh.tsv',
     }) => chooseSavePath(
       suggestedName: fileName,
       extension: 'tsv',
       confirmReplace: confirm,
-      avoid: avoid,
     );
 
     test('asks the dialog for the name and a tsv type group', () async {
@@ -102,17 +100,6 @@ void main() {
         final asker = _Asker(true);
         expect(await choose(asker.call), existing.path);
       });
-
-      test('an avoided file is refused before any question', () async {
-        final existing = File('${dir.path}/a_beh.tsv')
-          ..writeAsStringSync('old');
-        useFakeFileSelector().savePath = existing.path;
-        await expectLater(
-          choose(mustNotAsk, avoid: (path: existing.path, reason: 'same')),
-          throwsA(isA<SameFileException>()),
-        );
-        expect(existing.readAsStringSync(), 'old');
-      });
     });
 
     group('a name typed without the extension', () {
@@ -144,18 +131,6 @@ void main() {
           expect(yes.asked, ['typed.tsv']);
         },
       );
-
-      test('refuses the avoided file it now names, without asking', () async {
-        debugDialogConfirmsReplace = true;
-        final existing = File('${dir.path}/typed.tsv')
-          ..writeAsStringSync('old');
-        useFakeFileSelector().savePath = '${dir.path}/typed';
-        await expectLater(
-          choose(mustNotAsk, avoid: (path: existing.path, reason: 'same')),
-          throwsA(isA<SameFileException>()),
-        );
-        expect(existing.readAsStringSync(), 'old');
-      });
     });
   });
 
@@ -164,7 +139,6 @@ void main() {
     Future<ExportOutcome?> run(
       WidgetTester tester, {
       String filename = 'a_beh.tsv',
-      AvoidFile? avoid,
     }) async {
       late BuildContext context;
       await tester.pumpWidget(
@@ -182,7 +156,6 @@ void main() {
       final pending = exportFile(
         context,
         filename: filename,
-        avoid: avoid,
         build: () async => (bytes: 'exported'.codeUnits, warning: null),
       );
       ExportOutcome? outcome;
@@ -232,24 +205,6 @@ void main() {
       expect(await run(tester), ExportOutcome.saved);
       expect(taken.readAsStringSync(), 'old');
       expect(File('${cache.path}/a_beh-2.tsv').readAsStringSync(), 'exported');
-    });
-
-    testWidgets('an extension added here is checked against the avoided file', (
-      tester,
-    ) async {
-      useExportCache(tester);
-      debugDialogConfirmsReplace = true;
-      final existing = File('${dir.path}/typed.tsv')..writeAsStringSync('old');
-      useFakeFileSelector().savePath = '${dir.path}/typed';
-      expect(
-        await run(
-          tester,
-          avoid: (path: existing.path, reason: 'Not over the opened file.'),
-        ),
-        ExportOutcome.notDelivered,
-      );
-      expect(find.text('Not over the opened file.'), findsOneWidget);
-      expect(existing.readAsStringSync(), 'old');
     });
 
     group('where the dialog does not confirm replacing', () {

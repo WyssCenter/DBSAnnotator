@@ -9,9 +9,9 @@ edited.
 Every image on this page is the real report, generated from the synthetic
 example session shipped with the app.
 
-A session report is exported from the Finish step, or from **Export this session** on the
-Session step. Reports across visits are made from **Other sessions** on the Session step;
-see :doc:`screens/import_export`.
+A session report is exported from the Finish step, or from **Reports and exports** on the
+Session step once a run of the patient is chosen there. Reports across visits are made from
+the same place with **All visits** chosen; see :doc:`screens/import_export`.
 
 Choosing what goes in
 ---------------------
@@ -268,7 +268,7 @@ mood* and *falling energy* as improvements, and inventing a clinical intention
 is worse than declining to rank.
 
 **The longitudinal report ranks against defaults when none are set.** Made from
-**Other sessions** with no targets confirmed, it ranks against the targets the
+**Reports and exports** with no targets confirmed, it ranks against the targets the
 targets dialog proposes, every scale minimised over 0 to 10, and prints them
 under the ratings figure and the session tables. Those printed targets
 are the only trace of what the ranking assumed; where a scale should rise, set
