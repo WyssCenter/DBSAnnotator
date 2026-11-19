@@ -208,6 +208,7 @@ Uint8List buildSessionDocx({
         contentTwips: pageSize.contentWidthTwips,
       ),
     );
+    if (data.hasDeviceValues) body.write(docxPara(kDeviceLegend, size: 16));
     if (data.responseGrid.isNotEmpty) {
       body
         ..write(_responseTable(data, pageSize))
@@ -299,6 +300,7 @@ Uint8List buildSessionDocx({
       );
       body.write(_legendBlock(data));
       if (data.hasStars) body.write(docxPara(kStarredLegend, size: 16));
+      if (data.hasDeviceValues) body.write(docxPara(kDeviceLegend, size: 16));
     }
   }
 

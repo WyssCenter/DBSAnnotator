@@ -133,7 +133,7 @@ void main() {
         'right_ipg_model\tright_ipg_position\tprogram_id\t'
         'left_stim_freq\tleft_anode\tleft_cathode\tleft_amplitude\t'
         'left_pulse_width\tright_stim_freq\tright_anode\tright_cathode\t'
-        'right_amplitude\tright_pulse_width\tmedications\tnotes',
+        'right_amplitude\tright_pulse_width\tfrom_device\tmedications\tnotes',
       );
     });
 

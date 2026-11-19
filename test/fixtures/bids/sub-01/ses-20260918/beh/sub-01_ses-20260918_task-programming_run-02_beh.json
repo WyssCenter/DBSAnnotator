@@ -4,10 +4,10 @@
   "GeneratedBy": [
     {
       "Name": "Wyss DBS Annotator",
-      "Version": "0.6.0"
+      "Version": "0.7.0"
     }
   ],
-  "SchemaVersion": "0.7.0",
+  "SchemaVersion": "0.8.0",
   "MissingValueCode": "n/a",
   "acq_time": {
     "LongName": "Acq time",
@@ -68,6 +68,10 @@
     "LongName": "Right pulse width",
     "Description": "Right pulse width.",
     "Units": "us"
+  },
+  "from_device": {
+    "LongName": "From device",
+    "Description": "The columns of this row whose values were read from the stimulator's own session export rather than entered in the app, as their names separated by spaces (e.g. left_amplitude left_pulse_width left_stim_freq program_id); n/a when every value was entered in the app. The export is the Medtronic Percept JSON filed in the visit's ieeg/ folder, matched to this row by time."
   },
   "notes": {
     "LongName": "Notes",

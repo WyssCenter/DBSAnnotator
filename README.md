@@ -114,6 +114,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 If you use Wyss DBS Annotator in published work, please cite it; see
 [CITATION.cff](CITATION.cff).
 
+## Acknowledgements
+
+Reading the Medtronic Percept session export follows
+[perceive](https://github.com/neuromodulation/perceive), the open research toolbox
+for Percept recordings founded by Wolf-Julian Neumann, Gerd Tinkhauser and Tomas
+Sieger and maintained by Jojo Vanhoecke and colleagues at Charité. No perceive code
+is included.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

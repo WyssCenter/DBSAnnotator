@@ -83,6 +83,10 @@ sides is light while the rule between configurations is heavy, so each one reads
 unit. With no targets set, nothing is ranked and the Index column is left out rather
 than printed empty.
 
+A value followed by ¹, in the table or in the page-one box, was read from the
+stimulator's own session export rather than entered in the app, and a footnote
+says so; see :doc:`device_exports`.
+
 A notes file imported with the session makes a longitudinal report rather than
 this one; see :ref:`notes in the longitudinal report <longitudinal-visits>`.
 

@@ -77,6 +77,7 @@ SessionTables splitSession(
       'is_starred': first.isStarred,
       'program_id': first.programId,
       ...stimOf(first),
+      'from_device': first.fromDevice,
       'notes': first.notes,
       ...scales,
     });
@@ -100,6 +101,7 @@ SessionTables splitSession(
     'medications': i0?.medications ?? fixed((r) => r.medications),
     'program_id': i0?.programId ?? '',
     if (i0 != null) ...stimOf(i0),
+    'from_device': i0?.fromDevice ?? '',
     'notes': i0?.notes ?? '',
     ...initialScales,
   };
@@ -214,6 +216,7 @@ List<SessionRow> joinSession({
         'medications': assessment['medications'] ?? '',
         'program_id': assessment['program_id'] ?? '',
         for (final c in stimColumns) c: assessment[c] ?? '',
+        'from_device': assessment['from_device'] ?? '',
         'notes': assessment['notes'] ?? '',
       },
       initial: true,

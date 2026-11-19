@@ -38,6 +38,7 @@ class SessionRow {
     this.rightCathode = '',
     this.rightAmplitude = '',
     this.rightPulseWidth = '',
+    this.fromDevice = '',
     this.medications = '',
     this.notes = '',
   });
@@ -89,6 +90,8 @@ class SessionRow {
   final String rightAmplitude;
   final String rightPulseWidth;
 
+  final String fromDevice;
+
   /// Free text from the initial assessment, empty on recording rows.
   final String medications;
   final String notes;
@@ -126,6 +129,7 @@ class SessionRow {
     rightCathode: readColumn(m, 'right_cathode'),
     rightAmplitude: readColumn(m, 'right_amplitude'),
     rightPulseWidth: readColumn(m, 'right_pulse_width'),
+    fromDevice: readColumn(m, 'from_device'),
     medications: readColumn(m, 'medications'),
     notes: readColumn(m, 'notes'),
   );
@@ -179,6 +183,7 @@ class SessionRow {
     'right_cathode': rightCathode,
     'right_amplitude': rightAmplitude,
     'right_pulse_width': rightPulseWidth,
+    'from_device': fromDevice,
     'medications': medications,
     'notes': notes,
   };
@@ -214,6 +219,9 @@ Set<String> starredBlocksIn(Iterable<SessionRow> rows) => {
   for (final row in rows)
     if (isInitialValue(row.isStarred)) row.blockId,
 };
+
+Set<String> deviceColumnsOf(SessionRow row) =>
+    row.fromDevice.split(' ').where((c) => c.isNotEmpty).toSet();
 
 /// The block [rows] mark as the one the patient was left on, or null.
 String? finalBlockIn(Iterable<SessionRow> rows) {

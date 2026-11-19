@@ -474,6 +474,12 @@ const kNoTargetsText =
     'Scale targets: none set, so no ranking was applied. Open this session in '
     'the app and set a target per scale to rank the configurations.';
 
+const kDeviceMark = '¹';
+
+const kDeviceLegend =
+    '$kDeviceMark Read from the Medtronic Percept session export of this '
+    'visit, matched by time, rather than entered in the app.';
+
 /// Legend for the mark on starred blocks in the session-data table.
 const kStarredLegend =
     '* Starred by the clinician during the visit as a particularly good '
@@ -588,6 +594,7 @@ class SessionReportData {
     this.medications = '',
     this.sessionDetails = '',
     this.hasStars = false,
+    this.hasDeviceValues = false,
     required this.tableData,
     required this.electrodeModel,
     this.leftOnMarked = false,
@@ -654,6 +661,8 @@ class SessionReportData {
 
   /// Whether any block is starred, so the table legend explains the mark.
   final bool hasStars;
+
+  final bool hasDeviceValues;
 
   /// Lateral table rows, two per recording block (L then R), keyed by
   /// [sessionTableHeaders]. Cells may contain '\n' for stacked values.
@@ -1001,7 +1010,9 @@ String configCountText(SessionReportData data) =>
 /// decided that the data actually supports.
 Map<String, String> _lastConfigLines(SessionRow? r) {
   if (r == null) return const {};
+  final device = deviceColumnsOf(r);
   String side(
+    String prefix,
     String anode,
     String cathode,
     String amp,
@@ -1016,25 +1027,41 @@ Map<String, String> _lastConfigLines(SessionRow? r) {
         : amp.contains('_')
         ? amplitudeCell(amp)
         : trimZeros(total.$2);
-    final f = freq.trim().isEmpty ? '' : ', ${numCell(freq)} Hz';
-    final p = pw.trim().isEmpty ? '' : ', ${numCell(pw)} \u00B5s';
-    // Parameters without contacts are still printed: a side's dose is not
-    // dropped because its contacts were not recorded.
+    bool fromDevice(String column) => device.contains('${prefix}_$column');
+    final shown = [
+      if (cathodes.isNotEmpty) 'cathode',
+      if (anodes.isNotEmpty) 'anode',
+      if (total != null) 'amplitude',
+      if (freq.trim().isNotEmpty) 'stim_freq',
+      if (pw.trim().isNotEmpty) 'pulse_width',
+    ];
+    final all = shown.isNotEmpty && shown.every(fromDevice);
+    String m(String column, String text) =>
+        !all && fromDevice(column) ? '$text$kDeviceMark' : text;
+    final f = freq.trim().isEmpty
+        ? ''
+        : ', ${m('stim_freq', '${numCell(freq)} Hz')}';
+    final p = pw.trim().isEmpty
+        ? ''
+        : ', ${m('pulse_width', '${numCell(pw)} µs')}';
+    final String line;
     if (cathodes.isEmpty && anodes.isEmpty) {
-      final params = [
-        if (total != null) '$totalText mA',
+      line = [
+        if (total != null) m('amplitude', '$totalText mA'),
         if (f.isNotEmpty) f.substring(2),
         if (p.isNotEmpty) p.substring(2),
-      ];
-      return params.join(', ');
+      ].join(', ');
+    } else {
+      final dose = total == null ? '' : ' = ${m('amplitude', '$totalText mA')}';
+      final anodeText = anodes.isEmpty ? '' : ' / ${m('anode', '$anodes+')}';
+      line = '${m('cathode', '$cathodes-')}$anodeText$dose$f$p';
     }
-    final dose = total == null ? '' : ' = $totalText mA';
-    return '$cathodes-'
-        '${anodes.isEmpty ? '' : ' / $anodes+'}$dose$f$p';
+    return all ? '$line$kDeviceMark' : line;
   }
 
   final out = <String, String>{};
   final left = side(
+    'left',
     r.leftAnode,
     r.leftCathode,
     r.leftAmplitude,
@@ -1042,6 +1069,7 @@ Map<String, String> _lastConfigLines(SessionRow? r) {
     r.leftPulseWidth,
   );
   final right = side(
+    'right',
     r.rightAnode,
     r.rightCathode,
     r.rightAmplitude,
@@ -1050,9 +1078,16 @@ Map<String, String> _lastConfigLines(SessionRow? r) {
   );
   if (left.isNotEmpty) out['Left'] = left;
   if (right.isNotEmpty) out['Right'] = right;
-  if (r.programId.trim().isNotEmpty) out['Group'] = r.programId.trim();
+  if (r.programId.trim().isNotEmpty) {
+    out['Group'] = _marked(r, 'program_id', r.programId.trim());
+  }
   return out;
 }
+
+String _marked(SessionRow r, String column, String text) =>
+    text.isNotEmpty && deviceColumnsOf(r).contains(column)
+    ? '$text$kDeviceMark'
+    : text;
 
 /// Compute all report sections from the session [rows].
 ///
@@ -1311,6 +1346,8 @@ SessionReportData buildSessionReportData({
     final indexCell = idx == null
         ? ''
         : '${idx.toStringAsFixed(indexDecimals)}\n(rank ${rankOf[entry.key]})';
+    String marked(bool left, String column, String text) =>
+        _marked(first, '${left ? 'left' : 'right'}_$column', text);
     List<String> side(bool left) => [
       starred.contains('${entry.key}') ? '${entry.key} *' : '${entry.key}',
       left
@@ -1322,15 +1359,35 @@ SessionReportData buildSessionReportData({
             ].join('\n')
           : '',
       left ? 'L' : 'R',
-      first.programId,
-      numCell(left ? first.leftStimFreq : first.rightStimFreq),
-      contactsWithCurrent(left ? first.leftAnode : first.rightAnode, ''),
-      contactsWithCurrent(
-        left ? first.leftCathode : first.rightCathode,
-        left ? first.leftAmplitude : first.rightAmplitude,
+      _marked(first, 'program_id', first.programId),
+      marked(
+        left,
+        'stim_freq',
+        numCell(left ? first.leftStimFreq : first.rightStimFreq),
       ),
-      amplitudeCell(left ? first.leftAmplitude : first.rightAmplitude),
-      numCell(left ? first.leftPulseWidth : first.rightPulseWidth),
+      marked(
+        left,
+        'anode',
+        contactsWithCurrent(left ? first.leftAnode : first.rightAnode, ''),
+      ),
+      marked(
+        left,
+        'cathode',
+        contactsWithCurrent(
+          left ? first.leftCathode : first.rightCathode,
+          left ? first.leftAmplitude : first.rightAmplitude,
+        ),
+      ),
+      marked(
+        left,
+        'amplitude',
+        amplitudeCell(left ? first.leftAmplitude : first.rightAmplitude),
+      ),
+      marked(
+        left,
+        'pulse_width',
+        numCell(left ? first.leftPulseWidth : first.rightPulseWidth),
+      ),
       left ? scales : '',
       left ? indexCell : '',
       left ? first.notes : '',
@@ -1421,6 +1478,7 @@ SessionReportData buildSessionReportData({
     medications: latestInit?.medications.trim() ?? '',
     sessionDetails: sessionDetails,
     hasStars: starred.isNotEmpty,
+    hasDeviceValues: rows.any((r) => r.fromDevice.trim().isNotEmpty),
     tableData: tableData,
     electrodeModel: electrodeModel,
     leftOnMarked: leftOn != null,

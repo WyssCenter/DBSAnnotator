@@ -26,6 +26,7 @@ const List<String> sessionColumns = <String>[
   'is_starred',
   'program_id',
   ...stimColumns,
+  'from_device',
   'notes',
 ];
 
@@ -51,6 +52,7 @@ const List<String> scanColumns = <String>[
   'medications',
   'program_id',
   ...stimColumns,
+  'from_device',
   'notes',
 ];
 
@@ -81,6 +83,7 @@ const List<String> workingColumns = <String>[
   'right_ipg_position',
   'program_id',
   ...stimColumns,
+  'from_device',
   'medications',
   'notes',
 ];

@@ -584,14 +584,18 @@ Finish: the configuration the patient leaves on, the summary, the reports and th
 export.
 
 .. figure:: ../_static/screenshots/session_finish.png
-   :alt: The Finish step: the session summary, the report buttons for the patient record, the
-         BIDS folder for research, and the Close button
+   :alt: The Finish step: the session summary, the button that fills the stimulation from the
+         Percept export, the report buttons for the patient record, the BIDS folder for research,
+         and the Close button
    :width: 100%
 
    Finish after seven configurations, with the final settings shown as their values per side.
 
 **Session summary** gives the number of configurations tested, the final settings, and where the
 visit was saved.
+
+**From the device** fills the stimulation of the session from the Medtronic Percept export filed in
+the visit's ``ieeg/`` folder, after a preview of every change; see :doc:`../device_exports`.
 
 **For the patient record** exports the session report as PDF or Word, on the page size chosen
 beside the buttons. **For research** exports the visit as a :ref:`BIDS folder <bids-dataset-export>`

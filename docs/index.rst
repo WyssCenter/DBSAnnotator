@@ -83,6 +83,7 @@ At a glance
    :caption: Outputs
 
    output_format
+   device_exports
    reports
 
 .. toctree::
