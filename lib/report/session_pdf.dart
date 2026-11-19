@@ -547,6 +547,11 @@ Future<ReportBytes> buildSessionPdf({
                     ),
                   ],
                 ),
+                if (data.hasDeviceValues)
+                  pw.Text(
+                    kDeviceLegend,
+                    style: const pw.TextStyle(fontSize: 8),
+                  ),
                 if (data.responseGrid.isNotEmpty) ...[
                   pw.SizedBox(height: 4),
                   reportGrid(data.responseGrid, t, fontSize: 8),
@@ -688,6 +693,8 @@ Future<ReportBytes> buildSessionPdf({
             ...longNotes.section(t),
             if (data.hasStars)
               pw.Text(kStarredLegend, style: const pw.TextStyle(fontSize: 8)),
+            if (data.hasDeviceValues)
+              pw.Text(kDeviceLegend, style: const pw.TextStyle(fontSize: 8)),
           ],
           pw.SizedBox(height: 8),
         ],

@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.7.0",
+  "schema_version": "0.8.0",
   "session_tsv": {
     "columns": [
       {
@@ -75,6 +75,11 @@
         "type": "float",
         "units": "us",
         "description": "Right pulse width."
+      },
+      {
+        "name": "from_device",
+        "type": "string",
+        "description": "The columns of this row whose values were read from the stimulator's own session export rather than entered in the app, as their names separated by spaces (e.g. ``left_amplitude left_pulse_width left_stim_freq program_id``); ``n/a`` when every value was entered in the app. The export is the Medtronic Percept JSON filed in the visit's ``ieeg/`` folder, matched to this row by time."
       },
       {
         "name": "notes",
@@ -226,6 +231,11 @@
         "type": "float",
         "units": "us",
         "description": "Right pulse width."
+      },
+      {
+        "name": "from_device",
+        "type": "string",
+        "description": "The columns of this row whose values were read from the stimulator's own session export rather than entered in the app, as their names separated by spaces (e.g. ``left_amplitude left_pulse_width left_stim_freq program_id``); ``n/a`` when every value was entered in the app. The export is the Medtronic Percept JSON filed in the visit's ``ieeg/`` folder, matched to this row by time."
       },
       {
         "name": "notes",

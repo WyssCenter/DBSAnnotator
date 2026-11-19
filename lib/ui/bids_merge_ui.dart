@@ -73,10 +73,11 @@ Future<T> inDatasetQueue<T>(Future<T> Function() write) {
 }
 
 bool _isTextPath(String path) =>
-    path.endsWith('.tsv') ||
-    path.endsWith('.json') ||
-    path.endsWith('.md') ||
-    path.endsWith('README');
+    !path.contains('/ieeg/') &&
+    (path.endsWith('.tsv') ||
+        path.endsWith('.json') ||
+        path.endsWith('.md') ||
+        path.endsWith('README'));
 
 /// Every file of the dataset rooted at [root], paths relative to it.
 ///

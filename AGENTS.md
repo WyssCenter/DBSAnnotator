@@ -27,6 +27,7 @@ flutter run          # this computer, an emulator, or a connected device
 
 ```
 lib/core/            domain logic: sessions, TSV and BIDS, electrode geometry
+lib/percept/         Percept session export reader, following perceive
 lib/report/          PDF and Word reports, filed in a patient record
 lib/ui/              screens and widgets
 schema/              the output contract, bundled by the app
@@ -124,6 +125,8 @@ Reports are filed in a patient record.
   `lib/core/schema_columns.dart` too; `test/schema_columns_test.dart` fails otherwise.
 - The version is written in four places, pinned by `test/version_parity_test.dart`.
 - `lib/report/` never imports `lib/ui/`.
+- `lib/percept/` imports only the Dart SDK, and never bsspercept code or its field
+  readings; `test/percept_therapy_test.dart` fails on an app import.
 - Fake-async widget tests cannot finish real file I/O; use `tester.runAsync`.
 - Git Bash heredocs mangle `\n` and quotes. Write edit scripts to a file and run that.
 

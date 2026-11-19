@@ -189,6 +189,8 @@ column, used in ``scans.tsv`` and ``sessions.tsv``.
    The app makes the same distinction internally: reports and tables print the
    recorded wall clock, while sorting and interval arithmetic use the instant.
 
+.. _output-amplitudes:
+
 Amplitudes and current steering
 -------------------------------
 

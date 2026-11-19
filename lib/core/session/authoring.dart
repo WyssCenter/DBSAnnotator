@@ -47,6 +47,7 @@ class SessionAuthoring {
     String medications = '',
     bool starred = false,
     String notes = '',
+    String fromDevice = '',
     DateTime? at,
     int? replacing,
   }) {
@@ -77,6 +78,7 @@ class SessionAuthoring {
       rightCathode: stim['right_cathode'] ?? '',
       rightAmplitude: stim['right_amplitude'] ?? '',
       rightPulseWidth: stim['right_pulse_width'] ?? '',
+      fromDevice: fromDevice,
       at: at,
     );
     if (replacing == null) {

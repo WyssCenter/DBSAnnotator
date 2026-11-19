@@ -22,6 +22,7 @@ import '../core/schema_columns.dart' show isInitialValue;
 import '../core/session/authoring.dart';
 import '../core/session/bids_folder.dart';
 import '../core/session/bids_session.dart';
+import '../core/session/device_fill.dart';
 import '../core/session/scale_presets.dart';
 import '../core/session/tsv_kind.dart';
 import '../core/session/scale_scoring.dart'
@@ -54,6 +55,7 @@ import 'save_target.dart';
 import 'scale_slider.dart';
 import 'share_util.dart';
 import 'bids_folders.dart';
+import 'device_fill_dialog.dart';
 import 'devices_dialog.dart';
 import 'import_export_panel.dart';
 import 'recording_file.dart';
@@ -574,6 +576,9 @@ class _SessionScreenState extends State<SessionScreen>
     if (empty && _initialBlock == null) return true;
     if (!_stimInRange(limits, _leftInit, _rightInit)) return false;
     _invalidateEntryCharts();
+    final before = _authoring.rows
+        .where((r) => r.blockId == '$_initialBlock')
+        .firstOrNull;
     final inserted = _authoring.addInsert(
       isInitial: true,
       stim: stim,
@@ -592,6 +597,11 @@ class _SessionScreenState extends State<SessionScreen>
       replacing: _initialBlock,
     );
     _initialBlock = int.parse(inserted.first.blockId);
+    if (before != null && before.fromDevice.isNotEmpty) {
+      _authoring.setOnBlock(inserted.first.blockId, {
+        'from_device': keptDeviceColumns(before, inserted.first),
+      });
+    }
     _initialSaved = signature;
     autosave();
     _snack('Initial assessment saved.');
@@ -833,6 +843,7 @@ class _SessionScreenState extends State<SessionScreen>
       _authoring.setOnBlock(id, {
         'acq_time': previous.acqTime,
         'append_id': previous.appendId,
+        'from_device': keptDeviceColumns(previous, inserted.first),
       });
     }
     if (_leavesOn) {
@@ -1548,6 +1559,51 @@ class _SessionScreenState extends State<SessionScreen>
     );
   }
 
+  Future<void> _fillFromDevice() async {
+    final root = datasetRoot;
+    final name = datasetName;
+    if (root == null || name == null) {
+      _snack(
+        'Save this session into a BIDS folder first: the export is read '
+        "from the visit's ieeg/ folder.",
+      );
+      return;
+    }
+    final exports = await perceptExportsIn(root, name);
+    if (!mounted) return;
+    if (exports.isEmpty) {
+      _snack(
+        'No Percept export in sub-${BidsName.label(name.subject)}/'
+        'ses-${BidsName.label(name.session)}/ieeg/.',
+      );
+      return;
+    }
+    final choice = await showDeviceFillDialog(
+      context,
+      rows: _authoring.rows,
+      exports: exports,
+    );
+    if (choice == null || !mounted) return;
+    final catalog = (await _contracts).$1.withDevices(_prefs.devices);
+    if (!mounted) return;
+    setState(() {
+      _invalidateEntryCharts();
+      applyDeviceFill(
+        _authoring,
+        choice.plan,
+        keep: choice.keep,
+        add: choice.add,
+      );
+      _editingBlock = null;
+      if (_prefillInitial(_authoring.rows, catalog) case final initial?) {
+        _initialBlock = int.tryParse(initial.blockId);
+        _initialSaved = _initialSignature(catalog);
+      }
+    });
+    await autosave();
+    _snack('Stimulation filled from the Percept export.');
+  }
+
   /// The last step: what was recorded, then the exports grouped by reader.
   Widget _finishView(_Leads leads) {
     final configs = testedCount(_authoring.rows);
@@ -1574,6 +1630,21 @@ class _SessionScreenState extends State<SessionScreen>
                 '${leftOn == null ? 'not noted' : _settingsOf(leftOn)}',
               ),
               if (saved != null) Text('Saved to: $saved'),
+            ],
+          ),
+        ),
+        const Divider(height: 48),
+        TitledSection(
+          title: 'From the device',
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              action(
+                Icons.sensors,
+                'Fill from Percept export',
+                _fillFromDevice,
+              ),
             ],
           ),
         ),

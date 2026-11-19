@@ -83,6 +83,7 @@ List<SessionRow> buildInsertRows({
   String rightCathode = '',
   String rightAmplitude = '',
   String rightPulseWidth = '',
+  String fromDevice = '',
   DateTime? at,
 }) {
   final acqTime = acqTimeCell(at ?? DateTime.now());
@@ -117,6 +118,7 @@ List<SessionRow> buildInsertRows({
     rightCathode: rightCathode,
     rightAmplitude: rightAmplitude,
     rightPulseWidth: rightPulseWidth,
+    fromDevice: fromDevice,
     medications: medications,
     notes: notes,
   );

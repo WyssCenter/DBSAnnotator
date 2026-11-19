@@ -4,9 +4,11 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import '../bids.dart';
 import '../bids_sidecar.dart';
+import '../../percept/therapy.dart';
 import '../schema_columns.dart';
 import '../tsv.dart';
 import 'bids_session.dart';
@@ -160,4 +162,40 @@ Future<List<SessionRow>> readSessionFile(String content, {String? path}) async {
       ...await _scaleNames(path.replaceFirst(RegExp(r'\.tsv$'), '.json')),
     },
   );
+}
+
+Future<List<({String file, PerceptTimeline? timeline, String? error})>>
+perceptExportsIn(String root, BidsName name) async {
+  final visit = name.relativeDir.substring(
+    0,
+    name.relativeDir.lastIndexOf('/'),
+  );
+  final dir = Directory('$root/$visit/ieeg');
+  if (!dir.existsSync()) return const [];
+  final files =
+      dir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.toLowerCase().endsWith('.json'))
+          .map((f) => f.path)
+          .toList()
+        ..sort();
+  final out = <({String file, PerceptTimeline? timeline, String? error})>[];
+  for (final path in files) {
+    final file = path.split(RegExp(r'[\\/]')).last;
+    try {
+      final timeline = await Isolate.run(() {
+        final json = jsonDecode(File(path).readAsStringSync());
+        return isPerceptExport(json)
+            ? perceptTimeline(json as Map<String, dynamic>)
+            : null;
+      });
+      if (timeline != null) {
+        out.add((file: file, timeline: timeline, error: null));
+      }
+    } catch (e) {
+      out.add((file: file, timeline: null, error: '$e'));
+    }
+  }
+  return out;
 }
