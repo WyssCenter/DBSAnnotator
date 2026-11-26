@@ -1,12 +1,11 @@
 import 'package:dbs_annotator/core/session/scale_scoring.dart';
+import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Pins the Dart port against the desktop implementation. Every expected
-/// number here came from running the Python functions themselves
-/// (`report_chart_utils.parse_scale_targets`, `compute_aggregate_index`,
-/// `get_declared_scale_range`, `find_best_and_second`, and the scoring loop
-/// of `session_exporter._find_best_and_second_best_blocks`) over the same
-/// fixture, not from reading the Dart output back.
+/// Pins target parsing, the aggregate index and the ranking. Numbers marked
+/// "Python" come from the desktop app's functions over the same fixture; the
+/// index counts only scales with a target, and only configurations rated on
+/// all of them.
 void main() {
   ScalePref pref(
     String name,
@@ -24,6 +23,19 @@ void main() {
       ..sort();
     return computeAggregateIndex(data, points, parseScaleTargets(prefs));
   }
+
+  test('a rating in the settings keeps its target, any other is lower is '
+      'better on 0 to 10', () {
+    final rows = [
+      const SessionRow(scaleName: 'Energy', scaleValue: '6'),
+      const SessionRow(scaleName: 'Tics', scaleValue: '3'),
+    ];
+    final energy = pref('Energy', 0, 10, ScaleMode.custom, 7);
+    expect(defaultScalePrefsFor(rows, known: {'Energy': energy}), [
+      energy,
+      pref('Tics', 0, 10, ScaleMode.min),
+    ]);
+  });
 
   group('parseScaleTargets', () {
     test('min targets the lower bound, max the upper', () {
@@ -118,8 +130,7 @@ void main() {
       expect(idx[3], closeTo(0.55, 1e-12));
     });
 
-    test('an unlisted scale scores 0.5 at half weight', () {
-      // Python: {1: 0.833333333333, 2: 0.166666666667}
+    test('a scale without a target does not count', () {
       final idx = indexOf(
         {
           'Tremor': {1: 0.0, 2: 10.0},
@@ -127,8 +138,22 @@ void main() {
         },
         [pref('Tremor', 0, 10, ScaleMode.min)],
       );
-      expect(idx[1], closeTo(0.8333333333333333, 1e-12));
-      expect(idx[2], closeTo(0.16666666666666666, 1e-12));
+      expect(idx, {1: 1.0, 2: 0.0});
+    });
+
+    test('a configuration missing a ranked scale is not ranked', () {
+      final idx = indexOf(
+        {
+          'Tremor': {1: 2.0, 2: 0.0},
+          'Paresthesia': {1: 1.0},
+        },
+        [
+          pref('Tremor', 0, 10, ScaleMode.min),
+          pref('Paresthesia', 0, 10, ScaleMode.min),
+        ],
+      );
+      expect(idx.keys, [1]);
+      expect(idx[1], closeTo(0.85, 1e-12));
     });
 
     test('a non-positive span scores a flat 0.5', () {
@@ -156,16 +181,18 @@ void main() {
       expect(idx[3], closeTo(0.0, 1e-12));
     });
 
-    test('an ignored scale falls through to the unknown-scale branch', () {
-      // Python: targets {} -> {1: 0.5, 2: 0.5}
+    test('a scale that is not ranked leaves the index unchanged', () {
       final idx = indexOf(
         {
-          'Skip': {1: 1.0, 2: 9.0},
+          'Tremor': {1: 0.0, 2: 10.0},
+          'Skip': {1: 1.0},
         },
-        [pref('Skip', 0, 10, ScaleMode.ignore)],
+        [
+          pref('Tremor', 0, 10, ScaleMode.min),
+          pref('Skip', 0, 10, ScaleMode.ignore),
+        ],
       );
-      expect(idx[1], 0.5);
-      expect(idx[2], 0.5);
+      expect(idx, {1: 1.0, 2: 0.0});
     });
 
     test('values are clipped into [0, 1] beyond the declared bounds', () {

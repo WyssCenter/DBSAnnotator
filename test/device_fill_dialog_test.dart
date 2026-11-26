@@ -87,7 +87,7 @@ void main() {
 
     final accepted = choice!;
     expect(accepted.keep, {'0'});
-    expect(accepted.add, isTrue);
+    expect(accepted.add, isFalse, reason: 'unrated settings are opt-in');
     expect(accepted.plan.fills.map((f) => f.blockId), ['0', '1']);
   });
 

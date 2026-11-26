@@ -22,8 +22,8 @@ void main() {
     final limits = loadLimits();
     // A default is delivered unless changed, so values are pinned, not counts.
     expect(limits.defaults, {
-      'PD': [130, 1.5, 60],
-      'OCD': [130, 5.0, 90],
+      "Parkinson's disease": [130, 1.5, 60],
+      'Obsessive-compulsive disorder': [130, 5.0, 90],
     });
     for (final [f, a, pw] in limits.defaults.values) {
       expect(f, inInclusiveRange(limits.frequency.min, limits.frequency.max));

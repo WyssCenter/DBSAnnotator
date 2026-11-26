@@ -10,15 +10,15 @@ class StepControls extends StatelessWidget {
     super.key,
     this.onBack,
     this.onNext,
-    this.onClose,
+    this.action,
     required this.label,
   });
 
   final VoidCallback? onBack;
   final VoidCallback? onNext;
 
-  /// Shown in place of Next on the last step.
-  final VoidCallback? onClose;
+  /// Shown large in place of Next: starting the session, closing the app.
+  final ({IconData icon, String text, VoidCallback onPressed})? action;
   final String label;
 
   @override
@@ -59,11 +59,11 @@ class StepControls extends StatelessWidget {
                   ],
                 ),
               ),
-              if (onClose case final close?)
+              if (action case (:final icon, :final text, :final onPressed))
                 FilledButton.icon(
-                  onPressed: close,
-                  icon: const Icon(Icons.power_settings_new),
-                  label: const Text('Close'),
+                  onPressed: onPressed,
+                  icon: Icon(icon),
+                  label: Text(text),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(180, 56),
                     textStyle: Theme.of(context).textTheme.titleMedium,
@@ -134,7 +134,7 @@ class BidsNameFields extends StatelessWidget {
 
   final BidsEntries entries;
 
-  /// Shown on the Patient ID field, such as when Next finds it empty.
+  /// Shown on the Patient ID field, such as when New session finds it empty.
   final String? subjectError;
 
   @override

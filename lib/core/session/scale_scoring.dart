@@ -112,69 +112,61 @@ Map<String, ScaleTarget> parseScaleTargets(List<ScalePref> prefs) {
   return targets;
 }
 
-/// Weighted aggregate index per x-point: 1.0 is best, 0.0 worst.
+/// Aggregate index per x-point: the mean score of the ranked scales, 1.0 best
+/// and 0.0 worst.
 ///
-/// Per point, every scale with a value there contributes a score. A scale with
-/// a target is normalised into `[lower, upper]` and scored `1 - z` (min), `z`
-/// (max) or `1 - |v - target| / maxDistance` (custom) at weight 1.0, flat 0.5
-/// if the span is non-positive or a custom target sits equidistant from both
-/// bounds; a scale without a target scores 0.5 at weight 0.5. Points where no
-/// scale has a value are absent from the result.
+/// A ranked scale is one with a target and a value at some point. A point
+/// missing any ranked scale gets no index, so a configuration rated on part of
+/// the visit's ratings is never ranked; scales without a target never count.
+/// Each value is normalised into `[lower, upper]` and scored `1 - z` (min), `z`
+/// (max) or `1 - |v - target| / maxDistance` (custom), flat 0.5 if the span is
+/// non-positive or a custom target sits equidistant from both bounds.
 ///
-/// [allPoints] must be sorted: the returned map preserves that order, which
-/// [findBestAndSecond] relies on to break ties the way Python does.
+/// [allPoints] must be sorted: the returned map preserves that order.
 Map<int, double> computeAggregateIndex(
   Map<String, Map<int, double>> scaleData,
   List<int> allPoints,
   Map<String, ScaleTarget> targets,
 ) {
+  final ranked = {
+    for (final MapEntry(:key, :value) in scaleData.entries)
+      if (targets[key] case final target? when value.isNotEmpty) key: target,
+  };
+  if (ranked.isEmpty) return const {};
   final indexVals = <int, double>{};
   for (final pt in allPoints) {
-    var weightedSum = 0.0;
-    var totalWeight = 0.0;
-    var any = false;
-
-    for (final entry in scaleData.entries) {
-      final value = entry.value[pt];
-      if (value == null) continue;
-      any = true;
-
-      final target = targets[entry.key];
-      if (target == null) {
-        // Unknown scale: a neutral score at half weight.
-        weightedSum += 0.5 * 0.5;
-        totalWeight += 0.5;
-        continue;
+    var sum = 0.0;
+    var complete = true;
+    for (final MapEntry(key: name, value: target) in ranked.entries) {
+      final value = scaleData[name]![pt];
+      if (value == null) {
+        complete = false;
+        break;
       }
-
-      final denom = target.upper - target.lower;
-      double score;
-      if (denom <= 0) {
-        score = 0.5;
-      } else {
-        final z = _clip01((value - target.lower) / denom);
-        score = switch (target.type) {
-          ScaleMode.min => 1.0 - z,
-          ScaleMode.max => z,
-          ScaleMode.custom => () {
-            final maxDistance = [
-              (target.value - target.lower).abs(),
-              (target.upper - target.value).abs(),
-            ].reduce((a, b) => a > b ? a : b);
-            if (maxDistance <= 0) return 0.5;
-            return 1.0 - _clip01((value - target.value).abs() / maxDistance);
-          }(),
-          ScaleMode.ignore => 0.5,
-        };
-      }
-      weightedSum += score;
-      totalWeight += 1.0;
+      sum += _score(value, target);
     }
-
-    if (!any) continue;
-    indexVals[pt] = totalWeight > 0 ? weightedSum / totalWeight : 0.5;
+    if (complete) indexVals[pt] = sum / ranked.length;
   }
   return indexVals;
+}
+
+double _score(double value, ScaleTarget target) {
+  final denom = target.upper - target.lower;
+  if (denom <= 0) return 0.5;
+  final z = _clip01((value - target.lower) / denom);
+  return switch (target.type) {
+    ScaleMode.min => 1.0 - z,
+    ScaleMode.max => z,
+    ScaleMode.custom => () {
+      final maxDistance = [
+        (target.value - target.lower).abs(),
+        (target.upper - target.value).abs(),
+      ].reduce((a, b) => a > b ? a : b);
+      if (maxDistance <= 0) return 0.5;
+      return 1.0 - _clip01((value - target.value).abs() / maxDistance);
+    }(),
+    ScaleMode.ignore => 0.5,
+  };
 }
 
 /// Overall `(min, max)` across every declared per-scale range, or null when
@@ -237,14 +229,11 @@ List<int> blocksAtRank(Map<int, int> ranks, int rank) => [
     if (e.value == rank) e.key,
 ]..sort();
 
-/// Default preferences for every scale present in [rows]: mode
-/// [ScaleMode.min], bounds from [bounds] where the scale is listed and
-/// [fallback] otherwise, which reproduces the desktop export dialog's
-/// out-of-the-box scoring. The caller supplies [bounds], from the live scale
-/// editors or from `sessionRows(presets, preset)`, so this needs no imports.
+/// Default preferences for every scale present in [rows]: the [known] target
+/// and range of a scale listed there, else [ScaleMode.min] over [fallback].
 List<ScalePref> defaultScalePrefsFor(
   Iterable<SessionRow> rows, {
-  Map<String, (double, double)> bounds = const {},
+  Map<String, ScalePref> known = const {},
   (double, double) fallback = (0.0, 10.0),
 }) {
   final names = <String>[];
@@ -257,15 +246,13 @@ List<ScalePref> defaultScalePrefsFor(
   }
   return [
     for (final name in names)
-      () {
-        final (lo, hi) = bounds[name] ?? fallback;
-        return (
-          name: name,
-          min: lo,
-          max: hi,
-          mode: ScaleMode.min,
-          custom: null,
-        );
-      }(),
+      known[name] ??
+          (
+            name: name,
+            min: fallback.$1,
+            max: fallback.$2,
+            mode: ScaleMode.min,
+            custom: null,
+          ),
   ];
 }

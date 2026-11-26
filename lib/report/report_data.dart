@@ -439,7 +439,7 @@ const kResponseNote =
     'apart: not a measure of treatment response.';
 
 /// The final configuration's heading when the clinician marked it.
-const kLeftOnTitle = 'Final settings (marked by the clinician)';
+const kLeftOnTitle = 'Final settings';
 
 /// The final configuration's heading otherwise: the last block in the file,
 /// which a setting tried and rejected would occupy just the same.
@@ -745,18 +745,15 @@ class SessionReportData {
   /// clinical bottom line of the encounter appears nowhere in three pages.
   final List<({String name, double first, double last})> response;
 
-  /// Block -> how many scales were rated there. The index averages only the
-  /// scales present at that block, so blocks with different rated sets are not
-  /// comparable: one where only a low Anxiety was rated can outrank a
-  /// fully-rated block.
+  /// Block -> how many scales were rated there, printed beside its index.
   final Map<int, int> scalesRated;
 
   /// Caption for the session-scales figure. The chart is one click out of a
   /// .docx, so it has to carry its own n and explain its green bands.
   String get figureCaption =>
       'Figure 1. Symptom and side effect ratings by rated configuration. '
-      '${hasTargets ? 'Middle panel: aggregate index (0-1; 1 = best); green '
-                'bands mark the highest and second-highest.' : 'No scale '
+      '${hasTargets ? 'Middle panel: aggregate index (0-1; 1 = highest score); '
+                'green bands mark the highest and second-highest.' : 'No scale '
                 'targets were set, so no ranking is shown.'}'
       '${chart.amplitude.values.any((m) => m.isNotEmpty) ? ' Below: amplitude, '
                 'frequency and pulse width per side.' : ''}';
@@ -788,14 +785,13 @@ class SessionReportData {
     ['Configurations tested', configCountText(this)],
   ];
 
-  /// How the index is computed, for the legend. Printing the modes alone left
-  /// the equal weighting invisible, and equal weighting is a clinical
-  /// judgement: in OCD, Mood and Energy are side-effect monitors, not outcomes.
+  /// How the index is computed, for the legend, equal weighting and the
+  /// configurations left out included.
   String get indexMethod =>
-      'Aggregate index: unweighted mean over the scales rated at that '
-      'configuration of '
+      'Aggregate index: unweighted mean, over the scales with a target, of '
       'each value normalised into its declared range and oriented by its '
-      'target, clipped to 0-1; 1 = best.';
+      'target, clipped to 0-1; 1 = highest score. A configuration not rated '
+      'on every one of those scales is not ranked.';
 
   /// "Scale targets: name: min; other: max" for the table legend block, or ''
   /// when no scale has an active optimisation mode.
@@ -961,9 +957,9 @@ double? replicateSpread(Map<int, double> index, Map<int, String> settingOf) {
   return worst;
 }
 
-/// "name: min; other: max; third: 4.5" for the table legend, or '' when every
-/// scale is ignored. Mirrors `report_common.add_table_legend`.
-String _targetsText(List<ScalePref> prefs) {
+/// "name: min of 0-10; other: max of 0-10" for the table legend and the
+/// preview, or '' when no scale is ranked.
+String scaleTargetsText(List<ScalePref> prefs) {
   final parts = <String>[];
   for (final p in prefs) {
     switch (p.mode) {
@@ -1467,7 +1463,7 @@ SessionReportData buildSessionReportData({
     bestBlocks: bestBlocks,
     secondBlocks: secondBlocks,
     replicateSpread: spread,
-    targetsText: hasTargets ? _targetsText(prefs) : kNoTargetsText,
+    targetsText: hasTargets ? scaleTargetsText(prefs) : kNoTargetsText,
     hasTargets: hasTargets,
     blockIndex: chart.aggregateIndex,
     initialRow: latestInit,

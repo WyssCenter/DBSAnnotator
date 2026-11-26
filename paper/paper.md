@@ -1,5 +1,5 @@
 ---
-title: 'Wyss DBS Annotator: recording deep brain stimulation programming visits in an analysis-ready format'
+title: 'DBS Annotator: recording deep brain stimulation programming visits in an analysis-ready format'
 tags:
   - deep brain stimulation
   - neuromodulation
@@ -36,7 +36,7 @@ are built to configure hardware, not to export research-usable records, and the
 ratings, ordering and adverse events that give the parameters their meaning end up in
 free text or on paper.
 
-`Wyss DBS Annotator` is an offline, cross-platform application for recording a DBS
+`DBS Annotator` is an offline, cross-platform application for recording a DBS
 programming visit as it happens, and writing it to a documented, tab-separated,
 BIDS-compliant [@Gorgolewski2016] `_beh.tsv` file, with a JSON sidecar documenting
 every column, that is directly usable for analysis. It captures
@@ -65,7 +65,7 @@ requires reconstructing sessions from notes, and that the temporal structure - w
 configuration preceded which, how long after a change a rating was taken - is
 generally unrecoverable.
 
-`Wyss DBS Annotator` addresses this by making the analysis-ready file the *primary*
+`DBS Annotator` addresses this by making the analysis-ready file the *primary*
 artefact rather than an export: it is written incrementally as the session proceeds,
 and the clinical report is generated from it. Three design decisions follow from the
 clinical setting.
@@ -94,7 +94,7 @@ different settings - rather than ranking through them.
 
 # Implementation
 
-`Wyss DBS Annotator` is written in Dart using the Flutter framework, giving a single
+`DBS Annotator` is written in Dart using the Flutter framework, giving a single
 codebase for iPadOS, Android, Linux, Windows and macOS. Reports are generated in
 process - PDF via the `pdf` package and Word by writing Office Open XML directly - so
 no office software and no network service is required on the device.

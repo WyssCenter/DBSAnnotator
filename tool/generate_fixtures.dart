@@ -46,7 +46,7 @@ import 'package:dbs_annotator/core/tsv.dart';
 final DateTime _start = DateTime.utc(2026, 2, 3, 9);
 
 const String _model = 'Medtronic SenSight B33005';
-const String _pathology = 'OCD';
+const String _pathology = 'Obsessive-compulsive disorder';
 const String _target = 'VC/VS';
 const String _ipg = 'Medtronic Percept PC';
 const String _ipgPosition = 'Left chest';

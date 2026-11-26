@@ -4,7 +4,7 @@ Quick start
 Opening the app
 ---------------
 
-Launch Wyss DBS Annotator as you would any other app on the device. It opens on
+Launch DBS Annotator as you would any other app on the device. It opens on
 :doc:`Annotate programming session <screens/programming_session>`, where a session is annotated in
 five steps. Its first step, Session, is also where you import earlier sessions and export reports
 and BIDS folders.
@@ -21,9 +21,9 @@ The shortest useful path through
 :doc:`Annotate programming session <screens/programming_session>`, moving between steps with
 **Back** and **Next**:
 
-1. **Session.** Choose the BIDS folder, pick or type the patient ID, and press **Next**. The app
-   starts the visit, builds the BIDS file name for you and saves the visit into the folder from the
-   first save onward.
+1. **Session.** Choose the BIDS folder, pick or type the patient ID, and press **New session**. The
+   app starts the visit, builds the BIDS file name for you and saves the visit into the folder from
+   the first save onward.
 
 2. **Indication and devices.** Choose the DBS indication, the anatomical target, the leads and the
    IPGs. A known patient's last visit fills them in; check them. They stay editable for the whole
@@ -53,10 +53,10 @@ back.
 not to the session as a whole, which is what makes it possible afterwards to say *which* setting
 caused the paraesthesia.
 
-**Scale targets are yours to set.** If you want the app to highlight the best-scoring
-configurations, you must first say what "better" means for each rating: lower, higher, or closest
-to a value. Until you do, no configuration is ranked. This is deliberate; see
-:ref:`what-the-reports-do-not-say`.
+**Scale targets are yours to check.** The app highlights the highest-scoring configurations by
+what "better" means for each rating: lower, higher, or closest to a value. Each rating comes
+with a target in the symptom and side effect ratings settings; change it there, or for one
+session under Scale targets. See :ref:`what-the-reports-do-not-say`.
 
 **Text size and theme** are in the settings menu at the top left.
 

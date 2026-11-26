@@ -111,13 +111,13 @@ Future<void> showBidsFoldersDialog(
         actions: [
           TextButton.icon(
             icon: const Icon(Icons.create_new_folder_outlined),
-            label: const Text('Add'),
+            label: const Text('Add folder'),
             onPressed: () async {
               await addBidsFolder(context, prefs);
               setState(() {});
             },
           ),
-          FilledButton(
+          TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Close'),
           ),

@@ -1,7 +1,7 @@
 Privacy
 ========
 
-Wyss DBS Annotator collects nothing, transmits nothing, and requires no account.
+DBS Annotator collects nothing, transmits nothing, and requires no account.
 
 This page is the privacy statement for the published app, and it is written to be
 checkable rather than reassuring: everything below is a property of the software

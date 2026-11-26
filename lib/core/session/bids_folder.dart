@@ -64,8 +64,19 @@ Future<List<String>> participantsIn(String root) async => [
     if ((r['participant_id'] ?? '').isNotEmpty) _subject(r['participant_id']!),
 ]..sort();
 
+/// The bundled DBS indications' abbreviations, spelled out as the app lists
+/// them.
+const Map<String, String> _spelledOut = {
+  'PD': "Parkinson's disease",
+  'ET': 'Essential tremor',
+  'OCD': 'Obsessive-compulsive disorder',
+  'MDD': 'Major depressive disorder',
+  'TS': 'Tourette syndrome',
+};
+
 /// What the folder knows about [subject] before a new visit: the DBS
-/// indication and the most recent visit's row, empty when there is none.
+/// indication, an abbreviated one spelled out, and the most recent visit's
+/// row, empty when there is none.
 Future<({String indication, Map<String, String> lastVisit})> patientHistory(
   String root,
   String subject,
@@ -75,10 +86,11 @@ Future<({String indication, Map<String, String> lastVisit})> patientHistory(
       .where((r) => _subject(r['participant_id'] ?? '') == label);
   final visits = await _records('${_sessionsTsv(root, label)}.tsv');
   visits.sort((a, b) => (a['acq_time'] ?? '').compareTo(b['acq_time'] ?? ''));
+  final indication = person.isEmpty
+      ? ''
+      : readColumn(person.first, 'dbs_indication');
   return (
-    indication: person.isEmpty
-        ? ''
-        : readColumn(person.first, 'dbs_indication'),
+    indication: _spelledOut[indication] ?? indication,
     lastVisit: visits.isEmpty ? const <String, String>{} : visits.last,
   );
 }

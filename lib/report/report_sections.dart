@@ -15,7 +15,7 @@ enum ReportSection {
   chart(
     'Symptom and side effect ratings figure',
     'Every rated scale plotted against configuration, with the aggregate '
-        'index and the best / second-best bands.',
+        'index and the bands of the two highest scores.',
   ),
   table(
     'Session data table',

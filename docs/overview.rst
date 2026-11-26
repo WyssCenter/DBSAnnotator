@@ -30,7 +30,7 @@ scientifically interesting content is the content that gets dropped.
 What it records
 ---------------
 
-Wyss DBS Annotator sits alongside the programming device and records the session as
+DBS Annotator sits alongside the programming device and records the session as
 it happens:
 
 **Stimulation, per configuration.**

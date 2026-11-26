@@ -133,9 +133,118 @@ def _sidecar_excerpt(contract: dict, columns: tuple[str, ...]) -> str:
     return f".. code-block:: json\n\n{body}\n"
 
 
+def _bullets(items: list[str], indent: str = "") -> str:
+    return "".join(f"{indent}* {i}\n" for i in items)
+
+
+def _table(header: list[str], rows: list[list[str]], widths: str) -> str:
+    """A list-table whose cells may hold bullet lists, one line per entry."""
+    lines = [".. list-table::", "   :header-rows: 1", f"   :widths: {widths}", ""]
+    for row in [header, *rows]:
+        for i, cell in enumerate(row):
+            first, *rest = cell.splitlines() or [""]
+            lines.append(f"   {'*' if i == 0 else ' '} - {first}".rstrip())
+            lines += [f"       {line}" for line in rest]
+    return "\n".join(lines) + "\n"
+
+
+def _number(value: float) -> str:
+    return f"{value:g}"
+
+
+_BETTER = {
+    "min": "Lower",
+    "max": "Higher",
+    "custom": "Closest to a value",
+    "ignore": "Not ranked",
+}
+
+_STEPS = {"1": "Whole points", "0.5": "Half points", "": "Any value"}
+
+
+def _default_lists() -> dict[str, str]:
+    """The lists the app comes with, by include file, read from ``schema/``.
+
+    Mirrors how the app reads them: ``ElectrodeCatalog.devices`` for the
+    manufacturers, ``ScalePresets.fromJson`` for a rating with no mode or step.
+    """
+    presets = json.loads((_ROOT / "schema" / "scale_presets.json").read_text(encoding="utf-8"))
+    limits = json.loads((_ROOT / "schema" / "limits.json").read_text(encoding="utf-8"))
+    devices = json.loads((_ROOT / "schema" / "electrode_models.json").read_text(encoding="utf-8"))
+
+    makers = list(dict.fromkeys([*devices["manufacturers"], *devices["ipgs"]]))
+    ranges = presets.get("clinical_ranges", {})
+
+    def clinical(group: str) -> str:
+        rows = [
+            [name, " to ".join(ranges[name]) if name in ranges else "Not set"]
+            for name in presets["clinical"][group]
+        ]
+        return _table(["Scale", "Range"], rows, "50 50")
+
+    def target(cells: list[str]) -> str:
+        mode = cells[3] if len(cells) > 3 else "min"
+        if mode == "custom" and len(cells) > 5:
+            return f"Closest to {cells[5]}"
+        return _BETTER.get(mode, _BETTER["min"])
+
+    def steps(step: str) -> str:
+        return _STEPS.get(step, f"Steps of {step}")
+
+    def ratings(group: str) -> str:
+        rows = [
+            [
+                cells[0],
+                f"{cells[1]} to {cells[2]}",
+                steps(cells[4] if len(cells) > 4 else ""),
+                target(cells),
+            ]
+            for cells in presets["session"][group]
+        ]
+        return _table(["Rating", "Range", "Steps", "Better when"], rows, "40 20 20 20")
+
+    def by_group(section: str, render) -> str:
+        return "".join(f".. rubric:: {group}\n\n{render(group)}\n" for group in presets[section])
+
+    return {
+        "defaults_indications.inc.rst": _bullets(presets["pathologies"]),
+        "defaults_targets.inc.rst": _bullets(presets["targets"]),
+        "defaults_devices.inc.rst": _table(
+            ["Manufacturer", "Leads", "IPGs"],
+            [
+                [
+                    maker,
+                    _bullets(devices["manufacturers"].get(maker, [])) or "None",
+                    _bullets(devices["ipgs"].get(maker, [])) or "None",
+                ]
+                for maker in makers
+            ],
+            "20 40 40",
+        ),
+        "defaults_stimulation.inc.rst": _table(
+            ["DBS indication", "Frequency (Hz)", "Amplitude (mA)", "Pulse width (µs)"],
+            [
+                [
+                    name,
+                    _number(v["frequency"]),
+                    _number(v["amplitude"]),
+                    _number(v["pulse_width"]),
+                ]
+                for name, v in limits["stimulation_defaults"].items()
+            ],
+            "40 20 20 20",
+        ),
+        "defaults_clinical.inc.rst": by_group("clinical", clinical),
+        "defaults_ratings.inc.rst": by_group("session", ratings),
+    }
+
+
 def _write(app, *_args) -> None:
     contract = json.loads((_ROOT / "schema" / "tsv_schema.json").read_text(encoding="utf-8"))
     _OUT.mkdir(parents=True, exist_ok=True)
+
+    for name, text in _default_lists().items():
+        (_OUT / name).write_text(text, encoding="utf-8")
 
     (_OUT / "session_columns.inc.rst").write_text(
         _rst_table(contract["session_tsv"]["columns"], "Programming session columns"),

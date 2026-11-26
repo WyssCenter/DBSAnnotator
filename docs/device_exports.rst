@@ -63,11 +63,17 @@ A preview lists what would change before anything is written:
 - the configurations that already match the device, and those saved at a time
   the export has no setting for, which stay as they are;
 - the settings the device held that nobody saved, which can be added as
-  configurations of their own;
+  configurations of their own, without ratings; the box starts unticked;
 - **Swap sides**, for a patient whose sides are labelled the other way round in
   the stimulator, so that the device's left lead is read as the session's right.
 
 Nothing is written until **Fill** is chosen. The session is then saved as usual.
+
+When the settings will come from the export, the program, parameters and contacts can be folded
+away during the visit with the arrow beside **Stimulation settings** in Initial assessment and
+Programming (see :doc:`screens/programming_session`). What stays on screen is still saved with
+every configuration until the export replaces it, so check the preview for configurations the
+device could not fill.
 
 How the values are matched
 --------------------------

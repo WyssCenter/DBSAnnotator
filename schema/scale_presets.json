@@ -1,20 +1,20 @@
 {
-  "schema_version": "0.6.0",
+  "schema_version": "0.7.0",
   "buttons": [
-    "OCD",
-    "MDD",
-    "PD",
-    "ET",
+    "Obsessive-compulsive disorder",
+    "Major depressive disorder",
+    "Parkinson's disease",
+    "Essential tremor",
     "Dystonia",
-    "TS"
+    "Tourette syndrome"
   ],
   "pathologies": [
-    "PD",
-    "ET",
+    "Parkinson's disease",
+    "Essential tremor",
     "Dystonia",
-    "OCD",
-    "MDD",
-    "TS",
+    "Obsessive-compulsive disorder",
+    "Major depressive disorder",
+    "Tourette syndrome",
     "Epilepsy",
     "Chronic pain"
   ],
@@ -34,21 +34,22 @@
     "Fornix"
   ],
   "clinical": {
-    "OCD": [
+    "Obsessive-compulsive disorder": [
       "Y-BOCS",
       "Y-BOCS-o",
       "Y-BOCS-c",
       "MADRS",
       "OCI-R"
     ],
-    "MDD": [
+    "Major depressive disorder": [
       "MADRS",
       "HAM-D"
     ],
-    "PD": [
+    "Parkinson's disease": [
+      "UPDRS",
       "CGI-S"
     ],
-    "ET": [
+    "Essential tremor": [
       "FTM-TRS",
       "TETRAS"
     ],
@@ -56,7 +57,7 @@
       "BFMDRS",
       "TWSTRS"
     ],
-    "TS": [
+    "Tourette syndrome": [
       "YGTSS",
       "PUTS",
       "TS-CGI",
@@ -110,7 +111,7 @@
     ]
   },
   "session": {
-    "OCD": [
+    "Obsessive-compulsive disorder": [
       [
         "Obsessions",
         "0",
@@ -133,16 +134,20 @@
         "Mood",
         "0",
         "10",
-        "min"
+        "custom",
+        "",
+        "7"
       ],
       [
         "Energy",
         "0",
         "10",
-        "min"
+        "custom",
+        "",
+        "7"
       ]
     ],
-    "MDD": [
+    "Major depressive disorder": [
       [
         "Rumination",
         "0",
@@ -159,81 +164,57 @@
         "Mood",
         "0",
         "10",
-        "min"
+        "custom",
+        "",
+        "7"
       ],
       [
         "Energy",
         "0",
         "10",
-        "min"
+        "custom",
+        "",
+        "7"
       ]
     ],
-    "PD": [
+    "Parkinson's disease": [
       [
-        "Rigidity, right arm",
+        "Finger tapping R",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "Rigidity, left arm",
+        "Finger tapping L",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "Finger tapping, right hand",
+        "Rigidity R",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "Finger tapping, left hand",
+        "Rigidity L",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "Postural tremor, right hand",
+        "Rest tremor amplitude R",
         "0",
         "4",
         "min",
         "1"
       ],
       [
-        "Postural tremor, left hand",
-        "0",
-        "4",
-        "min",
-        "1"
-      ],
-      [
-        "Rest tremor, right arm",
-        "0",
-        "4",
-        "min",
-        "1"
-      ],
-      [
-        "Rest tremor, left arm",
-        "0",
-        "4",
-        "min",
-        "1"
-      ],
-      [
-        "Gait",
-        "0",
-        "4",
-        "min",
-        "1"
-      ],
-      [
-        "Speech",
+        "Rest tremor amplitude L",
         "0",
         "4",
         "min",
@@ -242,17 +223,19 @@
       [
         "Dyskinesia",
         "0",
-        "10",
-        "min"
+        "4",
+        "min",
+        "1"
       ],
       [
         "Paresthesia",
         "0",
-        "10",
-        "min"
+        "4",
+        "min",
+        "1"
       ]
     ],
-    "ET": [
+    "Essential tremor": [
       [
         "Action tremor",
         "0",
@@ -298,7 +281,7 @@
         "min"
       ]
     ],
-    "TS": [
+    "Tourette syndrome": [
       [
         "Tic severity",
         "0",

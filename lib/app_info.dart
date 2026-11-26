@@ -4,7 +4,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:url_launcher/url_launcher.dart';
 
 /// App identity, mirroring the desktop `config.py` values.
-const String appName = 'Wyss DBS Annotator';
+const String appName = 'DBS Annotator';
 
 /// Restates `version:` from pubspec.yaml, the source of truth; reading the
 /// pubspec at runtime would need a native plugin. The value reaches report
@@ -23,6 +23,79 @@ final Uri repoUri = Uri.parse(repoUrl);
 final Uri issuesUri = Uri.parse(issuesUrl);
 final Uri docsUri = Uri.parse(docsUrl);
 final Uri contactUri = Uri(scheme: 'mailto', path: contactEmail);
+
+/// The user guide's page of the lists the app comes with, at [section].
+/// `page/` resolves to the published version of the guide.
+Uri defaultsUri(String section) =>
+    Uri.parse('${docsUrl}page/default_lists.html#$section');
+
+/// Opens [uri] in the browser or mail client. When nothing on the machine
+/// handles it, [text] goes to the clipboard and a snackbar says so.
+Future<void> openLink(BuildContext context, Uri uri, String text) async {
+  final messenger = ScaffoldMessenger.of(context);
+  var opened = false;
+  try {
+    opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } catch (_) {
+    opened = false;
+  }
+  if (opened) return;
+  await Clipboard.setData(ClipboardData(text: text));
+  messenger.showSnackBar(
+    const SnackBar(
+      content: Text('Could not open the link. Copied it to the clipboard.'),
+    ),
+  );
+}
+
+/// A picklist dialog's buttons: Restore defaults on the left, Cancel and Save
+/// on the right, for a dialog whose `actionsAlignment` is spaceBetween.
+List<Widget> picklistActions(
+  BuildContext context, {
+  required VoidCallback onRestore,
+  required VoidCallback onSave,
+}) => [
+  TextButton.icon(
+    onPressed: onRestore,
+    icon: const Icon(Icons.restart_alt),
+    label: const Text('Restore defaults'),
+  ),
+  Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      const SizedBox(width: 8),
+      FilledButton(onPressed: onSave, child: const Text('Save')),
+    ],
+  ),
+];
+
+/// A picklist dialog's title, with a button to the list the app comes with
+/// in [section] of the user guide.
+class DefaultsTitle extends StatelessWidget {
+  const DefaultsTitle(this.title, {super.key, required this.section});
+
+  final String title;
+  final String section;
+
+  @override
+  Widget build(BuildContext context) {
+    final uri = defaultsUri(section);
+    return Row(
+      children: [
+        Expanded(child: Text(title)),
+        IconButton(
+          icon: const Icon(Icons.help_outline),
+          tooltip: 'Defaults in the user guide',
+          onPressed: () => openLink(context, uri, '$uri'),
+        ),
+      ],
+    );
+  }
+}
 
 /// What the app is not, shown under every step.
 const String kNoticeShort = 'Not a medical device. No CE mark.';
@@ -85,9 +158,6 @@ class WyssLockup extends StatelessWidget {
 
 /// One `label: value` line whose value opens [uri] when tapped and stays
 /// selectable, so the text can still be copied.
-///
-/// If nothing on the machine handles the scheme, the URL goes to the clipboard
-/// and a snackbar says so, rather than the tap doing nothing at all.
 class _LinkLine extends StatefulWidget {
   const _LinkLine({required this.label, required this.text, required this.uri});
 
@@ -100,33 +170,13 @@ class _LinkLine extends StatefulWidget {
 }
 
 class _LinkLineState extends State<_LinkLine> {
-  // Held so it can be disposed: a recognizer inside a TextSpan leaks otherwise.
-  late final TapGestureRecognizer _tap = TapGestureRecognizer()..onTap = _open;
+  late final TapGestureRecognizer _tap = TapGestureRecognizer()
+    ..onTap = () => openLink(context, widget.uri, widget.text);
 
   @override
   void dispose() {
     _tap.dispose();
     super.dispose();
-  }
-
-  Future<void> _open() async {
-    final messenger = ScaffoldMessenger.of(context);
-    var opened = false;
-    try {
-      opened = await launchUrl(
-        widget.uri,
-        mode: LaunchMode.externalApplication,
-      );
-    } catch (_) {
-      opened = false;
-    }
-    if (opened) return;
-    await Clipboard.setData(ClipboardData(text: widget.text));
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text('Could not open the link. Copied it to the clipboard.'),
-      ),
-    );
   }
 
   @override

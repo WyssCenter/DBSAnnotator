@@ -192,7 +192,7 @@ For anything you hand to another person, make your own:
 ```powershell
 # Subject must match the `publisher` you set in msix_config, exactly.
 $c = New-SelfSignedCertificate -Type Custom -Subject "CN=Wyss Center for Bio and Neuroengineering" `
-  -KeyUsage DigitalSignature -FriendlyName "Wyss DBS Annotator sideload" `
+  -KeyUsage DigitalSignature -FriendlyName "DBS Annotator sideload" `
   -CertStoreLocation "Cert:\CurrentUser\My" `
   -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
 $p = ConvertTo-SecureString -String "<password>" -Force -AsPlainText

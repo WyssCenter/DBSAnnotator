@@ -259,7 +259,7 @@
       {
         "name": "dbs_indication",
         "type": "string",
-        "description": "Condition the stimulation treats, from the app's list (``PD``, ``ET``, ``Dystonia``, ``OCD``, ``MDD``, ``TS``) or typed."
+        "description": "Condition the stimulation treats, written in full as in the app's list (for example ``Parkinson's disease`` or ``Obsessive-compulsive disorder``) or as typed."
       }
     ]
   },

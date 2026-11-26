@@ -7,7 +7,9 @@ medical device and does not carry a CE mark, and every report carries the same n
 A programming session is annotated in five steps,
 Session, Indication and devices, Initial assessment, Programming and Finish, shown across the top.
 **Back** and **Next** sit in the bar at the bottom of the screen, with the name of the current step
-between them. The menu button at the top left opens the :ref:`settings menu <settings-menu>`.
+between them. On the first step, until a session is open, **New session** takes the place of
+**Next**; on Finish, **Close** does. The menu button at the top left opens the
+:ref:`settings menu <settings-menu>`.
 
 .. raw:: html
 
@@ -18,9 +20,11 @@ between them. The menu button at the top left opens the :ref:`settings menu <set
             label="English" default>
    </video>
 
-A whole visit from start to end: the patient, the indication and devices, the initial
-assessment, three configurations rated and saved, and Finish. Each step below has a shorter
-clip that also shows its other options.
+A whole visit from start to end: the patient, the indication and devices, and the initial
+assessment; three configurations rated and saved, the stimulation settings folded away after the
+first because the rest are set on the Percept programmer; then Finish, where the export fills in
+what the device delivered, and the session report. Each step, and each dialog it opens, is
+described below with a screenshot.
 
 .. _setup-step:
 
@@ -29,18 +33,6 @@ Step 1: Session
 
 Session is where a visit starts, and where you look back over a patient's earlier visits and make
 reports and exports from them.
-
-.. raw:: html
-
-   <video controls playsinline preload="metadata" width="100%"
-          poster="../_static/videos/step_session.png">
-     <source src="../_static/videos/step_session.mp4" type="video/mp4">
-     <track kind="captions" src="../_static/videos/step_session.vtt" srclang="en"
-            label="English" default>
-   </video>
-
-The Session step: a patient already in the folder, the session ID, and the research file
-naming.
 
 .. figure:: ../_static/screenshots/session_step0_file.png
    :alt: The Session step: the BIDS folder bar at the top; on the left the patient list, This
@@ -66,12 +58,18 @@ Patient
 ~~~~~~~
 
 When the BIDS folder already holds patients, the **Patient** list at the top of the left column
-offers them, with **All patients** first. Choosing a patient does two things. It lists the
-patient's earlier visits further down the column, with a preview on the right (see
+offers them, after **New patient** and **All patients**. Choosing a patient does two things. It
+lists the patient's earlier visits further down the column, with a preview on the right (see
 :ref:`the patient's visits <patient-visits>`). And it fills in the **Patient ID** for a new
 session: for a known patient the app also fills in the DBS indication, the anatomical target, the
-leads and the IPGs from the patient's last visit, and says so on the next step. **All patients**
-lists every visit in the folder and leaves the Patient ID as it is.
+leads and the IPGs from the patient's last visit, and the next step says which patient and visit
+they came from. **All patients** lists every visit in the folder and leaves the Patient ID as it
+is.
+
+**New patient**, the list's first entry, is where the step starts. Choosing it leaves the patient
+chosen: the preview closes, and before a session starts the Patient ID and everything filled in
+from that patient's last visit are cleared. The details filled in for one patient never carry over
+to another: choosing another patient, or typing another Patient ID, clears them first.
 
 This session
 ~~~~~~~~~~~~
@@ -87,7 +85,7 @@ file name they make is shown under the fields, so you can see what will be writt
 anything is. Like every BIDS label, they keep letters and digits only. See
 :doc:`the output format <../output_format>`.
 
-Pressing **Next** with a patient ID entered starts the visit in the chosen folder. When the
+Pressing **New session** with a patient ID entered starts the visit in the chosen folder. When the
 patient already has a run on that day, the visit is saved as the next run (``run-02``,
 ``run-03``) and the **Run ID** field changes to match; nothing is overwritten. The initial
 assessment of the new run opens filled in from the earlier run, so you only change what differs,
@@ -97,8 +95,8 @@ the session's ``scans.tsv``, the visit's row in the patient's ``sessions.tsv`` a
 row in ``participants.tsv`` (see :ref:`where-values-live`). The first save also creates
 ``derivatives/sub-<id>/``, the patient's folder for reports; every patient added to a BIDS folder
 from **Reports** gets one too. A line under the buttons says which patient, visit and run the
-session was started for. Once a session is open, a **New session** button appears to start
-another one without closing the app.
+session was started for. Once a session is open, **Next** is back in the bar, and a **New session**
+button under the fields starts another session without closing the app.
 
 If a save cannot reach the BIDS folder, for example because a network drive was disconnected, the
 app says so and keeps every configuration in its recovery copy. The visit is only ever written into
@@ -109,12 +107,15 @@ only complete copy.
 .. _changing-patient-or-folder:
 
 **Changing the patient or the folder after the start.** Every field on this step stays editable.
-When you change the patient ID, the session ID, the research file naming or the BIDS folder of a
-session that already holds entries, **Next** asks **Start a new session file?** The session
-recorded so far stays saved under its own name. **Start new file** begins a new file for the new
-details, keeping the devices and the initial assessment on screen so they are saved into it;
-**Keep current file** puts the fields back as they were. When nothing has been recorded yet, the
-new details are simply used.
+When you change the patient ID of an open session, **Next** asks **Same patient, or a different
+one?** The session recorded so far stays saved under its own name. **Same patient** is for a
+corrected ID: the new file keeps the devices and the initial assessment on screen, so they are
+saved into it. **Different patient** starts the new file empty, as for a new patient. **Keep
+current file** puts the fields back as they were. When you change the session ID, the research
+file naming or the BIDS folder of a session that already holds entries, **Next** asks **Start a
+new session file?** instead: **Start new file** begins a new file for the new details with the
+devices and initial assessment on screen, and **Keep current file** puts the fields back. When
+nothing has been recorded yet, the new details are simply used.
 
 A saved session is not reopened for recording. To record more for a visit, start a new session
 with the same patient and session ID: it is saved as the next run of that visit, with the initial
@@ -134,14 +135,23 @@ grouped by visit (``ses-``), with each recorded run under its visit: the run num
 time it started, and how many configurations it holds. A notes file from an earlier version of the
 app is listed as a run of its own, with its number of notes.
 
+At the top of the right side, a card sums up the patient's latest visit, for a returning
+patient's next one: its date, the DBS indication, the target, the leads and the IPG, the settings
+the patient was left on, per side, or the last ones tested when none was marked (values read from
+the Percept export are marked), the configurations with the highest scores and the targets they
+were ranked by, and the clinical scales beside those of the visit before. These are the settings
+recorded at that visit, not necessarily the ones the patient is on now. **Open last visit** shows
+that run.
+
 Click a run to preview it on the right: the comparison charts and the table of its
-configurations. The zoom buttons above the charts show fewer or more configurations at a time.
-With more than one run, **All visits** at the top of the list previews them together, as the
-report across visits will draw them: the clinical scales of each visit's initial assessment, then
-the symptom and side effect ratings by visit and configuration. Each of the two figures has its
-own zoom: zooming in widens the figure, which you then drag or scroll sideways, and zooming out
-narrows it back. The heading of the preview always names the patient and the visit shown. Each run
-is read together with the rows the BIDS folder keeps for its visit, so its initial assessment,
+configurations, ranked with the targets printed under the charts. The zoom buttons above the
+charts show fewer or more configurations at a time. With more than one run, **All visits** at the
+top of the list previews them together, as the report across visits will draw them: the clinical
+scales of each visit's initial assessment, from two visits on, then the symptom and side effect
+ratings by visit and configuration, folded until opened. Each figure has its own zoom: zooming in
+widens the figure, which you then drag or scroll sideways, and zooming out narrows it back. The
+heading of the preview always names the patient and the visit shown. Each run is read together
+with the rows the BIDS folder keeps for its visit, so its initial assessment,
 target and leads go into every report made from it, as they do in a report made during the visit.
 
 **Enlarge**, beside the heading, opens the preview over the whole window, with the figures
@@ -159,8 +169,8 @@ The recovery copy
 
 Every save is also written to a working copy inside the app, so a crash or a closed window loses
 nothing. When you leave the session, or close the app window on Windows, macOS or Linux, the app
-asks whether to keep that copy or discard it. Kept, it is offered back the next time you open the
-app; discarded, it is gone and nothing is offered. It is never deleted without that answer: after
+asks whether to keep that copy or delete it. Kept, it is offered back the next time you open the
+app; deleted, it is gone and nothing is offered. It is never deleted without that answer: after
 a crash, or when a tablet or phone app is swiped away, the copy is always kept.
 
 .. figure:: ../_static/screenshots/dialog_keep_recovery.png
@@ -173,34 +183,23 @@ a crash, or when a tablet or phone app is swiped away, the copy is always kept.
 When a copy was kept, the next time you open the app it is offered back:
 
 .. figure:: ../_static/screenshots/dialog_reopen_unfinished.png
-   :alt: The offer to reopen an unfinished session, with Discard and Reopen
+   :alt: The offer to reopen an unfinished session, with Delete recovered session and Reopen
    :width: 42%
    :align: center
 
-   Reopen continues the session; Discard deletes the copy. Closing the dialog any other way keeps
+   Reopen continues the session; Delete recovered session deletes the copy. Closing the dialog any other way keeps
    it for next time.
 
 Step 2: Indication and devices
 ------------------------------
-
-.. raw:: html
-
-   <video controls playsinline preload="metadata" width="100%"
-          poster="../_static/videos/step_devices.png">
-     <source src="../_static/videos/step_devices.mp4" type="video/mp4">
-     <track kind="captions" src="../_static/videos/step_devices.vtt" srclang="en"
-            label="English" default>
-   </video>
-
-Indication and devices: the indication, the target, the leads, the IPG and the devices
-settings.
 
 .. figure:: ../_static/screenshots/session_devices.png
    :alt: Indication and devices: the DBS indication and anatomical target on the left, the lead
          model with a box to use the same lead on both sides, and the IPG model with its position
    :width: 100%
 
-   Indication and devices for a patient with OCD and a directional lead.
+   Indication and devices for a patient with obsessive-compulsive disorder and a directional
+   lead.
 
 The patient's **DBS indication** and **anatomical target**, and the implanted devices. The
 indication chooses the clinical scales, the symptom and side effect ratings and the stimulation
@@ -223,13 +222,33 @@ for the whole visit, and a change made after the first save is written into ever
 the visit, so the file never holds two answers for one visit. Changing the DBS indication of a
 patient whose BIDS folder records another one asks first.
 
+.. _dialog-indications:
+
+DBS indications and anatomical targets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. figure:: ../_static/screenshots/dialog_indications.png
+   :alt: The DBS indications dialog, one editable row per indication with a remove button, Add
+         below the rows, and Restore defaults, Cancel and Save at the bottom
+   :width: 36%
+   :align: center
+
+Opened by the button beside **DBS indication** or **Anatomical target**, or by **DBS
+indications** or **Anatomical targets** in the settings menu. Both lists use the same dialog.
+
+Each row is one choice offered in the list, as it will be written in the session file:
+indications in full, such as Parkinson's disease, and targets as their usual abbreviation, such
+as STN. Edit a row in place, remove it with the button beside it, or add one with **Add**: an
+indication or target is chosen from this list, so one your centre uses that is not listed is
+added here first.
+
 .. _dialog-devices:
 
-Devices settings
-~~~~~~~~~~~~~~~~
+Leads and IPGs
+~~~~~~~~~~~~~~
 
 .. figure:: ../_static/screenshots/dialog_devices.png
-   :alt: The devices settings dialog, manufacturers with their lead and IPG models
+   :alt: The Leads and IPGs dialog, manufacturers with their lead and IPG models
    :width: 60%
    :align: center
 
@@ -255,26 +274,14 @@ Step 3: Initial assessment
 How the patient is on arrival, before anything is changed. The step is saved as the run's
 initial assessment, in its row of the session's ``scans.tsv``, when you press **Next**.
 
-.. raw:: html
-
-   <video controls playsinline preload="metadata" width="100%"
-          poster="../_static/videos/step_initial.png">
-     <source src="../_static/videos/step_initial.mp4" type="video/mp4">
-     <track kind="captions" src="../_static/videos/step_initial.vtt" srclang="en"
-            label="English" default>
-   </video>
-
-The initial assessment: clinical scales, medications and notes, the stimulation on arrival,
-the contacts and a current split between two cathodes.
-
 .. figure:: ../_static/screenshots/session_step1_config.png
    :alt: Initial assessment: clinical scales, medications and notes at the top; the active
          program, the parameters per side and the current fractionalization on the left; the
          contacts diagram on the right
    :width: 100%
 
-   The initial assessment of a patient with OCD: current steered across two segments
-   of level 2 on the left lead.
+   The initial assessment of a patient with obsessive-compulsive disorder: current steered
+   across two segments of level 2 on the left lead.
 
 **Clinical scales.** The baseline assessment: disease-specific scores such as Y-BOCS or MADRS,
 typed once per visit. The indication fills the list; the plus button adds scales from the presets
@@ -283,6 +290,14 @@ and the button beside it edits the presets.
 **Medications** and **Notes.** Free text about the patient's state on arrival. These notes belong
 to the initial assessment. Notes are never shorter than Medications and reach down to the last
 clinical scale beside them; longer notes scroll inside the field.
+
+**Stimulation settings.** The active program, the parameters per side, the current split and the
+contacts sit together under **Stimulation settings**. The arrow beside the title folds them all
+away, for example when they will be filled in afterwards from the Percept export (see
+:doc:`../device_exports`). The app keeps the choice for the next visits, in this step and in
+Programming. Folded away, the settings are still saved as they stand: here whatever the step was
+filled with, such as the indication's stimulation defaults, and in Programming the settings carried
+over from this step. Check them before a report is filed, or fill them from the export.
 
 **Active program (group).** The program the settings belong to, such as A, B or C. Manufacturers
 call it the group.
@@ -293,6 +308,11 @@ tap moves it by a fine step, a long press by a coarse one. A value can also be t
 the range is flagged at once and cannot be saved. When the indication has stimulation defaults,
 they fill both sides as the step opens.
 
+**Locking a side.** The lock beside **Left** or **Right** keeps that side as it is while you
+program the other. Its parameters, current split and contacts can no longer be changed, and its
+title reads *Left (locked)*. A locked side is not switched off: every configuration saved in the
+meantime records it with the values shown. Press the lock again to change the side.
+
 **Current fractionalization.** When more than one cathode is active, the share of the current on
 each contact appears under the parameters, with the milliamps each share works out to. Those are
 the ``E2b`` and ``E2c`` rows in the screenshot above.
@@ -302,7 +322,9 @@ the ``E2b`` and ``E2c`` rows in the screenshot above.
 Several cards have a button that edits the choices they offer. These are picklists: they apply to
 every future session and live in the app's own preferences, never in a session file, so editing
 one changes nothing already saved. The dialogs below are the ones you meet in this step and the
-next.
+next. In every picklist dialog, **Restore defaults** fills the dialog with the list as it comes
+with the app, kept only when you press **Save**, and the question mark beside the title opens
+that list in :doc:`../default_lists`.
 
 .. _dialog-programs:
 
@@ -326,8 +348,8 @@ Stimulation defaults
 ~~~~~~~~~~~~~~~~~~~~
 
 .. figure:: ../_static/screenshots/dialog_parameter_presets.png
-   :alt: The default settings per DBS indication dialog, one row per indication with a
-         frequency, an amplitude and a pulse width
+   :alt: The Stimulation defaults dialog, one row per indication with a frequency, an
+         amplitude and a pulse width
    :width: 45%
    :align: center
 
@@ -336,8 +358,8 @@ Opened by the button beside **Parameters**, or by **Stimulation defaults** in th
 One row per DBS indication, with the frequency, amplitude and pulse width filled in on both sides
 when the initial assessment starts. Leave a row blank to start with empty fields. These are a
 starting point, not limits: each field accepts any value within the permitted range for that
-parameter. A value that is not a number, or that falls outside the permitted range, is refused
-with the reason shown in the dialog rather than being silently dropped.
+parameter. A value that is not a number, or that falls outside the permitted range, is refused,
+with the permitted range shown under the field, rather than being silently dropped.
 
 .. _dialog-clinical-scales:
 
@@ -345,24 +367,28 @@ Clinical scales settings
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. figure:: ../_static/screenshots/dialog_clinical_scales.png
-   :alt: The clinical scales settings dialog, a group list on the left and the selected group's
-         scale names on the right
+   :alt: The Clinical scales dialog: the DBS indication chosen at the top, then one line per
+         scale with its minimum and maximum
    :width: 50%
    :align: center
 
 Opened by the button on the **Clinical scales** card, or by **Clinical scales** in the settings
 menu.
 
-Edits the clinical scales offered per indication: the group names (OCD, MDD, PD, ET, Dystonia,
-TS), the scale names inside each, and each scale's **Min** and **Max**. The range is optional and
+Edits the clinical scales offered per DBS indication. The **DBS indication** list at the top
+chooses which indication's scales are shown, starting on the indication of the session; **Add
+indication** adds scales for an indication that has none yet, and the delete button beside the
+list removes an indication's scales, after asking. Below it, one line per scale gives its name, its
+**Min** and its **Max**, under a header that names the columns. The range is optional and
 is used only to draw the longitudinal report's clinical figure on the scale's own axis; it is
 never printed. The bundled scales come with their published total ranges where a name identifies
 one instrument (Y-BOCS 0 to 40, MADRS 0 to 60, and so on). Names that stand for more than one,
-such as HAM-D, are left blank for you to fill in.
+such as HAM-D, or UPDRS, which can mean the total or the motor part, are left blank for you to
+fill in. For Parkinson's disease the bundled scales are UPDRS and CGI-S.
 
 The dialog reminds you that you can add other scales, and that some, such as the MDS-UPDRS, need
 a licence from their owner. The app bundles no scale known to need a licence, and names its
-Parkinson's ratings plainly (rigidity, right arm) rather than after a licensed instrument: you are
+Parkinson's ratings plainly (Rigidity R) rather than after a licensed instrument: you are
 responsible for the scales you add and use.
 
 .. _selecting-contacts:
@@ -372,8 +398,8 @@ Selecting contacts
 
 Tap a contact to cycle it from off, to anode, to cathode, and back to off. Tap the case to use it
 as the anode. Segmented levels show their three segments plus a *Ring* strip that activates the
-whole level at once. The box beside each side's name turns that side on or off. Under each lead,
-**Contacts set** confirms a configuration that can stimulate.
+whole level at once. While a side is locked, its diagram is dimmed and ignores taps. Under each
+lead, **Contacts set** confirms a configuration that can stimulate.
 
 .. figure:: ../_static/screenshots/session_electrodes.png
    :alt: Both leads with a valid configuration, each reporting Contacts set, above the key for
@@ -410,18 +436,6 @@ Step 4: Programming
 
 The loop, repeated once per configuration tested.
 
-.. raw:: html
-
-   <video controls playsinline preload="metadata" width="100%"
-          poster="../_static/videos/step_programming.png">
-     <source src="../_static/videos/step_programming.mp4" type="video/mp4">
-     <track kind="captions" src="../_static/videos/step_programming.vtt" srclang="en"
-            label="English" default>
-   </video>
-
-Programming: configurations rated and saved, a session scale added, one configuration
-edited and one deleted.
-
 .. figure:: ../_static/screenshots/session_step3_recording.png
    :alt: The Programming step: program, parameters and contacts above; symptom and side effect
          ratings and notes below; the bar with Star this configuration, Final settings and Save
@@ -439,16 +453,17 @@ Symptom and side effect ratings
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Quick ratings taken at every configuration, each on a fixed range, so configurations can be
-compared within the visit. The indication fills the list: for Parkinson's disease, rigidity,
-finger tapping, postural and rest tremor for each arm, each rated 0 to 4, then gait, speech,
-dyskinesia and paresthesia. The plus button adds ratings from the presets, and the button beside
+compared within the visit. The indication fills the list: for Parkinson's disease, finger tapping,
+rigidity and rest tremor amplitude on each side (R and L), then dyskinesia and paresthesia, each
+rated 0 to 4 in whole points. The plus button adds ratings from the presets, and the button beside
 it edits the presets. Keeping the set the same for the whole session is what makes the ratings
 comparable between configurations.
 
 Each rating is a slider. A discrete rating moves in whole points, as the 0 to 4 items do; a
 continuous rating takes any value on the bar. The arrows on either side move the slider one step.
-A rating that was not assessed can be marked omitted with the cross at the end of its row, which
-saves ``n/a`` rather than a made-up number; its bar turns dark grey. Once a scale has a target (see
+Every rating starts as not assessed, with a dark grey bar, and is saved as ``n/a`` until you tap
+the bar or its arrows, so a rating nobody gave is never written as a made-up 0. The cross at the
+end of a row marks a rating not assessed again. Once a scale has a target (see
 :ref:`scale-targets`), its bar shades from red to green by how close the value is to the worst or
 the best end, so a poor rating stands out at a glance. The shading is a reading aid only; it is
 not saved and does not change the ranking.
@@ -462,17 +477,30 @@ Symptom and side effect ratings settings
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. figure:: ../_static/screenshots/dialog_session_scales.png
-   :alt: The symptom and side effect ratings dialog: groups on the left, and for the selected
-         group each scale's name, minimum, maximum and a Discrete or Continuous choice
+   :alt: The Symptom and side effect ratings dialog: the DBS indication chosen at the top, then
+         one line per rating with its minimum, maximum, steps, the target it is better towards
+         and its value
    :width: 50%
    :align: center
 
 Opened by the button on **Symptom and side effect ratings**, or from the settings menu.
 
-The same shape as the clinical scales dialog, with two differences. Each row carries a minimum and
-maximum, because the ratings are taken on a slider at every configuration and need a range. Each
-row also chooses **Discrete**, whole points only, or **Continuous**, any value on the bar. The same
-licence reminder as in the clinical scales dialog sits at the top.
+The same shape as the clinical scales dialog, one line per rating, with more columns:
+
+* **Min** and **Max**, the range of the slider the rating is taken on at every configuration.
+  Min must be below Max.
+* **Steps**: **Whole points**, as for a 0 to 4 item, **Half points**, or **Any value** on the bar.
+* **Better when**, what "better" means for that rating: **Lower**, **Higher**, **Closest to** the
+  **Value** beside it, which must lie within the range, or **Not ranked**.
+
+On a narrow window each rating takes two lines, with its fields labelled. The licence reminder sits
+under the table.
+
+The target is where every session starts: Programming ranks and shades its configurations by it,
+and the Reports screen ranks a report across visits by it, until you change it for that session or
+that report under :ref:`scale-targets`. Saving updates the ratings of the open session, but does
+not bring back a rating removed from it. The targets each rating comes with are in
+:doc:`../default_lists`.
 
 Saving a configuration
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -538,12 +566,13 @@ move up by one, so the numbers always match the order of the rows in the saved f
 
    Each configuration with its star, its ratings and its Edit button.
 
-Once scale targets are set, the rows
-of the best and second-best configurations are shaded in the same greens as the charts, and the
-shading moves as each configuration is saved.
+The rows of the two highest-scoring configurations are shaded in the same greens as the charts,
+and the shading moves as each configuration is saved. Only a configuration rated on every ranked
+rating is ranked.
 
-**Scale targets** sets what "better" means per rating (lower, higher, or closest to a value).
-Until they are set, nothing is ranked; see :ref:`scale-targets`.
+**Scale targets** sets what "better" means per rating for this session (lower, higher, closest to a
+value, or not ranked); each rating starts with the target in its settings. See
+:ref:`scale-targets`.
 
 .. _dialog-scale-targets:
 
@@ -558,30 +587,20 @@ Scale targets
 Opened by **Scale targets** in Programming, from the settings menu, or from the report sections
 dialog.
 
-Says how each rating is scored when ranking the configurations, which is the input the ranking
-needs and the one thing only you can supply. The two configurations with the most favourable
-scores are shaded. This is a score ranking only: it ignores side effects and notes. **Set all**
-fills the column in one tap for a set of ratings that all run the same way.
+Says how each rating is scored when ranking the configurations of this session or report. The
+two configurations with the highest scores are shaded, and only configurations rated on every
+ranked rating are ranked. This is a score ranking only: it ignores side effects that were not
+rated, and the notes. **Set all** fills the column in one tap for a set of ratings that all run the
+same way.
 
-Each rating gets a target: lower is better, higher is better, a custom target (closest to a stated
-value, which reveals a *Value* field), or ignore. Until targets are set, no configuration is
-ranked anywhere: see :ref:`scale-targets` for the definition of the aggregate index and
-:ref:`what-the-reports-do-not-say` for its limits.
+One line per rating, under a header, gives its **Min**, **Max** and **Better when**: **Lower**,
+**Higher**, **Closest to** the **Value** beside it, or **Not ranked**. Each starts from the
+target in the symptom and side effect ratings settings; a change here applies to this session or
+report only. **Save** keeps it. See :ref:`scale-targets` for the definition of the aggregate index
+and :ref:`what-the-reports-do-not-say` for its limits.
 
 Step 5: Finish
 --------------
-
-.. raw:: html
-
-   <video controls playsinline preload="metadata" width="100%"
-          poster="../_static/videos/step_finish.png">
-     <source src="../_static/videos/step_finish.mp4" type="video/mp4">
-     <track kind="captions" src="../_static/videos/step_finish.vtt" srclang="en"
-            label="English" default>
-   </video>
-
-Finish: the configuration the patient leaves on, the summary, the reports and the BIDS
-export.
 
 .. figure:: ../_static/screenshots/session_finish.png
    :alt: The Finish step: the session summary, the button that fills the stimulation from the
@@ -656,7 +675,43 @@ The menu button at the top left opens the settings that apply to every session:
 * **Picklists**: the DBS indications and anatomical targets, the leads and IPGs, the stimulation
   defaults, the programs, the clinical scales, and the symptom and side effect ratings, each
   opening the dialog described above.
+* **Restore default lists**: after asking, puts every picklist back to the one that comes with the
+  app and removes your own additions. Saved sessions are not changed. A list you have edited stays
+  as you left it when the app is updated, so this is also how to take an updated list. Every list
+  as it comes with the app is in :doc:`../default_lists`.
 * **Scale targets** and **Report sections**.
 * **Dark theme** and **Text size**, kept for the next time the app opens.
 * **Help and about**: the full notice, the version, and links to this documentation and the
   repository.
+
+.. _dialog-bids-folders:
+
+Storage folders (BIDS)
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. figure:: ../_static/screenshots/dialog_bids_folders.png
+   :alt: The storage folders dialog, two named BIDS folders with their locations, the first
+         chosen as the default, each with a button to remove it, and Add folder and Close below
+   :width: 50%
+   :align: center
+
+The BIDS folders offered in the bar at the top of the Session step, each under the name you gave
+it, such as the cohort, with its location below. The chosen one is the folder Session starts on.
+**Add folder** asks for a name and, on a computer, for the folder; on a tablet it is created in
+the app's own storage. The cross beside a folder removes it from this list only: the folder and
+its files stay where they are. Changes apply at once, and **Close** closes the dialog.
+
+.. _dialog-restore-lists:
+
+Restore default lists
+~~~~~~~~~~~~~~~~~~~~~
+
+.. figure:: ../_static/screenshots/dialog_restore_lists.png
+   :alt: The question asked before restoring the default lists, with Cancel and Restore
+   :width: 42%
+   :align: center
+
+Asked before every picklist goes back to the one that comes with the app. **Restore** removes
+your own additions from all of them at once; **Cancel** changes nothing. To put back a single list,
+use **Restore defaults** in that list's dialog instead. The storage folders, scale targets, report
+sections and appearance are not picklists and stay as they are.

@@ -660,15 +660,15 @@ void main() {
       debugRefreshHold = () => gate.future;
 
       await tester.binding.handlePopRoute();
-      await pumpUntilFound(tester, find.text('Discard copy'));
-      await tester.tap(find.text('Discard copy'));
+      await pumpUntilFound(tester, find.text('Delete recovery copy'));
+      await tester.tap(find.text('Delete recovery copy'));
       await pumpUntilFound(tester, find.text(_progress));
       final second = activeSessionGuard!();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.byType(AlertDialog), findsOneWidget);
-      expect(find.text('Discard copy'), findsNothing);
+      expect(find.text('Delete recovery copy'), findsNothing);
       expect(find.text('Keep copy'), findsNothing);
 
       gate.complete();
@@ -762,8 +762,8 @@ void main() {
           .firstWhere((f) => f.readAsStringSync().contains('last entry'));
 
       await tester.binding.handlePopRoute();
-      await pumpUntilFound(tester, find.text('Discard copy'));
-      await tester.tap(find.text('Discard copy'));
+      await pumpUntilFound(tester, find.text('Delete recovery copy'));
+      await tester.tap(find.text('Delete recovery copy'));
       await pumpUntilFound(tester, find.text(_progress));
       breakDerivatives();
       var closed = false;
@@ -800,8 +800,8 @@ void main() {
       debugRefreshHold = () => gate.future;
 
       await tester.binding.handlePopRoute();
-      await pumpUntilFound(tester, find.text('Discard copy'));
-      await tester.tap(find.text('Discard copy'));
+      await pumpUntilFound(tester, find.text('Delete recovery copy'));
+      await tester.tap(find.text('Delete recovery copy'));
       await pumpUntilFound(tester, find.text(_progress));
       final screenPop = tester.widget<PopScope<Object?>>(
         find.descendant(

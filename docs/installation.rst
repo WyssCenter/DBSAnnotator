@@ -1,7 +1,7 @@
 Installation
 ============
 
-Wyss DBS Annotator runs on iPadOS, Android, Windows, macOS and Linux, and is
+DBS Annotator runs on iPadOS, Android, Windows, macOS and Linux, and is
 published by the **Wyss Center for Bio and Neuroengineering**. Every platform runs
 the same application and writes the same files.
 
@@ -11,7 +11,7 @@ the same application and writes the same files.
      <div class="dbs-dl-head">
        <img src="_static/app_icon.png" alt="" width="64" height="64">
        <div>
-         <div class="dbs-dl-name">Wyss DBS Annotator</div>
+         <div class="dbs-dl-name">DBS Annotator</div>
          <div class="dbs-dl-meta">Wyss Center for Bio and Neuroengineering &middot; Free</div>
        </div>
      </div>
@@ -81,7 +81,7 @@ the same application and writes the same files.
    </script>
 
 The Download button recognises the device you are reading this on. On Windows it
-opens the Microsoft Store app itself, which shows whether Wyss DBS Annotator is
+opens the Microsoft Store app itself, which shows whether DBS Annotator is
 already installed and keeps it up to date; on iPadOS and Android the store page
 opens in the store app as usual. On Linux it shows the install command below. To
 install on a different device, pick it under *All platforms*.
@@ -90,7 +90,7 @@ On the store platforms, installing from the store is the whole procedure: the
 store checks the app's signature and installs updates for you. On a computer
 managed by your hospital or institution, the store may be blocked; your IT
 department can install the app from the same listing. If a link does not open,
-search the store for *Wyss DBS Annotator*.
+search the store for *DBS Annotator*.
 
 .. _install-on-linux:
 

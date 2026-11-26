@@ -1,21 +1,26 @@
 import 'package:flutter/material.dart';
 
-/// Generic add / remove / edit dialog for a list of short strings: program
-/// names, stim preset values, or scale names. Returns the edited list with
-/// blanks dropped on Save, or null on Cancel.
+import '../app_info.dart';
+
+/// Add, remove and edit a picklist of short strings, such as the programs.
+/// Restore defaults puts back [defaults], the list the app comes with, shown
+/// in [section] of the user guide; [addLabel] names the button that adds a
+/// row. Returns the edited list with blanks dropped on Save, or null on Cancel.
 class ListEditorDialog extends StatefulWidget {
   const ListEditorDialog({
     super.key,
     required this.title,
     required this.items,
-    this.hint,
-    this.numeric = false,
+    required this.defaults,
+    required this.section,
+    required this.addLabel,
   });
 
   final String title;
   final List<String> items;
-  final String? hint;
-  final bool numeric;
+  final List<String> defaults;
+  final String section;
+  final String addLabel;
 
   @override
   State<ListEditorDialog> createState() => _ListEditorDialogState();
@@ -38,10 +43,21 @@ class _ListEditorDialogState extends State<ListEditorDialog> {
     super.dispose();
   }
 
+  void _restore() => setState(() {
+    for (final c in _ctrls) {
+      c.dispose();
+    }
+    _ctrls
+      ..clear()
+      ..addAll([
+        for (final s in widget.defaults) TextEditingController(text: s),
+      ]);
+  });
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.title),
+      title: DefaultsTitle(widget.title, section: widget.section),
       content: SizedBox(
         width: 360,
         child: Column(
@@ -58,15 +74,7 @@ class _ListEditorDialogState extends State<ListEditorDialog> {
                       Expanded(
                         child: TextField(
                           controller: _ctrls[i],
-                          keyboardType: widget.numeric
-                              ? const TextInputType.numberWithOptions(
-                                  decimal: true,
-                                )
-                              : null,
-                          decoration: InputDecoration(
-                            isDense: true,
-                            hintText: widget.hint,
-                          ),
+                          decoration: const InputDecoration(isDense: true),
                         ),
                       ),
                       IconButton(
@@ -86,28 +94,21 @@ class _ListEditorDialogState extends State<ListEditorDialog> {
                 onPressed: () =>
                     setState(() => _ctrls.add(TextEditingController())),
                 icon: const Icon(Icons.add),
-                label: const Text('Add'),
+                label: Text(widget.addLabel),
               ),
             ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () {
-            final out = [
-              for (final c in _ctrls)
-                if (c.text.trim().isNotEmpty) c.text.trim(),
-            ];
-            Navigator.pop(context, out);
-          },
-          child: const Text('Save'),
-        ),
-      ],
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      actions: picklistActions(
+        context,
+        onRestore: _restore,
+        onSave: () => Navigator.pop(context, [
+          for (final c in _ctrls)
+            if (c.text.trim().isNotEmpty) c.text.trim(),
+        ]),
+      ),
     );
   }
 }

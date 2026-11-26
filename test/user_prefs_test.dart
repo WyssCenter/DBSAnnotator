@@ -59,6 +59,39 @@ void main() {
     expect(back.reportSections, ['baseline']);
   });
 
+  test('restoring the default lists keeps folders, appearance and layout', () {
+    final p = UserPrefs(
+      programs: ['A'],
+      clinical: {
+        'PD': ['UPDRS Part III'],
+      },
+      clinicalRanges: {
+        'UPDRS Part III': ['0', '108'],
+      },
+      session: {
+        'PD': [
+          ['Tremor', '0', '10'],
+        ],
+      },
+      stimDefaults: {
+        'PD': [130, 1.5, 60],
+      },
+      pathologies: ['PD'],
+      targets: ['STN'],
+      devices: {
+        'Newronika': (leads: const {}, ipgs: ['Newronika AlphaDBS']),
+      },
+      bidsFolders: [(name: 'PD cohort', path: '/data/pd')],
+      darkTheme: true,
+      stimulationExpanded: false,
+    )..restoreDefaultLists();
+    expect(p.toJson().keys, {
+      'bids_folders',
+      'dark_theme',
+      'stimulation_expanded',
+    });
+  });
+
   test('empty prefs serialize to an empty object and read back empty', () {
     expect(UserPrefs().toJson(), isEmpty);
     expect(UserPrefs.fromJson(const {}).programs, isNull);
@@ -72,7 +105,16 @@ void main() {
         'PD': ['UPDRS'],
       },
       session: {
-        'PD': [(name: 'Tremor', min: '0', max: '10', mode: 'min', step: '')],
+        'PD': [
+          (
+            name: 'Tremor',
+            min: '0',
+            max: '10',
+            mode: 'min',
+            step: '',
+            custom: '',
+          ),
+        ],
       },
     );
 
@@ -119,6 +161,28 @@ void main() {
         max: '4',
         mode: 'min',
         step: '',
+        custom: '',
+      ));
+    });
+
+    test('an override row carries a custom target value through the merge', () {
+      final m = mergeScalePresets(
+        base,
+        UserPrefs(
+          session: {
+            'OCD': [
+              ['Energy', '0', '10', 'custom', '', '7'],
+            ],
+          },
+        ),
+      );
+      expect(m.session['OCD']!.single, (
+        name: 'Energy',
+        min: '0',
+        max: '10',
+        mode: 'custom',
+        step: '',
+        custom: '7',
       ));
     });
 
@@ -139,6 +203,7 @@ void main() {
         max: '10',
         mode: 'max',
         step: '1',
+        custom: '',
       ));
     });
 

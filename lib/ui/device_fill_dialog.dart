@@ -32,7 +32,7 @@ class _DeviceFillDialog extends StatefulWidget {
 
 class _DeviceFillDialogState extends State<_DeviceFillDialog> {
   var _swap = false;
-  var _add = true;
+  var _add = false;
   final _keep = <String>{};
   late DeviceFillPlan _plan = _planned();
 
@@ -152,7 +152,8 @@ class _DeviceFillDialogState extends State<_DeviceFillDialog> {
                   title: Text(
                     'Add the ${plan.additions.length} '
                     '${plan.additions.length == 1 ? 'setting' : 'settings'} '
-                    'the device held that were not saved',
+                    'the device held that were not saved, as '
+                    'configurations without ratings',
                   ),
                   subtitle: Text(
                     [
@@ -191,9 +192,8 @@ class _DeviceFillDialogState extends State<_DeviceFillDialog> {
   }
 }
 
-String _label(String blockId, String acqTime, bool isInitial) => isInitial
-    ? 'the initial assessment'
-    : '#$blockId at ${recordedTime(acqTime)}';
+String _label(String blockId, String acqTime, bool isInitial) =>
+    isInitial ? 'Initial assessment' : '#$blockId at ${recordedTime(acqTime)}';
 
 String _shown(String? value) =>
     value == null || value.isEmpty ? 'empty' : value;
@@ -207,7 +207,7 @@ const _what = {
 };
 
 String _column(String column) {
-  if (column == 'program_id') return 'Group';
+  if (column == 'program_id') return 'Program';
   final split = column.indexOf('_');
   final side = column.substring(0, split) == 'left' ? 'Left' : 'Right';
   return '$side ${_what[column.substring(split + 1)] ?? column}';

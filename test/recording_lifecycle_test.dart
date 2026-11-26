@@ -238,7 +238,7 @@ void main() {
       );
       await found(tester);
 
-      await tester.tap(find.text('Discard'));
+      await tester.tap(find.text('Delete recovered session'));
       for (var i = 0; i < 40 && planted.existsSync(); i++) {
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 20)),
@@ -465,7 +465,7 @@ void main() {
       final answer = activeSessionGuard!();
       await pumpUntilFound(tester, find.text(_guardTitle));
       await tester.pumpAndSettle();
-      expect(find.text('Discard copy'), findsOneWidget);
+      expect(find.text('Delete recovery copy'), findsOneWidget);
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
 

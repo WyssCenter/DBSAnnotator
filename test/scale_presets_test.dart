@@ -21,7 +21,14 @@ void main() {
 
   test('button bar carries the six desktop disease presets, in order', () {
     final p = loadPresets();
-    expect(p.buttons, ['OCD', 'MDD', 'PD', 'ET', 'Dystonia', 'TS']);
+    expect(p.buttons, [
+      'Obsessive-compulsive disorder',
+      'Major depressive disorder',
+      "Parkinson's disease",
+      'Essential tremor',
+      'Dystonia',
+      'Tourette syndrome',
+    ]);
 
     // Every button resolves in both tables (no dangling pill).
     for (final name in p.buttons) {
@@ -32,52 +39,68 @@ void main() {
 
   test('clinicalRows returns the desktop Step-1 scale names', () {
     final p = loadPresets();
-    final ocd = clinicalRows(p, 'OCD');
+    final ocd = clinicalRows(p, 'Obsessive-compulsive disorder');
     expect(ocd, contains('Y-BOCS'));
     expect(ocd, ['Y-BOCS', 'Y-BOCS-o', 'Y-BOCS-c', 'MADRS', 'OCI-R']);
-    expect(clinicalRows(p, 'MDD'), ['MADRS', 'HAM-D']);
+    expect(clinicalRows(p, 'Major depressive disorder'), ['MADRS', 'HAM-D']);
   });
 
   test('no licensed scale is bundled, nor named in a rating', () {
     final p = loadPresets();
-    expect(clinicalRows(p, 'PD'), ['CGI-S']);
+    expect(clinicalRows(p, "Parkinson's disease"), ['UPDRS', 'CGI-S']);
+    expect(p.clinicalRanges, isNot(contains('UPDRS')));
     final names = [
       ...p.clinicalRanges.keys,
       for (final g in p.buttons) ...clinicalRows(p, g),
       for (final g in p.buttons) ...sessionRows(p, g).map((r) => r.name),
     ];
-    for (final licensed in ['UPDRS', 'UDysRS', 'PDQ-39', 'BDI']) {
+    for (final licensed in ['MDS-UPDRS', 'UDysRS', 'PDQ-39', 'BDI']) {
       expect(names.where((n) => n.contains(licensed)), isEmpty);
     }
   });
 
-  test('PD rates ten motor items 0 to 4 in whole steps', () {
+  test('PD rates eight items 0 to 4 in whole steps', () {
     final p = loadPresets();
-    final pd = sessionRows(p, 'PD');
-    final items = pd.where((r) => r.max == '4');
-    expect(pd.first, (
-      name: 'Rigidity, right arm',
-      min: '0',
-      max: '4',
-      mode: 'min',
-      step: '1',
-    ));
-    expect(items, hasLength(10));
-    for (final row in items) {
-      expect((row.min, row.max, row.step), ('0', '4', '1'));
-    }
-    final others = pd.where((r) => !items.contains(r));
-    expect(others.map((r) => r.name), ['Dyskinesia', 'Paresthesia']);
+    final pd = sessionRows(p, "Parkinson's disease");
+    expect(pd.map((r) => r.name), [
+      'Finger tapping R',
+      'Finger tapping L',
+      'Rigidity R',
+      'Rigidity L',
+      'Rest tremor amplitude R',
+      'Rest tremor amplitude L',
+      'Dyskinesia',
+      'Paresthesia',
+    ]);
     for (final row in pd) {
-      expect(scaleOptimizationModes, contains(row.mode));
+      expect((row.min, row.max, row.mode, row.step), ('0', '4', 'min', '1'));
     }
   });
 
   test('other presets keep continuous 0 to 10 rows', () {
     final p = loadPresets();
-    for (final group in ['OCD', 'MDD', 'ET', 'Dystonia', 'TS']) {
+    for (final group in [
+      'Obsessive-compulsive disorder',
+      'Major depressive disorder',
+      'Essential tremor',
+      'Dystonia',
+      'Tourette syndrome',
+    ]) {
       for (final row in sessionRows(p, group)) {
         expect((row.min, row.max, row.step), ('0', '10', ''));
+      }
+    }
+  });
+
+  test('mood and energy are best closest to 7', () {
+    final p = loadPresets();
+    for (final group in [
+      'Obsessive-compulsive disorder',
+      'Major depressive disorder',
+    ]) {
+      final rows = {for (final r in sessionRows(p, group)) r.name: r};
+      for (final name in ['Mood', 'Energy']) {
+        expect((rows[name]!.mode, rows[name]!.custom), ('custom', '7'));
       }
     }
   });
@@ -99,6 +122,7 @@ void main() {
       max: '7',
       mode: defaultScaleOptimizationMode,
       step: '',
+      custom: '',
     ));
   });
 

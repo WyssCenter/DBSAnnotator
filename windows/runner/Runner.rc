@@ -103,13 +103,13 @@ BEGIN
             // defaults and the user's settings appear to have vanished.
             // Nothing user-facing is gained: the Store listing name comes from
             // Partner Center and the Start-menu entry from the MSIX manifest
-            // DisplayName ("Wyss DBS Annotator"). ProductName shows only in the
+            // DisplayName ("DBS Annotator"). ProductName shows only in the
             // file's Properties dialog.
             // Changing them is possible, but it is a migration task, not an
             // edit: copy the old file across on first read.
             VALUE "CompanyName", "ch.wysscenter" "\0"
             // Safe to change - not read by path_provider. Shown in Task Manager.
-            VALUE "FileDescription", "Wyss DBS Annotator" "\0"
+            VALUE "FileDescription", "DBS Annotator" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "dbs_annotator" "\0"
             // Safe to change - not read by path_provider.

@@ -3,7 +3,7 @@
 # .github/RELEASING.md). The version is passed in, because there is no Python
 # package here to read it from.
 [tool.towncrier]
-name = "Wyss DBS Annotator"
+name = "DBS Annotator"
 directory = "newsfragments"
 filename = "CHANGELOG.md"
 template = "newsfragments/template.md.jinja"

@@ -1,8 +1,7 @@
 # Records a docs video of the real Windows app while an integration test drives it,
 # with captions (a WebVTT file beside the video) and a spoken voice from the same lines.
 #   powershell -File tool/record_video.ps1 -Flow record_block
-#   powershell -File tool/record_video.ps1 -Flow reports
-# A flow is integration_test/videos/<flow>_test.dart; step_* are the short clip of each step.
+# A flow is integration_test/videos/<flow>_test.dart.
 # The voice is Piper's public-domain LJSpeech voice, run offline; it is downloaded once
 # into %LOCALAPPDATA%\dbs_annotator_voices. -NoVoice records captions only.
 param(

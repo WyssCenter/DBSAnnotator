@@ -7,13 +7,15 @@ import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 
 /// One session-scale preset row, as the contract's strings. [mode] is the
-/// ranking direction; [step] is the rating step, empty for a continuous bar.
+/// ranking target; [step] is the rating step, empty for a continuous bar;
+/// [custom] is the value to get close to when [mode] is `custom`, else empty.
 typedef SessionScaleRow = ({
   String name,
   String min,
   String max,
   String mode,
   String step,
+  String custom,
 });
 
 /// Fallback for a preset row with no mode cell.
@@ -67,6 +69,7 @@ class ScalePresets {
                     ? mode
                     : defaultScaleOptimizationMode,
                 step: cells.length > 4 ? cells[4] : '',
+                custom: cells.length > 5 ? cells[5] : '',
               );
             })
             .toList(growable: false),

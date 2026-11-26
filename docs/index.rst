@@ -1,5 +1,5 @@
-Wyss DBS Annotator
-==================
+DBS Annotator
+=============
 
 .. image:: _static/logo.png
    :alt: Wyss Center
@@ -10,7 +10,7 @@ Wyss DBS Annotator
 
 .. important::
 
-   Wyss DBS Annotator is not a medical device and does not carry a CE mark.
+   DBS Annotator is not a medical device and does not carry a CE mark.
 
 **Annotate deep brain stimulation programming visits, and get analysis-ready
 data out.**
@@ -20,7 +20,7 @@ psychiatrist, who tries stimulation configurations and settles on one that works
 That takes a visit or several, and the parameters go on being adapted over months
 or years.
 
-Wyss DBS Annotator documents those visits: the stimulation parameters tried on each
+DBS Annotator documents those visits: the stimulation parameters tried on each
 contact, the clinical and session scale ratings at every configuration, side
 effects, and free-text notes. They are written to tab-separated files laid out
 to :doc:`BIDS <output_format>` (the Brain Imaging Data Structure, a community
@@ -90,6 +90,7 @@ At a glance
    :maxdepth: 2
    :caption: Reference
 
+   default_lists
    faq
    privacy
    changelog

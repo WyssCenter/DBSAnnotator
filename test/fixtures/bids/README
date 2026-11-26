@@ -1,6 +1,6 @@
 # DBS programming sessions
 
-Recorded with Wyss DBS Annotator 0.7.0 (https://github.com/neuromodulation/DBSAnnotator).
+Recorded with DBS Annotator 0.7.0 (https://github.com/neuromodulation/DBSAnnotator).
 
 Each file under `sub-*/ses-*/beh/` is one deep brain
 stimulation programming session: one row per stimulation configuration that

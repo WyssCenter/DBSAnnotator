@@ -150,7 +150,7 @@ void main() {
       expect(
         find.textContaining(
           'Changes in this session are not saved anywhere else unless you '
-          'exported or shared them. Discarding deletes this copy.',
+          'exported or shared them. Deleting this copy loses them.',
         ),
         findsOneWidget,
       );
@@ -193,7 +193,7 @@ void main() {
   });
 
   group('New', () {
-    testWidgets('Next with a patient ID starts the visit, as New does', (
+    testWidgets('New session with a patient ID starts the visit', (
       tester,
     ) async {
       useTempDirs();
@@ -205,7 +205,7 @@ void main() {
         find.widgetWithText(TextField, 'Patient ID'),
         '01',
       );
-      await tester.tap(find.text('Next'));
+      await tester.tap(find.text('New session'));
       await pumpUntilFound(tester, find.textContaining(_newSnack));
       await tester.pumpAndSettle();
 
@@ -266,7 +266,7 @@ void main() {
       await tester.enterText(patient, '02');
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
-      expect(find.text('Start a new session file?'), findsOneWidget);
+      expect(find.text('Same patient, or a different one?'), findsOneWidget);
       await tester.tap(find.text('Keep current file'));
       await tester.pumpAndSettle();
       expect(typed(), '01');
@@ -274,7 +274,7 @@ void main() {
       await tester.enterText(patient, '02');
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Start new file'));
+      await tester.tap(find.text('Same patient'));
       await pumpUntilFound(tester, find.text('Same lead on both sides'));
       await tester.pumpAndSettle();
       expect(first.readAsStringSync(), contains('first visit'));
@@ -314,7 +314,7 @@ void main() {
       await _pressNew(tester);
       await pumpUntilFound(tester, guard);
       await tester.pumpAndSettle();
-      expect(find.text('Discard copy'), findsOneWidget);
+      expect(find.text('Delete recovery copy'), findsOneWidget);
       await tester.tap(find.text('Keep copy'));
       await pumpUntilFound(tester, find.textContaining('run 02'));
       await tester.pumpAndSettle();

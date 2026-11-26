@@ -68,8 +68,8 @@ ratings, the aggregate index (a 0-1 score per configuration against your
 :ref:`scale targets <scale-targets>`), then the amplitude, frequency and pulse width
 per side, as in the live view in the app. A parameter that never changed during
 the session is stated in one line, such as "130 Hz, unchanged (both sides)",
-rather than plotted flat. When targets are set, green bands mark the best and
-second-best scoring settings through every panel.
+rather than plotted flat. When targets are set, green bands mark the two
+highest-scoring configurations through every panel.
 
 .. figure:: _static/reports/session_report_session_data.png
    :alt: The session data figure: scales, aggregate index, amplitude, frequency and pulse width panels with the green bands
@@ -193,7 +193,7 @@ Symptom and side effect ratings by visit and configuration
 Several configurations per visit, so each visit contributes a run of points.
 The ticks are the configuration numbers, with each visit's date centred under its own
 configurations and a rule between visits. With scale targets set, green bands mark the
-two best configurations of each visit, ranked within that visit only: ratings taken
+two highest-scoring configurations of each visit, ranked within that visit only: ratings taken
 months apart reflect the patient's state as much as the settings, so they are not
 ranked against each other. The targets are printed under the figure, and the axis is
 fixed to the declared range.
@@ -228,28 +228,31 @@ Scale targets
 -------------
 
 Ranking configurations requires knowing what "better" means for each symptom and side effect
-rating, and
-only you know that. Each scale gets a mode:
+rating, and only you know that. Each rating gets a target, **Better when**, which starts as the
+target set for that rating in the symptom and side effect ratings settings (see
+:ref:`dialog-session-scales`); a rating not listed there starts as Lower. Changing it here applies
+to the session or the report at hand:
 
-``Min``
+Lower
    Lower is better, as for a symptom severity score.
 
-``Max``
+Higher
    Higher is better, as for a function or quality-of-life score.
 
-``Custom``
-   Closest to a stated value is better.
+Closest to
+   Closest to a stated value is better, as for Mood or Energy, where both too little and too
+   much are worse.
 
-``Ignore``
-   Not scored: counted as neutral, see below.
+Not ranked
+   Left out of the ranking.
 
-The aggregate index of a configuration is a weighted mean over the ratings taken at that
-configuration. Each scale with a target is normalised into its declared range, oriented
-by its target and clipped to 0-1, where 1 is best, and counts at full weight. A
-scale set to ``Ignore`` counts as a neutral 0.5 at half weight, so it neither
-helps nor harms a configuration. One scale with a target is enough to rank; with none,
-nothing is ranked. The report prints this definition and the bounds each scale
-was normalised into, so the number can be reproduced.
+The aggregate index of a configuration is the unweighted mean of its ranked ratings: each value
+is normalised into the rating's declared range, oriented by its target and clipped to 0-1, where
+1 is the highest score. A configuration is ranked only when every ranked rating of the visit was
+assessed there, so one rated on a single item is never shaded above configurations rated in full;
+it simply has no index. One rating with a target is enough to rank; with none, nothing is ranked.
+The report prints this definition and the bounds each rating was normalised into, so the number
+can be reproduced.
 
 .. _what-the-reports-do-not-say:
 
@@ -281,7 +284,7 @@ its target before exporting.
 **"Last configuration tested" is not "chosen".** It is the last configuration in the
 file, and a setting that was tried and rejected would appear there identically.
 Only a configuration the clinician confirmed as the final settings is called
-so, headed **Final settings (marked by the clinician)**.
+so, headed **Final settings**.
 
 **The numbers carry no instrument metadata.** The file stores no scale anchors,
 administration method or rater, so those cannot be reproduced from a report. A
