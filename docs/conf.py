@@ -1,4 +1,4 @@
-"""Sphinx configuration for the Wyss DBS Annotator documentation.
+"""Sphinx configuration for the DBS Annotator documentation.
 
 The application is written in Dart, so nothing here imports the software. Two
 consequences:
@@ -26,7 +26,7 @@ sys.path.insert(0, str(_HERE / "_ext"))
 # regex-scraping three strings that change approximately never out of Dart
 # source is more machinery than one duplicated line. Only the VERSION is
 # derived, because only the version changes every release.
-project = "Wyss DBS Annotator"
+project = "DBS Annotator"
 author = "Lucia Poma"
 _HOLDERS = (
     "Wyss Center for Bio and Neuroengineering, Massachusetts General Hospital, "

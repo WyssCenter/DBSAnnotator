@@ -1,4 +1,4 @@
-# Contributing to Wyss DBS Annotator
+# Contributing to DBS Annotator
 
 Contributions are welcome. This is research software for deep brain stimulation
 programming, so correctness and honesty about what the data supports matter more
@@ -125,7 +125,7 @@ tables and the sidecar example in `output_format` are rendered from
 
 ### Screenshots
 
-The 29 images under `docs/_static/screenshots/` are generated from widget tests,
+The 32 images under `docs/_static/screenshots/` are generated from widget tests,
 never edited by hand, and committed, because Read the Docs cannot run a Flutter
 SDK inside its build limits. To regenerate after a UI change:
 
@@ -155,21 +155,30 @@ a finder that stopped matching, or a dialog that moved.
 
 ### Videos
 
-The clips under `docs/_static/videos/` are recorded from the real Windows app
-while an integration test in `integration_test/videos/` drives it. Install
-ffmpeg once (`winget install Gyan.FFmpeg`), then:
+The docs have one video: a whole visit, at the top of the programming session
+page. The steps, the dialogs and the settings are documented with screenshots
+and text, so add a screenshot rather than another clip.
+
+The video is recorded from the real Windows app while an integration test in
+`integration_test/videos/` drives it. Install ffmpeg once
+(`winget install Gyan.FFmpeg`), then:
 
 ```powershell
 powershell -File tool/record_video.ps1 -Flow record_block
-powershell -File tool/record_video.ps1 -Flow reports
-powershell -File tool/record_video.ps1 -Flow step_session   # and step_devices,
-# step_initial, step_programming, step_finish: one clip per step
 ```
 
-A flow is `integration_test/videos/<flow>_test.dart`. The shared visit (OCD,
-VC/VS, 130 Hz, 90 µs, 5 to 8 mA) is in `visit.dart`. A step clip runs the
-earlier steps first and calls `rolling(tester)` where its recording starts.
-Keep the app window in front and untouched while a flow records.
+A flow is `integration_test/videos/<flow>_test.dart`. The visit it records
+(obsessive-compulsive disorder, VC/VS, 130 Hz, 90 µs, 5 mA on arrival, then 6
+and 7 mA and a steered right lead) is in `visit.dart`, with the synthetic
+Percept export it files before Finish. The recording starts where the flow
+calls `rolling(tester)`. Keep the app window in front and untouched while a
+flow records. To check a flow without recording it, run
+`flutter test integration_test/videos/record_block_test.dart -d windows`.
+
+Lines are spoken while the actions they describe run; a step changes only once
+the line before it has been said. The session report the flow exports is shown
+in the app's window, its pages rendered by `tool/pdf_pages.py` through `uvx`,
+because the recorder films that window only.
 
 Each flow lists what it says in an enum at the top of its test, and calls
 `say(...)` where each line applies. The script turns those lines into a

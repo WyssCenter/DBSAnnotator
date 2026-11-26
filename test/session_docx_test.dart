@@ -291,7 +291,7 @@ void main() {
       );
       final core = _part(bytes, 'docProps/core.xml');
       expect(core, contains('DBS session report - sub-01'));
-      expect(core, contains('Wyss DBS Annotator v'));
+      expect(core, contains('DBS Annotator v'));
 
       // Nothing in the document was signed; a machine-produced clinical record
       // that nobody stands behind is what a documentation committee objects to.
@@ -357,7 +357,7 @@ void main() {
 
       final footer = _part(bytes, 'word/footer1.xml');
       expect(footer, contains('sub-01'));
-      expect(footer, contains('Wyss DBS Annotator v'));
+      expect(footer, contains('DBS Annotator v'));
       // Field codes, not baked-in numbers, so they survive a reflow.
       expect(footer, contains('PAGE'));
       expect(footer, contains('NUMPAGES'));
@@ -484,7 +484,7 @@ void main() {
       // A report with no attribution is worse than a report with no sections.
       final doc = docFor({ReportSection.summary});
       expect(doc, contains('Patient: sub-01'));
-      expect(doc, contains('Wyss DBS Annotator - Session report'));
+      expect(doc, contains('DBS Annotator - Session report'));
     });
 
     test('the table can be dropped while keeping the figure heading', () {

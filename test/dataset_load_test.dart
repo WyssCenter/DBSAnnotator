@@ -308,7 +308,7 @@ void main() {
     expect(find.text('sub-01, ses-a'), findsOneWidget);
     expect(find.text('sub-01, ses-b'), findsOneWidget);
     expect(find.text('sub-02, ses-a'), findsNothing);
-    expect(find.text('All visits of sub-01'), findsOneWidget);
+    expect(find.text('Patient 01, 2 visits'), findsOneWidget);
     const several = 'Choose one run; several give a report across visits.';
     expect(find.text(several), findsOneWidget);
 

@@ -1,13 +1,8 @@
-/// Per-scale optimisation targets, the counterpart of the desktop export
-/// dialog's scale table (`export_dialog.py`).
+/// What "better" means for each rating, for the ranking of one session or
+/// report, and the column layout the rating dialogs share.
 ///
-/// These are what make the aggregate index, and so the green best and
-/// second-best bands, mean anything: "best" is defined only relative to what
-/// the clinician is trying to achieve. The default is `Min` on every scale
-/// with the bounds declared in Step 2, as the desktop dialog opens.
-///
-/// The entry-review figure and the export flow share one set of targets, so
-/// the figure on screen and the ranking in the report cannot disagree.
+/// The figure on screen and the report rank with the same targets, so they
+/// cannot disagree.
 library;
 
 import 'package:flutter/material.dart';
@@ -15,21 +10,153 @@ import 'package:flutter/services.dart';
 
 import '../core/session/scale_scoring.dart';
 
-/// Human label per mode, matching the desktop's radio labels.
+/// What each target means, shown on hover and in "Set all".
 const Map<ScaleMode, String> _modeLabels = {
   ScaleMode.min: 'Lower is better',
   ScaleMode.max: 'Higher is better',
-  ScaleMode.custom: 'Custom target',
-  ScaleMode.ignore: 'Ignore',
+  ScaleMode.custom: 'Closest to a value is better',
+  ScaleMode.ignore: 'Not counted in the ranking',
 };
 
-/// Short label for the compact dropdown.
+/// The target as the Better when column shows it.
 const Map<ScaleMode, String> _modeShort = {
-  ScaleMode.min: 'Lower is better',
-  ScaleMode.max: 'Higher is better',
-  ScaleMode.custom: 'Custom',
-  ScaleMode.ignore: 'Ignore',
+  ScaleMode.min: 'Lower',
+  ScaleMode.max: 'Higher',
+  ScaleMode.custom: 'Closest to',
+  ScaleMode.ignore: 'Not ranked',
 };
+
+/// Widths of the shared columns, before text scaling.
+const double kRangeWidth = 64;
+const double kTargetWidth = 150;
+const double kValueWidth = 72;
+
+/// [width] grown with the text size, so a label never outgrows its field.
+double scaledWidth(BuildContext context, double width) =>
+    MediaQuery.textScalerOf(context).scale(width);
+
+/// A number field [width] wide, showing [label] when [labelled], else naming
+/// itself to screen readers only, under a header that shows it.
+Widget numberField(
+  BuildContext context,
+  TextEditingController c,
+  String label, {
+  double width = kRangeWidth,
+  bool labelled = false,
+}) => SizedBox(
+  width: scaledWidth(context, width),
+  child: Semantics(
+    label: label,
+    child: TextField(
+      controller: c,
+      keyboardType: const TextInputType.numberWithOptions(
+        decimal: true,
+        signed: true,
+      ),
+      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[-0-9.]'))],
+      decoration: InputDecoration(
+        labelText: labelled ? label : null,
+        isDense: true,
+      ),
+    ),
+  ),
+);
+
+/// The header over one-line rows: [first] takes the rest of the width, then
+/// each column at its width, and [trailing] blank space for row buttons.
+Widget tableHeader(
+  BuildContext context,
+  String first,
+  List<(String, double)> columns, {
+  double trailing = 0,
+}) {
+  final style = Theme.of(context).textTheme.labelMedium
+      ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Row(
+      children: [
+        Expanded(child: Text(first, style: style)),
+        for (final (label, width) in columns) ...[
+          const SizedBox(width: 8),
+          SizedBox(
+            width: scaledWidth(context, width),
+            child: Text(label, style: style),
+          ),
+        ],
+        if (trailing > 0) SizedBox(width: trailing),
+      ],
+    ),
+  );
+}
+
+/// The target of one rating, and the value to get close to when it is
+/// Closest to; the value's column is kept empty otherwise, so rows line up.
+class TargetFields extends StatelessWidget {
+  const TargetFields({
+    super.key,
+    required this.mode,
+    required this.custom,
+    required this.onChanged,
+    this.labelled = false,
+  });
+
+  final ScaleMode mode;
+  final TextEditingController custom;
+  final ValueChanged<ScaleMode> onChanged;
+
+  /// Whether the fields show their own labels, where no header names them.
+  final bool labelled;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      SizedBox(
+        width: scaledWidth(context, kTargetWidth),
+        child: Semantics(
+          label: 'Better when',
+          child: DropdownButtonFormField<ScaleMode>(
+            key: ValueKey(mode),
+            initialValue: mode,
+            isDense: true,
+            isExpanded: true,
+            style: Theme.of(context).textTheme.bodyLarge,
+            decoration: InputDecoration(
+              labelText: labelled ? 'Better when' : null,
+              isDense: true,
+            ),
+            items: [
+              for (final m in ScaleMode.values)
+                DropdownMenuItem(
+                  value: m,
+                  child: Tooltip(
+                    message: _modeLabels[m]!,
+                    child: Text(
+                      _modeShort[m]!,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+            ],
+            onChanged: (m) => onChanged(m ?? mode),
+          ),
+        ),
+      ),
+      const SizedBox(width: 8),
+      if (mode == ScaleMode.custom)
+        numberField(
+          context,
+          custom,
+          'Value',
+          width: kValueWidth,
+          labelled: labelled,
+        )
+      else
+        SizedBox(width: scaledWidth(context, kValueWidth)),
+    ],
+  );
+}
 
 /// Edit [prefs]; returns the new list, or null if cancelled.
 Future<List<ScalePref>?> showScaleTargetsDialog(
@@ -113,7 +240,7 @@ class _ScaleTargetsDialogState extends State<_ScaleTargetsDialog> {
     return AlertDialog(
       title: const Text('Scale targets'),
       content: SizedBox(
-        width: 520,
+        width: 552,
         child: _rows.isEmpty
             ? const Text('No symptom and side effect ratings yet.')
             : Column(
@@ -122,9 +249,11 @@ class _ScaleTargetsDialogState extends State<_ScaleTargetsDialog> {
                 children: [
                   Text(
                     'How each rating is scored when ranking the '
-                    'configurations. The two configurations with the most '
-                    'favourable scores are shaded. This is a score ranking '
-                    'only; it ignores side effects and notes.',
+                    'configurations. The two with the highest scores are '
+                    'shaded, and only configurations rated on every ranked '
+                    'rating are ranked. The ranking ignores the notes. These '
+                    'targets apply to this session or report only; the '
+                    'defaults are in Symptom and side effect ratings.',
                     style: theme.textTheme.bodySmall,
                   ),
                   const SizedBox(height: 8),
@@ -137,16 +266,38 @@ class _ScaleTargetsDialogState extends State<_ScaleTargetsDialog> {
                       for (final m in [ScaleMode.min, ScaleMode.max])
                         OutlinedButton(
                           onPressed: () => _setAll(m),
-                          child: Text(_modeShort[m]!),
+                          child: Text(_modeLabels[m]!),
                         ),
                     ],
                   ),
                   const Divider(),
                   Flexible(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        children: [for (final r in _rows) _rowTile(r, theme)],
-                      ),
+                    child: LayoutBuilder(
+                      builder: (context, box) {
+                        final wide =
+                            box.maxWidth - scaledWidth(context, _fixed) >= 140;
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (wide) tableHeader(context, 'Rating', _columns),
+                            Flexible(
+                              child: SingleChildScrollView(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    for (final r in _rows)
+                                      wide
+                                          ? _rowTile(r, theme)
+                                          : _wrappedTile(r, theme),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -160,13 +311,24 @@ class _ScaleTargetsDialogState extends State<_ScaleTargetsDialog> {
         FilledButton(
           onPressed: () =>
               Navigator.pop(context, [for (final r in _rows) r.toPref()]),
-          child: const Text('Apply'),
+          child: const Text('Save'),
         ),
       ],
     );
   }
 
-  Widget _rowTile(_Row row, ThemeData theme) => Padding(
+  static const _columns = [
+    ('Min', kRangeWidth),
+    ('Max', kRangeWidth),
+    ('Better when', kTargetWidth),
+    ('Value', kValueWidth),
+  ];
+
+  /// The columns' total width with their gaps, before text scaling.
+  static final double _fixed = _columns.fold(0.0, (w, c) => w + 8 + c.$2);
+
+  /// A row on a narrow window: the name, then its labelled fields wrapped.
+  Widget _wrappedTile(_Row row, ThemeData theme) => Padding(
     padding: const EdgeInsets.only(bottom: 10),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -176,49 +338,37 @@ class _ScaleTargetsDialogState extends State<_ScaleTargetsDialog> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            _numField(row.min, 'Min'),
-            _numField(row.max, 'Max'),
-            SizedBox(
-              width: _scaled(210),
-              child: DropdownButtonFormField<ScaleMode>(
-                initialValue: row.mode,
-                isDense: true,
-                decoration: const InputDecoration(labelText: 'Target'),
-                items: [
-                  for (final m in ScaleMode.values)
-                    DropdownMenuItem(
-                      value: m,
-                      child: Tooltip(
-                        message: _modeLabels[m]!,
-                        child: Text(_modeShort[m]!),
-                      ),
-                    ),
-                ],
-                onChanged: (m) => setState(() => row.mode = m ?? row.mode),
-              ),
+            numberField(context, row.min, 'Min', labelled: true),
+            numberField(context, row.max, 'Max', labelled: true),
+            TargetFields(
+              mode: row.mode,
+              custom: row.custom,
+              labelled: true,
+              onChanged: (m) => setState(() => row.mode = m),
             ),
-            if (row.mode == ScaleMode.custom) _numField(row.custom, 'Value'),
           ],
         ),
       ],
     ),
   );
 
-  /// [width] grown with the text size, so a label never outgrows its field.
-  double _scaled(double width) => MediaQuery.textScalerOf(context).scale(width);
-
-  Widget _numField(TextEditingController c, String label) => SizedBox(
-    width: _scaled(88),
-    child: TextField(
-      controller: c,
-      keyboardType: const TextInputType.numberWithOptions(
-        decimal: true,
-        signed: true,
-      ),
-      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[-0-9.]'))],
-      decoration: InputDecoration(labelText: label, isDense: true),
+  Widget _rowTile(_Row row, ThemeData theme) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      children: [
+        Expanded(child: Text(row.pref.name, style: theme.textTheme.bodyLarge)),
+        const SizedBox(width: 8),
+        numberField(context, row.min, '${row.pref.name} minimum'),
+        const SizedBox(width: 8),
+        numberField(context, row.max, '${row.pref.name} maximum'),
+        const SizedBox(width: 8),
+        TargetFields(
+          mode: row.mode,
+          custom: row.custom,
+          onChanged: (m) => setState(() => row.mode = m),
+        ),
+      ],
     ),
   );
 }

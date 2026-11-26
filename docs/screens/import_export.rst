@@ -13,18 +13,6 @@ to add, and only after you have confirmed the list of files.
 The whole step scrolls as one page, so a long session table never squeezes the
 rest.
 
-.. raw:: html
-
-   <video controls playsinline preload="metadata" width="100%"
-          poster="../_static/videos/reports.png">
-     <source src="../_static/videos/reports.mp4" type="video/mp4">
-     <track kind="captions" src="../_static/videos/reports.vtt" srclang="en"
-            label="English" default>
-   </video>
-
-Two visits of one patient listed, the sections of the report across visits
-chosen, the scale targets it ranks by, then the export.
-
 .. _load-from-dataset:
 
 Reading the BIDS folder
@@ -119,7 +107,7 @@ is available and the preview shows the two figures of the report across
 visits, exactly as the report will draw them. The first is the clinical scales
 of each visit's initial assessment, one point per visit. The second is the
 symptom and side effect ratings: every configuration of every visit, grouped
-under the visit's date, with the two best configurations of each visit banded.
+under the visit's date, with the two highest-scoring configurations of each visit banded.
 Each figure has its own zoom buttons, for a long history where the
 configurations crowd together.
 
@@ -312,8 +300,8 @@ every time. Three of them start unticked, because they add pages:
   is roughly a page and a half of images.
 * **Programming summary** gives the parameters used at each visit.
 
-Scale targets do two things here. They mark the two best configurations
-across **all** visits together, banded in the session-scales figure and shaded in
+Scale targets do two things here. They mark the two highest-scoring configurations
+of each visit, banded in the session-scales figure and shaded in
 the per-visit tables, and they fix the y axis to the declared range instead of
 fitting it to the data, so a scale sits on the same axis at every visit and a
 drop between visits is a drop rather than a rescale. The ranking is meaningful

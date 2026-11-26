@@ -2,24 +2,34 @@ import 'dart:math' show min;
 
 import 'package:flutter/material.dart';
 
+import '../app_info.dart';
 import '../core/session/scale_presets.dart';
+import '../core/session/scale_scoring.dart';
+import 'scale_targets_dialog.dart';
 
-/// Shown at the top of both scale settings dialogs.
+/// Shown under the table of both scale dialogs.
 const String kScaleLicenceNotice =
     'You can add other scales. Some, such as the MDS-UPDRS, need a licence '
     'from their owner: you are responsible for the scales you use.';
 
-/// Edit the clinical scale presets (disease group -> scale names) and each
-/// scale's range, mirroring the desktop `ClinicalScalesSettingsDialog`. The
-/// range only sets the clinical figure's y axis, so it may be left blank.
-/// Returns the edited groups and ranges on Save & Close, or null on Cancel.
+/// Edit the clinical scales offered per DBS indication and each scale's range,
+/// which only sets the clinical figure's axis and may be left blank. The
+/// dialog opens on [initial]; Add indication offers the [indications] without
+/// scales yet; Restore defaults puts back those of [defaults]. Returns the
+/// scales per indication and the ranges on Save, or null on Cancel.
 Future<({Map<String, List<String>> groups, Map<String, List<String>> ranges})?>
 showClinicalPresetsDialog(
   BuildContext context, {
   required Map<String, List<String>> presets,
   Map<String, ScaleRange> ranges = const {},
+  required ScalePresets defaults,
+  required List<String> indications,
+  String? initial,
 }) async {
-  final groups = [
+  List<_Group> groups(
+    Map<String, List<String>> presets,
+    Map<String, ScaleRange> ranges,
+  ) => [
     for (final e in presets.entries)
       _Group(e.key, [
         for (final n in e.value)
@@ -33,14 +43,16 @@ showClinicalPresetsDialog(
   final out = await showDialog<Map<String, List<List<String>>>>(
     context: context,
     builder: (_) => _ScalePresetsDialog(
-      title: 'Clinical scales settings',
+      title: 'Clinical scales',
+      section: 'clinical-scales',
       isSession: false,
-      groups: groups,
+      groups: groups(presets, ranges),
+      defaults: () => groups(defaults.clinical, defaults.clinicalRanges),
+      indications: indications,
+      initial: initial,
     ),
   );
   if (out == null) return null;
-  // Clinical rows are [name, min, max]: the names per group, and one range per
-  // scale wherever both bounds were given.
   return (
     groups: {
       for (final e in out.entries) e.key: [for (final r in e.value) r[0]],
@@ -53,15 +65,19 @@ showClinicalPresetsDialog(
   );
 }
 
-/// Edit the session scale presets (disease group -> (name,min,max,mode) rows),
-/// mirroring the desktop `SessionScalesSettingsDialog`. The report optimization
-/// [mode] is preserved (hidden) so rows stay interchangeable with the desktop.
-/// Returns `{group: [[name,min,max,mode], …]}` on Save & Close, else null.
+/// Edit the symptom and side effect ratings offered per DBS indication: each
+/// rating's range, steps and target. Opens on [initial]; Add indication offers
+/// the [indications] without ratings yet; Restore defaults puts back those of
+/// [defaults]. Returns `{indication: [[name,min,max,mode,step,custom], …]}` on
+/// Save, trailing empty cells dropped, else null.
 Future<Map<String, List<List<String>>>?> showSessionPresetsDialog(
   BuildContext context, {
   required Map<String, List<SessionScaleRow>> presets,
+  required ScalePresets defaults,
+  required List<String> indications,
+  String? initial,
 }) {
-  final groups = [
+  List<_Group> groups(Map<String, List<SessionScaleRow>> presets) => [
     for (final e in presets.entries)
       _Group(e.key, [
         for (final r in e.value)
@@ -71,6 +87,7 @@ Future<Map<String, List<List<String>>>?> showSessionPresetsDialog(
             max: r.max,
             mode: r.mode,
             step: r.step,
+            custom: r.custom,
           ),
       ]),
   ];
@@ -78,14 +95,29 @@ Future<Map<String, List<List<String>>>?> showSessionPresetsDialog(
     context: context,
     builder: (_) => _ScalePresetsDialog(
       title: 'Symptom and side effect ratings',
+      section: 'symptom-and-side-effect-ratings',
       isSession: true,
-      groups: groups,
+      groups: groups(presets),
+      defaults: () => groups(defaults.session),
+      indications: indications,
+      initial: initial,
     ),
   );
 }
 
-/// One editable scale row. The report [mode] is carried through unchanged
-/// (defaulting for new rows) and only session rows use it.
+/// The steps a rating moves in, by its step cell.
+const Map<String, String> _steps = {
+  '1': 'Whole points',
+  '0.5': 'Half points',
+  '': 'Any value',
+};
+
+/// Widths of the session-only columns, before text scaling.
+const double _stepsWidth = 136;
+const double _removeWidth = 48;
+
+/// One editable scale row. Only session rows use the target ([mode] and
+/// [custom]) and the [step].
 class _ScaleRow {
   _ScaleRow({
     String name = '',
@@ -93,15 +125,18 @@ class _ScaleRow {
     String max = '10',
     this.mode = defaultScaleOptimizationMode,
     this.step = '',
+    String custom = '',
   }) {
     this.name.text = name;
     this.min.text = min;
     this.max.text = max;
+    this.custom.text = custom;
   }
 
   final name = TextEditingController();
   final min = TextEditingController();
   final max = TextEditingController();
+  final custom = TextEditingController();
   String mode;
   String step;
 
@@ -109,19 +144,18 @@ class _ScaleRow {
     name.dispose();
     min.dispose();
     max.dispose();
+    custom.dispose();
   }
 }
 
+/// The scales of one DBS indication.
 class _Group {
-  _Group(String name, this.rows) {
-    this.name.text = name;
-  }
+  _Group(this.indication, this.rows);
 
-  final name = TextEditingController();
-  List<_ScaleRow> rows;
+  final String indication;
+  final List<_ScaleRow> rows;
 
   void dispose() {
-    name.dispose();
     for (final r in rows) {
       r.dispose();
     }
@@ -131,13 +165,24 @@ class _Group {
 class _ScalePresetsDialog extends StatefulWidget {
   const _ScalePresetsDialog({
     required this.title,
+    required this.section,
     required this.isSession,
     required this.groups,
+    required this.defaults,
+    required this.indications,
+    this.initial,
   });
 
   final String title;
+  final String section;
   final bool isSession;
   final List<_Group> groups;
+
+  /// Fresh groups of the scales the app comes with.
+  final List<_Group> Function() defaults;
+
+  final List<String> indications;
+  final String? initial;
 
   @override
   State<_ScalePresetsDialog> createState() => _ScalePresetsDialogState();
@@ -145,14 +190,17 @@ class _ScalePresetsDialog extends StatefulWidget {
 
 class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
   late final List<_Group> _groups = widget.groups;
-  int _selected = 0;
+  late int _selected = _groups.isEmpty
+      ? -1
+      : _groups
+            .indexWhere((g) => g.indication == widget.initial)
+            .clamp(0, _groups.length - 1);
   String? _error;
 
-  @override
-  void initState() {
-    super.initState();
-    if (_groups.isEmpty) _selected = -1;
-  }
+  /// Indications deleted here, saved as empty so they stay deleted.
+  final _deleted = <String>{};
+
+  String get _noun => widget.isSession ? 'rating' : 'scale';
 
   @override
   void dispose() {
@@ -162,43 +210,105 @@ class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
     super.dispose();
   }
 
-  Future<void> _addGroup() async {
-    final name = await _promptText(context, 'New preset group', 'Group name');
-    if (name == null || name.trim().isEmpty) return;
-    setState(() {
-      _groups.add(_Group(name.trim(), [_newRow()]));
-      _selected = _groups.length - 1;
-    });
-  }
+  /// The indications that have no scales here yet.
+  List<String> get _available => [
+    for (final i in widget.indications)
+      if (!_groups.any((g) => g.indication == i)) i,
+  ];
+
+  void _addGroup(String indication) => setState(() {
+    _deleted.remove(indication);
+    _groups.add(_Group(indication, [_newRow()]));
+    _selected = _groups.length - 1;
+  });
 
   /// A new row: 0 to 10 for a session scale, no range for a clinical one.
   _ScaleRow _newRow() =>
       widget.isSession ? _ScaleRow() : _ScaleRow(min: '', max: '');
 
-  void _deleteGroup(int i) {
+  void _restore() => setState(() {
+    final shown = _selected < 0 ? null : _groups[_selected].indication;
+    for (final g in _groups) {
+      g.dispose();
+    }
+    _groups
+      ..clear()
+      ..addAll(widget.defaults());
+    _deleted.clear();
+    _selected = _groups.isEmpty
+        ? -1
+        : _groups
+              .indexWhere((g) => g.indication == shown)
+              .clamp(0, _groups.length - 1);
+    _error = null;
+  });
+
+  Future<void> _deleteGroup() async {
+    final g = _groups[_selected];
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete the ${_noun}s of ${g.indication}?'),
+        content: Text(
+          'New sessions for ${g.indication} then start without ${_noun}s. '
+          'Saved sessions are not changed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (yes != true || !mounted) return;
     setState(() {
-      _groups.removeAt(i).dispose();
-      _selected = _groups.isEmpty ? -1 : i.clamp(0, _groups.length - 1);
+      _deleted.add(g.indication);
+      _groups.removeAt(_selected).dispose();
+      _selected = _groups.isEmpty ? -1 : _selected.clamp(0, _groups.length - 1);
     });
+  }
+
+  /// Why [r] cannot be saved, or null.
+  String? _problem(_ScaleRow r, String name) {
+    final lo = r.min.text.trim();
+    final hi = r.max.text.trim();
+    if (!widget.isSession && lo.isEmpty && hi.isEmpty) return null;
+    final (low, high) = (double.tryParse(lo), double.tryParse(hi));
+    if (low == null || high == null) {
+      return '$name needs a number for Min and for Max.';
+    }
+    if (low >= high) return '$name: Min must be below Max.';
+    if (widget.isSession && r.mode == ScaleMode.custom.name) {
+      final v = double.tryParse(r.custom.text.trim());
+      if (v == null || v < low || v > high) {
+        return '$name needs a value from $lo to $hi to be closest to.';
+      }
+    }
+    return null;
   }
 
   void _save() {
     final out = <String, List<List<String>>>{};
     for (final g in _groups) {
-      final name = g.name.text.trim();
-      final problem = name.isEmpty
-          ? 'A preset group has no name.'
-          : out.containsKey(name)
-          ? 'Two preset groups are named "$name".'
-          : null;
-      if (problem != null) {
-        setState(() => _error = 'Not saved: $problem');
-        return;
-      }
       final rows = <List<String>>[];
       for (final r in g.rows) {
         final n = r.name.text.trim();
         if (n.isEmpty) continue;
+        if (_problem(r, n) case final problem?) {
+          setState(() {
+            _selected = _groups.indexOf(g);
+            _error = 'Not saved: $problem';
+          });
+          return;
+        }
+        final custom = r.mode == ScaleMode.custom.name
+            ? r.custom.text.trim()
+            : '';
         rows.add(
           widget.isSession
               ? [
@@ -206,226 +316,269 @@ class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
                   r.min.text.trim(),
                   r.max.text.trim(),
                   r.mode,
-                  if (r.step.isNotEmpty) r.step,
+                  if (r.step.isNotEmpty || custom.isNotEmpty) r.step,
+                  if (custom.isNotEmpty) custom,
                 ]
               : [n, r.min.text.trim(), r.max.text.trim()],
         );
       }
-      out[name] = rows;
+      out[g.indication] = rows;
+    }
+    for (final d in _deleted) {
+      out.putIfAbsent(d, () => []);
     }
     Navigator.pop(context, out);
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final error = _error;
     final screen = MediaQuery.sizeOf(context);
     return AlertDialog(
-      title: Text(widget.title),
-      constraints: widget.isSession ? const BoxConstraints() : null,
+      title: DefaultsTitle(widget.title, section: widget.section),
+      constraints: const BoxConstraints(),
       content: SizedBox(
-        width: widget.isSession ? min(880, screen.width - 112) : 560,
-        height: 460,
+        width: min(widget.isSession ? 920 : 640, screen.width - 112),
+        height: min(560, screen.height - 240),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                kScaleLicenceNotice,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
+            _indicationBar(),
+            const SizedBox(height: 12),
             Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(width: 180, child: _groupList()),
-                  const VerticalDivider(width: 16),
-                  Expanded(child: _editor()),
-                ],
-              ),
+              child: _selected < 0
+                  ? Center(
+                      child: Text(
+                        'No indication has ${_noun}s yet. Add one with Add '
+                        'indication.',
+                      ),
+                    )
+                  : _table(_groups[_selected]),
+            ),
+            Text(
+              widget.isSession
+                  ? 'The defaults for new sessions. Saving also updates the '
+                        "open session's ratings. $kScaleLicenceNotice"
+                  : 'The range only sets the axis of the clinical figure and '
+                        'may be left empty. $kScaleLicenceNotice',
+              style: theme.textTheme.bodySmall,
             ),
             if (error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   error,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  style: TextStyle(color: theme.colorScheme.error),
                 ),
               ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(onPressed: _save, child: const Text('Save & Close')),
-      ],
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      actions: picklistActions(context, onRestore: _restore, onSave: _save),
     );
   }
 
-  Widget _groupList() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+  /// The indication shown, with Delete, and Add indication.
+  Widget _indicationBar() {
+    final available = _available;
+    return Row(
       children: [
-        Expanded(
-          child: _groups.isEmpty
-              ? const Center(child: Text('No groups'))
-              : ListView.builder(
-                  itemCount: _groups.length,
-                  itemBuilder: (_, i) => ListTile(
-                    dense: true,
-                    selected: i == _selected,
-                    title: Text(
-                      _groups[i].name.text.isEmpty
-                          ? '(unnamed)'
-                          : _groups[i].name.text,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text('${_groups[i].rows.length} scales'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 20),
-                      tooltip: 'Delete group',
-                      onPressed: () => _deleteGroup(i),
-                    ),
-                    onTap: () => setState(() => _selected = i),
-                  ),
+        if (_groups.isNotEmpty) ...[
+          DropdownMenu<int>(
+            key: ValueKey('$_selected/${_groups.length}'),
+            width: scaledWidth(context, 340),
+            label: const Text('DBS indication'),
+            initialSelection: _selected,
+            requestFocusOnTap: false,
+            dropdownMenuEntries: [
+              for (final (i, g) in _groups.indexed)
+                DropdownMenuEntry(
+                  value: i,
+                  label: '${g.indication} (${g.rows.length})',
                 ),
-        ),
-        TextButton.icon(
-          onPressed: _addGroup,
-          icon: const Icon(Icons.add),
-          label: const Text('Add group'),
-        ),
-      ],
-    );
-  }
-
-  Widget _editor() {
-    if (_selected < 0 || _selected >= _groups.length) {
-      return const Center(child: Text('Select or add a group to edit.'));
-    }
-    final g = _groups[_selected];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TextField(
-          controller: g.name,
-          decoration: const InputDecoration(
-            labelText: 'Group name',
-            isDense: true,
-          ),
-          // Keep the left-hand list label in sync while typing.
-          onChanged: (_) => setState(() {}),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: ListView.builder(
-            itemCount: g.rows.length,
-            itemBuilder: (_, i) => _rowEditor(g.rows[i], g),
-          ),
-        ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: () => setState(() => g.rows.add(_newRow())),
-            icon: const Icon(Icons.add),
-            label: const Text('Add scale'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _rowEditor(_ScaleRow r, _Group g) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: r.name,
-              decoration: const InputDecoration(
-                labelText: 'Scale name',
-                isDense: true,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(width: 64, child: _numField(r.min, 'Min')),
-          const SizedBox(width: 8),
-          SizedBox(width: 64, child: _numField(r.max, 'Max')),
-          if (widget.isSession) ...[
-            const SizedBox(width: 8),
-            Tooltip(
-              message:
-                  'Discrete: whole points only, such as a 0 to 4 item. '
-                  'Continuous: any value on the bar.',
-              child: SegmentedButton<bool>(
-                showSelectedIcon: false,
-                style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                segments: const [
-                  ButtonSegment(value: true, label: Text('Discrete')),
-                  ButtonSegment(value: false, label: Text('Continuous')),
-                ],
-                selected: {r.step.isNotEmpty},
-                onSelectionChanged: (v) =>
-                    setState(() => r.step = v.first ? '1' : ''),
-              ),
-            ),
-          ],
-          IconButton(
-            icon: const Icon(Icons.remove_circle_outline),
-            tooltip: 'Remove scale',
-            onPressed: () => setState(() {
-              g.rows.remove(r);
-              r.dispose();
+            ],
+            onSelected: (i) => setState(() {
+              _selected = i ?? _selected;
+              _error = null;
             }),
           ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Delete the ${_noun}s of this indication',
+            onPressed: _deleteGroup,
+          ),
         ],
-      ),
+        const Spacer(),
+        MenuAnchor(
+          menuChildren: [
+            for (final i in available)
+              MenuItemButton(onPressed: () => _addGroup(i), child: Text(i)),
+          ],
+          builder: (context, menu, _) => TextButton.icon(
+            onPressed: available.isEmpty
+                ? null
+                : () => menu.isOpen ? menu.close() : menu.open(),
+            icon: const Icon(Icons.add),
+            label: const Text('Add indication'),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _numField(TextEditingController c, String label) => TextField(
-    controller: c,
-    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-    decoration: InputDecoration(labelText: label, isDense: true),
+  /// The scales of [g] under one header, one line each, or two lines each
+  /// when the window is too narrow for the columns.
+  Widget _table(_Group g) => LayoutBuilder(
+    builder: (context, box) {
+      final columns = [
+        ('Min', kRangeWidth),
+        ('Max', kRangeWidth),
+        if (widget.isSession) ...[
+          ('Steps', _stepsWidth),
+          ('Better when', kTargetWidth),
+          ('Value', kValueWidth),
+        ],
+      ];
+      final fixed = columns.fold(0.0, (w, c) => w + 8 + c.$2);
+      final wide =
+          !widget.isSession ||
+          box.maxWidth - scaledWidth(context, fixed) - _removeWidth >= 160;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (wide)
+            tableHeader(
+              context,
+              widget.isSession ? 'Rating' : 'Scale',
+              columns,
+              trailing: _removeWidth,
+            ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: g.rows.length,
+              itemBuilder: (_, i) =>
+                  wide ? _line(g.rows[i], g) : _twoLines(g.rows[i], g),
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => setState(() => g.rows.add(_newRow())),
+              icon: const Icon(Icons.add),
+              label: Text('Add $_noun'),
+            ),
+          ),
+        ],
+      );
+    },
   );
-}
 
-/// Small single-field text prompt (used for a new group name).
-Future<String?> _promptText(
-  BuildContext context,
-  String title,
-  String label,
-) async {
-  final ctrl = TextEditingController();
-  final result = await showDialog<String>(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: Text(title),
-      content: TextField(
-        controller: ctrl,
-        autofocus: true,
-        decoration: InputDecoration(labelText: label, isDense: true),
-        onSubmitted: (v) => Navigator.pop(context, v.trim()),
+  Widget _name(_ScaleRow r, {bool labelled = false}) => Semantics(
+    label: widget.isSession ? 'Rating' : 'Scale',
+    child: TextField(
+      controller: r.name,
+      decoration: InputDecoration(
+        labelText: labelled ? (widget.isSession ? 'Rating' : 'Scale') : null,
+        isDense: true,
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+    ),
+  );
+
+  Widget _remove(_ScaleRow r, _Group g) => SizedBox(
+    width: _removeWidth,
+    child: IconButton(
+      icon: const Icon(Icons.remove_circle_outline),
+      tooltip: 'Remove $_noun',
+      onPressed: () => setState(() {
+        g.rows.remove(r);
+        r.dispose();
+      }),
+    ),
+  );
+
+  Widget _stepsField(_ScaleRow r, {bool labelled = false}) => SizedBox(
+    width: scaledWidth(context, _stepsWidth),
+    child: Semantics(
+      label: 'Steps',
+      child: DropdownButtonFormField<String>(
+        key: ValueKey(r.step),
+        initialValue: r.step,
+        isDense: true,
+        isExpanded: true,
+        style: Theme.of(context).textTheme.bodyLarge,
+        decoration: InputDecoration(
+          labelText: labelled ? 'Steps' : null,
+          isDense: true,
         ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-          child: const Text('OK'),
+        items: [
+          for (final MapEntry(:key, :value) in {
+            ..._steps,
+            if (!_steps.containsKey(r.step)) r.step: 'Steps of ${r.step}',
+          }.entries)
+            DropdownMenuItem(
+              value: key,
+              child: Text(value, overflow: TextOverflow.ellipsis),
+            ),
+        ],
+        onChanged: (v) => setState(() => r.step = v ?? r.step),
+      ),
+    ),
+  );
+
+  TargetFields _target(_ScaleRow r, {bool labelled = false}) => TargetFields(
+    mode: scaleModeFromString(r.mode),
+    custom: r.custom,
+    labelled: labelled,
+    onChanged: (m) => setState(() => r.mode = m.name),
+  );
+
+  Widget _line(_ScaleRow r, _Group g) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      children: [
+        Expanded(child: _name(r)),
+        const SizedBox(width: 8),
+        numberField(context, r.min, 'Min'),
+        const SizedBox(width: 8),
+        numberField(context, r.max, 'Max'),
+        if (widget.isSession) ...[
+          const SizedBox(width: 8),
+          _stepsField(r),
+          const SizedBox(width: 8),
+          _target(r),
+        ],
+        _remove(r, g),
+      ],
+    ),
+  );
+
+  Widget _twoLines(_ScaleRow r, _Group g) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: _name(r, labelled: true)),
+            const SizedBox(width: 8),
+            numberField(context, r.min, 'Min', labelled: true),
+            const SizedBox(width: 8),
+            numberField(context, r.max, 'Max', labelled: true),
+            _remove(r, g),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _stepsField(r, labelled: true),
+            _target(r, labelled: true),
+          ],
         ),
       ],
     ),
   );
-  ctrl.dispose();
-  return result;
 }

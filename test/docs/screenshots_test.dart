@@ -107,6 +107,7 @@ const _textDialogs = {
   'dialog_bids_not_dataset',
   'dialog_keep_recovery',
   'dialog_reopen_unfinished',
+  'dialog_restore_lists',
 };
 
 /// The tallest window a capture may use before it has to become a region.
@@ -130,7 +131,7 @@ const _fixture = exampleFixture;
 const _defaultModel = 'Medtronic SenSight B33005';
 const _subjectId = '01';
 const _runId = '01';
-const _preset = 'OCD';
+const _preset = 'Obsessive-compulsive disorder';
 const _frequency = '130';
 const _amplitude = '5';
 const _pulseWidth = '90';
@@ -872,7 +873,7 @@ void main() {
                           : CrossAxisAlignment.center,
                       children: [
                         Text(
-                          'Wyss DBS Annotator',
+                          'DBS Annotator',
                           textAlign: align,
                           style: text(54, 0xFFFFFFFF, FontWeight.bold),
                         ),
@@ -991,6 +992,8 @@ void main() {
     );
     await _tapTooltip(tester, 'Open navigation menu');
     await _shootFitted(tester, 'session_drawer', width: _narrow, height: 1000);
+    await _tapText(tester, 'Restore default lists');
+    await _shootDialog(tester, 'dialog_restore_lists');
   });
 
   testWidgets('session: initial configuration', (tester) async {
@@ -1180,7 +1183,10 @@ void main() {
       ),
     );
     await _choosePathology(tester);
-    await _tapTooltip(tester, 'Devices settings');
+    await _tapTooltip(tester, 'Edit DBS indications');
+    await _shootDialog(tester, 'dialog_indications');
+    await _tapText(tester, 'Cancel');
+    await _tapTooltip(tester, 'Edit leads and IPGs');
     await _shootDialog(tester, 'dialog_devices');
     await _tapTooltip(tester, 'Lead design');
     await _shootDialog(tester, 'dialog_lead_design');
@@ -1189,13 +1195,50 @@ void main() {
 
     for (final entry in const [
       ('Edit programs', 'dialog_programs'),
-      ('Default settings per DBS indication', 'dialog_parameter_presets'),
-      ('Settings clinical scales', 'dialog_clinical_scales'),
+      ('Edit stimulation defaults', 'dialog_parameter_presets'),
+      ('Edit clinical scales', 'dialog_clinical_scales'),
     ]) {
       await _tapTooltip(tester, entry.$1);
       await _shootDialog(tester, entry.$2);
       await _tapText(tester, 'Cancel');
     }
+  });
+
+  testWidgets('dialogs: storage folders', (tester) async {
+    final (catalog, limits, presets) = await _contracts();
+    final temp = Directory.systemTemp.createTempSync('dbs_shots');
+    addTearDown(() => temp.deleteSync(recursive: true));
+    File('${temp.path}/dbs_user_prefs.json').writeAsStringSync(
+      jsonEncode({
+        'bids_folders': [
+          {'name': 'OCD-DBS', 'path': r'D:\Studies\OCD-DBS'},
+          {
+            'name': 'Movement disorders',
+            'path': r'D:\Studies\Movement disorders',
+          },
+        ],
+        'default_bids_folder': 'OCD-DBS',
+      }),
+    );
+    debugPrefsDir = temp;
+    addTearDown(() => debugPrefsDir = null);
+    await _pump(
+      tester,
+      SessionScreen(
+        catalog: catalog,
+        limits: limits,
+        scalePresets: presets,
+        authoring: SessionAuthoring(),
+      ),
+    );
+    await settleUntil(
+      tester,
+      temp,
+      () => find.text('OCD-DBS').evaluate().isNotEmpty,
+    );
+    await _tapTooltip(tester, 'Open navigation menu');
+    await _tapText(tester, 'Storage folders (BIDS)');
+    await _shootDialog(tester, 'dialog_bids_folders');
   });
 
   testWidgets('dialogs: session scales settings', (tester) async {
@@ -1212,9 +1255,11 @@ void main() {
     await _choosePathology(tester);
     await _next(tester);
     await _next(tester);
-    await _tapTooltip(tester, 'Settings session scales');
+    await _tapTooltip(tester, 'Edit symptom and side effect ratings');
     // Unlike the clinical variant, each row here carries a Min and a Max,
     // which is why both dialogs are documented rather than one.
+    await tester.drag(find.byType(ListView).last, const Offset(0, -600));
+    await tester.pumpAndSettle();
     await _shootDialog(tester, 'dialog_session_scales');
   });
 

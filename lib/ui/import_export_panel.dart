@@ -88,6 +88,7 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
   final _revision = ValueNotifier(0);
   int _visibleConfigs = kDefaultVisibleConfigs;
   Map<String, (double, double)> _ranges = const {};
+  Map<String, ScalePref> _known = const {};
 
   ElectrodeCatalog? _catalog;
   UserPrefs _ownPrefs = UserPrefs();
@@ -118,6 +119,9 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
     if (widget.initialFiles == null) _load();
     clinicalRanges(_prefs).then((r) {
       if (mounted) _changed(() => _ranges = r);
+    });
+    ratingTargets(_prefs).then((t) {
+      if (mounted) _changed(() => _known = t);
     });
   }
 
@@ -213,19 +217,22 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
     final subjects = {
       for (final f in _visits) BidsName.parse(f.name)?.subject ?? '',
     };
+    final visits = {
+      for (final f in _visits) BidsName.parse(f.name)?.session ?? f.name,
+    }.length;
     return subjects.length == 1 && subjects.single.isNotEmpty
-        ? 'All visits of sub-${subjects.single}'
+        ? 'Patient ${subjects.single}, $visits ${visits == 1 ? 'visit' : 'visits'}'
         : 'All visits';
   }
 
-  /// The targets set, else the defaults the targets dialog offers, so a
-  /// longitudinal report is ranked even when the dialog was not confirmed.
+  /// The targets set, else those of the ratings settings, so a longitudinal
+  /// report is ranked even when the dialog was not confirmed.
   List<ScalePref> get _targetsOrDefault =>
       _targets ??
       defaultScalePrefsFor([
         for (final f in _sessions)
           ...f.rows.where((r) => coerceInt(r.isInitial) != 1),
-      ]);
+      ], known: _known);
 
   Future<void> _editTargets() async {
     final seed = _targetsOrDefault;
@@ -804,6 +811,12 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
             ],
           ),
           const SizedBox(height: 8),
+          LastVisitCard(
+            visits: _visits,
+            ranges: _ranges,
+            known: _known,
+            onOpen: _select,
+          ),
           _preview(theme),
         ],
       ],
@@ -925,27 +938,18 @@ class _ImportExportPanelState extends State<ImportExportPanel> {
               OutlinedButton.icon(
                 onPressed: _editTargets,
                 icon: const Icon(Icons.adjust, size: 18),
-                label: Text(
-                  _targets == null ? 'Set scale targets' : 'Scale targets',
-                ),
+                label: const Text('Scale targets'),
               ),
             ],
           ),
-          if (_targets == null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 8),
-              child: Text(
-                'No scale targets are set, so nothing is ranked.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
           EntryChartsView(
-            data: buildEntryChartData(rows, scalePrefs: _targets ?? const []),
+            data: buildEntryChartData(rows, scalePrefs: _targetsOrDefault),
             visibleConfigs: _visibleConfigs,
             onVisibleConfigsChanged: (n) => _changed(() => _visibleConfigs = n),
           ),
+          if (scaleTargetsText(_targetsOrDefault) case final t
+              when t.isNotEmpty)
+            targetsNote(context, 'Scale targets: $t'),
           SessionEntriesTable(rows: rows),
         ],
       );

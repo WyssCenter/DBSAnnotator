@@ -71,11 +71,16 @@ int _wavMs(List<int> bytes) {
   throw StateError('No data chunk in the WAV file');
 }
 
-/// Captions and speaks [line] of the script, logged for the recorder, and
-/// returns once it has been said, so the actions it describes follow it.
+/// When the line being said ends.
+var _quietAt = DateTime(0);
+
+/// Captions and speaks [line] of the script, logged for the recorder, once
+/// the line before has been said, and returns at once, so the actions it
+/// describes run while it is spoken.
 Future<void> say(WidgetTester tester, String line) async {
   final spoken = _spoken[line];
   if (spoken == null) throw ArgumentError('Not in the script: $line');
+  await quiet(tester);
   final start = DateTime.now();
   final end = start.add(Duration(milliseconds: spoken.ms + 300));
   if (_marks.isNotEmpty) {
@@ -85,10 +90,18 @@ Future<void> say(WidgetTester tester, String line) async {
       mode: FileMode.append,
     );
   }
-  await pause(tester, spoken.ms + 300);
+  _quietAt = end;
+}
+
+/// Waits until the line being said has been said.
+Future<void> quiet(WidgetTester tester) async {
+  final left = _quietAt.difference(DateTime.now()).inMilliseconds;
+  if (left > 0) await pause(tester, left);
 }
 
 final _tap = ValueNotifier<Offset?>(null);
+final _pages = ValueNotifier<List<File>>(const []);
+final _pageScroll = ScrollController();
 
 void initVideoBinding() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -114,6 +127,29 @@ Future<void> startVideo(WidgetTester tester, Widget home) async {
       builder: (context, child) => Stack(
         children: [
           child!,
+          Positioned.fill(
+            child: ValueListenableBuilder<List<File>>(
+              valueListenable: _pages,
+              builder: (_, pages, _) => pages.isEmpty
+                  ? const SizedBox.shrink()
+                  : ColoredBox(
+                      color: const Color(0xFF525659),
+                      child: ListView(
+                        controller: _pageScroll,
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        children: [
+                          for (final page in pages)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 24),
+                              child: Center(
+                                child: Image.file(page, width: 1000),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+            ),
+          ),
           IgnorePointer(
             child: ValueListenableBuilder<Offset?>(
               valueListenable: _tap,
@@ -137,6 +173,7 @@ Future<void> rolling(WidgetTester tester) async {
 
 /// Holds the last frame, then tells the recorder to stop.
 Future<void> endVideo(WidgetTester tester) async {
+  await quiet(tester);
   await pause(tester, 1500);
   _mark('done');
   await pause(tester, 1000);
@@ -145,6 +182,46 @@ Future<void> endVideo(WidgetTester tester) async {
 /// Marker files `tool/record_video.ps1` waits on to start and stop ffmpeg.
 void _mark(String name) {
   if (_marks.isNotEmpty) File('$_marks/$name').writeAsStringSync('');
+}
+
+/// Shows the PDF the app saved full-window, its pages rendered with PyMuPDF by
+/// `tool/pdf_pages.py`, scrolls through it and closes it. The recorder films
+/// only the app's window, so a PDF viewer of its own would not be seen.
+Future<void> showSavedPdf(WidgetTester tester) async {
+  File? pdf;
+  for (var i = 0; i < 150 && pdf == null; i++) {
+    pdf = debugSaveDir!
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.pdf'))
+        .firstOrNull;
+    if (pdf == null) await pause(tester, 200);
+  }
+  if (pdf == null) throw StateError('No PDF was saved');
+  final out = Directory.systemTemp.createTempSync('dbs_pages_');
+  final rendered = await Process.run(_uvx, [
+    '--from',
+    'pymupdf',
+    'python',
+    '-I',
+    '$videoRoot/tool/pdf_pages.py',
+    pdf.path,
+    out.path,
+  ]);
+  if (rendered.exitCode != 0) {
+    throw StateError('Could not render ${pdf.path}: ${rendered.stderr}');
+  }
+  _pages.value = out.listSync().whereType<File>().toList()
+    ..sort((a, b) => a.path.compareTo(b.path));
+  await pause(tester, 2500);
+  await _pageScroll.animateTo(
+    _pageScroll.position.maxScrollExtent,
+    duration: Duration(seconds: 3 * _pages.value.length),
+    curve: Curves.easeInOut,
+  );
+  await pause(tester, 1000);
+  _pages.value = const [];
+  await pause(tester, 300);
 }
 
 Future<void> pause(WidgetTester tester, [int ms = 700]) async {

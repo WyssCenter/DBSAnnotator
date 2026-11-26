@@ -1,24 +1,27 @@
 import 'package:flutter/material.dart';
 
+import '../app_info.dart';
 import 'stim_params_form.dart' show LimitRange, StimLimits, presetLabel;
-import 'theme.dart' show DbsColors;
 
 /// Edit the starting frequency, amplitude and pulse width of each DBS
-/// indication. A row left blank has no defaults. Null on Cancel.
+/// indication. A row left blank has no defaults; Restore defaults puts back
+/// [defaults], the ones the app comes with. Null on Cancel.
 Future<Map<String, List<num>>?> showStimDefaultsDialog(
   BuildContext context, {
   required StimLimits limits,
   required List<String> indications,
+  required Map<String, List<num>> defaults,
 }) => showDialog<Map<String, List<num>>>(
   context: context,
-  builder: (_) => _StimDefaultsDialog(limits, indications),
+  builder: (_) => _StimDefaultsDialog(limits, indications, defaults),
 );
 
 class _StimDefaultsDialog extends StatefulWidget {
-  const _StimDefaultsDialog(this.limits, this.indications);
+  const _StimDefaultsDialog(this.limits, this.indications, this.defaults);
 
   final StimLimits limits;
   final List<String> indications;
+  final Map<String, List<num>> defaults;
 
   @override
   State<_StimDefaultsDialog> createState() => _StimDefaultsDialogState();
@@ -27,17 +30,29 @@ class _StimDefaultsDialog extends StatefulWidget {
 class _StimDefaultsDialogState extends State<_StimDefaultsDialog> {
   late final _rows = {
     for (final name in {...widget.indications, ...widget.limits.defaults.keys})
-      name: [
-        for (var i = 0; i < 3; i++)
-          TextEditingController(
-            text: switch (widget.limits.defaults[name]) {
-              final v? => presetLabel(v[i]),
-              null => '',
-            },
-          ),
-      ],
+      name: _controllers(widget.limits.defaults[name]),
   };
-  String? _error;
+
+  /// The field that cannot be saved, and why.
+  ({String name, int column, String message})? _invalid;
+
+  static List<TextEditingController> _controllers(List<num>? values) => [
+    for (var i = 0; i < 3; i++)
+      TextEditingController(text: values == null ? '' : presetLabel(values[i])),
+  ];
+
+  void _restore() => setState(() {
+    for (final name in widget.defaults.keys) {
+      _rows.putIfAbsent(name, () => _controllers(null));
+    }
+    for (final MapEntry(key: name, value: ctrls) in _rows.entries) {
+      final values = widget.defaults[name];
+      for (var i = 0; i < 3; i++) {
+        ctrls[i].text = values == null ? '' : presetLabel(values[i]);
+      }
+    }
+    _invalid = null;
+  });
 
   static const _columns = [
     ('Frequency', 'Hz'),
@@ -69,10 +84,13 @@ class _StimDefaultsDialogState extends State<_StimDefaultsDialog> {
         final (label, unit) = _columns[i];
         if (v == null || v < ranges[i].min || v > ranges[i].max) {
           setState(
-            () => _error =
-                '$name: $label must be '
-                '${presetLabel(ranges[i].min)}-${presetLabel(ranges[i].max)} '
-                '$unit.',
+            () => _invalid = (
+              name: name,
+              column: i,
+              message:
+                  '$label must be ${presetLabel(ranges[i].min)} to '
+                  '${presetLabel(ranges[i].max)} $unit',
+            ),
           );
           return;
         }
@@ -86,10 +104,14 @@ class _StimDefaultsDialogState extends State<_StimDefaultsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Default settings per DBS indication'),
+      title: const DefaultsTitle(
+        'Stimulation defaults',
+        section: 'stimulation-defaults',
+      ),
+      constraints: const BoxConstraints(),
       scrollable: true,
       content: SizedBox(
-        width: 560,
+        width: 640,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -104,7 +126,7 @@ class _StimDefaultsDialogState extends State<_StimDefaultsDialog> {
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
                   children: [
-                    SizedBox(width: 110, child: Text(name)),
+                    SizedBox(width: 190, child: Text(name)),
                     for (var i = 0; i < 3; i++) ...[
                       const SizedBox(width: 8),
                       Expanded(
@@ -117,6 +139,10 @@ class _StimDefaultsDialogState extends State<_StimDefaultsDialog> {
                             labelText: _columns[i].$1,
                             suffixText: _columns[i].$2,
                             isDense: true,
+                            errorText:
+                                _invalid?.name == name && _invalid?.column == i
+                                ? _invalid?.message
+                                : null,
                           ),
                         ),
                       ),
@@ -124,24 +150,11 @@ class _StimDefaultsDialogState extends State<_StimDefaultsDialog> {
                   ],
                 ),
               ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  _error!,
-                  style: const TextStyle(color: DbsColors.invalid),
-                ),
-              ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(onPressed: _save, child: const Text('Save')),
-      ],
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      actions: picklistActions(context, onRestore: _restore, onSave: _save),
     );
   }
 }

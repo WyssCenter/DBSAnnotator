@@ -139,7 +139,7 @@ const kSeeSummary = 'As in the summary above';
   return (
     heading:
         'Latest visit, ${last.date.isEmpty ? 'date unknown' : last.date}: '
-        '${last.session.leftOnMarked ? 'left on, as marked by the clinician' : 'last program tested'}',
+        '${last.session.leftOnMarked ? 'left on' : 'last program tested'}',
     lines: config.isEmpty
         ? const ['No program was annotated.']
         : [for (final e in config.entries) '${e.key}: ${e.value}'],

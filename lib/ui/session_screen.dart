@@ -123,16 +123,17 @@ class _ClinicalScaleEdit {
 }
 
 /// One rating of Programming: its bounds, slider [value] and [omitted]
-/// "not assessed" toggle.
+/// "not assessed" toggle. It starts not assessed until the slider is moved.
 class _SessionScaleEdit {
   _SessionScaleEdit({
     required double min,
     required double max,
     String name = '',
     this.mode = ScaleMode.min,
+    this.custom,
     this.step,
   }) : value = min,
-       omitted = step != null {
+       omitted = true {
     this.name.text = name;
     minCtrl.text = _fmtValue(min);
     maxCtrl.text = _fmtValue(max);
@@ -185,7 +186,7 @@ class _SideInputs {
   ContactState caseState = ContactState.off;
   String validationError = '';
 
-  /// Per-side enable checkbox (desktop's checkable electrode group).
+  /// False while the side is locked against edits.
   bool enabled = true;
 
   /// Amplitude split percentages, aligned to the active cathodes; used to
@@ -213,6 +214,9 @@ const _ipgPositions = [
   'Right abdomen',
 ];
 const _medicationLines = 5;
+
+/// The Patient list's entry for a patient not in the folder yet.
+const _kNewPatient = '+';
 const _assessmentStep = 2;
 const _programmingStep = 3;
 const _finishStep = 4;
@@ -302,16 +306,22 @@ class _SessionScreenState extends State<SessionScreen>
   List<String> _patients = const [];
   String? _browsed;
 
-  /// Whether the clinical details were filled from the patient's last visit.
-  bool _fromLastVisit = false;
+  /// The patient whose last visit filled the clinical details, and that
+  /// visit's date; null when nothing was filled.
+  String? _prefilledFor;
+  String _prefilledVisit = '';
 
   @override
   void initState() {
     super.initState();
     _contracts = _loadContracts();
     _ids.subject.addListener(() {
-      if (_subjectError != null && _ids.subject.text.trim().isNotEmpty) {
+      final typed = _ids.subject.text.trim();
+      if (_subjectError != null && typed.isNotEmpty) {
         setState(() => _subjectError = null);
+      }
+      if (!_started && _prefilledFor != null && typed != _prefilledFor) {
+        setState(_clearVisitInputs);
       }
     });
     loadUserPrefs().then((p) {
@@ -387,6 +397,38 @@ class _SessionScreenState extends State<SessionScreen>
         s.custom = p.custom;
       }
     });
+  }
+
+  /// Put every picklist back to the bundled one, after asking.
+  Future<void> _restoreDefaultLists() async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Restore default lists?'),
+        content: const Text(
+          'The DBS indications, anatomical targets, leads and IPGs, '
+          'stimulation defaults, programs, clinical scales and ratings go back '
+          'to the ones that come with the app, and your own additions are '
+          'removed. Saved sessions are not changed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (yes != true || !mounted) return;
+    setState(() {
+      _prefs.restoreDefaultLists();
+      if (!_programs.contains(_selectedProgram)) _selectedProgram = null;
+    });
+    await saveUserPrefs(_prefs);
   }
 
   /// The report content, computed ONCE per export and shared by the graphics
@@ -698,19 +740,47 @@ class _SessionScreenState extends State<SessionScreen>
   }
 
   /// Edit and save one of the Setup lists with the shared list editor.
+  /// [defaults] is the bundled list, shown in [section] of the user guide.
   Future<void> _editList(
     String title,
     List<String> items,
-    void Function(List<String>) keep,
-  ) async {
+    void Function(List<String>) keep, {
+    required List<String> defaults,
+    required String section,
+    required String addLabel,
+  }) async {
     final result = await showDialog<List<String>>(
       context: context,
-      builder: (_) => ListEditorDialog(title: title, items: List.of(items)),
+      builder: (_) => ListEditorDialog(
+        title: title,
+        items: List.of(items),
+        defaults: defaults,
+        section: section,
+        addLabel: addLabel,
+      ),
     );
     if (result == null || !mounted) return;
     setState(() => keep(result));
     await saveUserPrefs(_prefs);
   }
+
+  Future<void> _editIndications(ScalePresets presets) => _editList(
+    'DBS indications',
+    _prefs.pathologies ?? presets.pathologies,
+    (l) => _prefs.pathologies = l,
+    defaults: presets.pathologies,
+    section: 'dbs-indications',
+    addLabel: 'Add indication',
+  );
+
+  Future<void> _editTargets(ScalePresets presets) => _editList(
+    'Anatomical targets',
+    _prefs.targets ?? presets.targets,
+    (l) => _prefs.targets = l,
+    defaults: presets.targets,
+    section: 'anatomical-targets',
+    addLabel: 'Add target',
+  );
 
   bool get _started => hasFile || widget.authoring != null;
 
@@ -1086,24 +1156,12 @@ class _SessionScreenState extends State<SessionScreen>
             item(
               Icons.medical_information_outlined,
               'DBS indications',
-              presets == null
-                  ? null
-                  : () => _editList(
-                      'DBS indications',
-                      _prefs.pathologies ?? presets.pathologies,
-                      (l) => _prefs.pathologies = l,
-                    ),
+              presets == null ? null : () => _editIndications(presets),
             ),
             item(
               Icons.my_location_outlined,
               'Anatomical targets',
-              presets == null
-                  ? null
-                  : () => _editList(
-                      'Anatomical targets',
-                      _prefs.targets ?? presets.targets,
-                      (l) => _prefs.targets = l,
-                    ),
+              presets == null ? null : () => _editTargets(presets),
             ),
             item(
               Icons.memory_outlined,
@@ -1116,14 +1174,7 @@ class _SessionScreenState extends State<SessionScreen>
               'Stimulation defaults',
               limits == null ? null : () => _editStimDefaults(limits),
             ),
-            item(
-              Icons.list_alt,
-              'Programs',
-              () => _editList('Programs', _programs, (l) {
-                _prefs.programs = l;
-                if (!l.contains(_selectedProgram)) _selectedProgram = null;
-              }),
-            ),
+            item(Icons.list_alt, 'Programs', _editPrograms),
             item(
               Icons.assignment_outlined,
               'Clinical scales',
@@ -1135,9 +1186,14 @@ class _SessionScreenState extends State<SessionScreen>
               presets == null ? null : () => _editSessionPresets(presets),
             ),
             item(Icons.flag_outlined, 'Scale targets', _editScaleTargets),
+            item(
+              Icons.restart_alt,
+              'Restore default lists',
+              _restoreDefaultLists,
+            ),
             heading('Reports'),
             item(Icons.description_outlined, 'Report sections', () async {
-              await _askSections();
+              await _askSections(confirm: 'Save');
             }),
             heading('Appearance'),
             ValueListenableBuilder<ThemeMode>(
@@ -1178,18 +1234,55 @@ class _SessionScreenState extends State<SessionScreen>
     });
   }
 
+  /// Put back what a new patient's visit starts from: no indication, target,
+  /// stimulation, scales or notes, the default lead and IPG. Call inside
+  /// setState, before a new patient's session starts.
+  void _clearVisitInputs() {
+    _pathologyCtrl.clear();
+    _targetCtrl.clear();
+    _fillIpgs(kDefaultIpg, '', '', '');
+    _modelName = kDefaultModel;
+    _rightModelName = null;
+    for (final s in [_leftInit, _rightInit, _leftRec, _rightRec]) {
+      s.freq.clear();
+      s.amp.clear();
+      s.pulseWidth.clear();
+      s.states = {};
+      s.caseState = ContactState.off;
+      s.ampSplit = const [];
+      s.enabled = true;
+    }
+    _medicationsCtrl.clear();
+    _notesInitCtrl.clear();
+    _notesRecCtrl.clear();
+    _removedClinical.addAll(_clinicalScales);
+    _clinicalScales.clear();
+    _removedSession.addAll(_sessionScales);
+    _sessionScales.clear();
+    _selectedClinicalPreset = null;
+    _selectedProgram = null;
+    _seededFrom = null;
+    _leavesOn = false;
+    _starNext = false;
+    _prefilledFor = null;
+    _prefilledVisit = '';
+  }
+
   /// Fill the DBS indication, target, leads and IPGs from [subject]'s last
-  /// visit in the chosen folder. Each stays editable: a lead can be replaced.
+  /// visit in the chosen folder, after clearing whatever another patient left.
+  /// Each stays editable: a lead can be replaced.
   Future<void> _prefillFromHistory(String subject) async {
     final root = _folder?.path;
     if (root == null || subject.isEmpty || _started) return;
     final history = await patientHistory(root, subject);
-    final last = history.lastVisit;
-    if (!mounted || (history.indication.isEmpty && last.isEmpty)) return;
     final catalog = (await _contracts).$1.withDevices(_prefs.devices);
-    if (!mounted) return;
+    if (!mounted || _started || _ids.subject.text.trim() != subject) return;
+    final last = history.lastVisit;
+    final known = history.indication.isNotEmpty || last.isNotEmpty;
     String cell(String c) => last[c] ?? '';
     setState(() {
+      _clearVisitInputs();
+      if (!known) return;
       _pathologyCtrl.text = history.indication;
       _targetCtrl.text = cell('target');
       _fillIpgs(
@@ -1204,9 +1297,13 @@ class _SessionScreenState extends State<SessionScreen>
         _modelName = left;
         _rightModelName = right.isEmpty || right == left ? null : right;
       }
-      _fromLastVisit = true;
+      _prefilledFor = subject;
+      final at = cell('acq_time');
+      _prefilledVisit = at.length >= 10
+          ? at.substring(0, 10)
+          : cell('session_id').replaceFirst('ses-', '');
     });
-    _loadPathologyScales();
+    if (known) _loadPathologyScales();
   }
 
   /// Start a new visit in the chosen BIDS folder; true when it started. [ask]
@@ -1293,18 +1390,23 @@ class _SessionScreenState extends State<SessionScreen>
         opened != null && opened.filename != _ids.name.filename ||
         _startedIn != null && _folder?.path != _startedIn;
     if (!renamed) return true;
-    if (hasEntries &&
-        !await _confirm(
-          'Start a new session file?',
-          'The patient ID, session ID or BIDS folder no longer matches the '
-              'open session. The session recorded so far '
-              '${savePath == null ? 'is kept in the app as a recovery copy' : 'stays saved as ${pickedBasename(savePath!)}'}. '
-              'A new file starts for patient ${_ids.name.subject}, session '
-              '${_ids.name.session}, with the devices and initial assessment '
-              'on screen.',
-          'Start new file',
-          no: 'Keep current file',
-        )) {
+    final kept = savePath == null
+        ? 'is kept in the app as a recovery copy'
+        : 'stays saved as ${pickedBasename(savePath!)}';
+    final otherPatient = opened != null && opened.subject != _ids.name.subject;
+    final carry = otherPatient
+        ? await _askSamePatient(kept)
+        : !hasEntries ||
+              await _confirm(
+                'Start a new session file?',
+                'The session ID or BIDS folder no longer matches the open '
+                    'session. The session recorded so far $kept. A new file '
+                    'starts for session ${_ids.name.session}, with the '
+                    'devices and initial assessment on screen.',
+                'Start new file',
+                no: 'Keep current file',
+              );
+    if (carry == null || (!otherPatient && !carry)) {
       if (!mounted) return false;
       setState(() {
         if (opened != null) _ids.fill(opened);
@@ -1317,8 +1419,44 @@ class _SessionScreenState extends State<SessionScreen>
       _loadPatients();
       return false;
     }
+    if (!carry && mounted) setState(_clearVisitInputs);
     return mounted && await _newSession(ask: false);
   }
+
+  /// Asked when the patient ID of an open session changed: true for the same
+  /// patient under a corrected ID, whose devices and initial assessment carry
+  /// over, false for a different patient, who starts empty, null to keep the
+  /// current file. [kept] says what happens to the session so far.
+  Future<bool?> _askSamePatient(String kept) => showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Same patient, or a different one?'),
+      scrollable: true,
+      content: SizedBox(
+        width: 480,
+        child: Text(
+          'The patient ID no longer matches the open session, which $kept. '
+          'A new file starts for patient ${_ids.name.subject}. For the same '
+          'patient under a corrected ID, it keeps the devices and initial '
+          'assessment on screen; for a different patient, it starts empty.',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Keep current file'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Different patient'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Same patient'),
+        ),
+      ],
+    ),
+  );
 
   /// Fill one side's inputs from the stimulation [row] holds for it.
   void _fillSide(
@@ -1434,11 +1572,12 @@ class _SessionScreenState extends State<SessionScreen>
   /// Ask which sections to include, offering the scale targets alongside, since
   /// they are what the ranking inside two of those sections is measured
   /// against. Returns null if the user cancelled the export.
-  Future<Set<ReportSection>?> _askSections() async {
+  Future<Set<ReportSection>?> _askSections({String confirm = 'Next'}) async {
     final chosen = await showReportSectionsDialog(
       context,
       _sections,
       onEditTargets: _editScaleTargets,
+      confirm: confirm,
     );
     if (chosen == null) return null;
     setState(() => _prefs.reportSections = [for (final s in chosen) s.name]);
@@ -1689,9 +1828,9 @@ class _SessionScreenState extends State<SessionScreen>
     );
   }
 
-  /// Two rows: the configuration (parameters beside electrodes) and the
-  /// observations (scales beside notes), the observations first when
-  /// [observationsFirst]. Narrow screens stack everything in one column.
+  /// Two rows: the stimulation settings (parameters beside electrodes), which
+  /// fold away, and the observations (scales beside notes), the observations
+  /// first when [observationsFirst]. Narrow screens stack everything.
   /// Wide, the notes end where the scales end, and are never shorter than
   /// three lines.
   Widget _stepBody(
@@ -1751,7 +1890,24 @@ class _SessionScreenState extends State<SessionScreen>
                 ],
               )
             : pair(scalesCard, noteColumn);
-        final rows = [pair(params, electrodes), observations];
+        final stimulation = ExpansionTile(
+          title: Text(
+            'Stimulation settings',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          initiallyExpanded: _prefs.stimulationExpanded ?? true,
+          onExpansionChanged: (open) {
+            _prefs.stimulationExpanded = open;
+            saveUserPrefs(_prefs);
+          },
+          tilePadding: EdgeInsets.zero,
+          shape: const Border(),
+          collapsedShape: const Border(),
+          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+          childrenPadding: const EdgeInsets.only(top: 8),
+          children: [pair(params, electrodes)],
+        );
+        final rows = [stimulation, observations];
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1765,7 +1921,13 @@ class _SessionScreenState extends State<SessionScreen>
   }
 
   Future<void> _editDevices(ElectrodeCatalog catalog) async {
-    final result = await showDevicesDialog(context, devices: catalog.devices);
+    final bundled = (await _contracts).$1;
+    if (!mounted) return;
+    final result = await showDevicesDialog(
+      context,
+      devices: catalog.devices,
+      defaults: bundled.devices,
+    );
     if (result == null || !mounted) return;
     setState(() => _prefs.devices = result);
     await saveUserPrefs(_prefs);
@@ -1880,7 +2042,7 @@ class _SessionScreenState extends State<SessionScreen>
       title: 'Devices',
       action: IconButton(
         icon: const Icon(Icons.edit_note),
-        tooltip: 'Devices settings',
+        tooltip: 'Edit leads and IPGs',
         onPressed: () => _editDevices(catalog),
       ),
       child: Column(
@@ -2089,14 +2251,23 @@ class _SessionScreenState extends State<SessionScreen>
         IconButton(
           icon: const Icon(Icons.edit_note),
           tooltip: 'Edit programs',
-          onPressed: () => _editList('Programs', _programs, (l) {
-            _prefs.programs = l;
-            if (!l.contains(_selectedProgram)) _selectedProgram = null;
-          }),
+          onPressed: _editPrograms,
         ),
       ],
     );
   }
+
+  Future<void> _editPrograms() => _editList(
+    'Programs',
+    _programs,
+    (l) {
+      _prefs.programs = l;
+      if (!l.contains(_selectedProgram)) _selectedProgram = null;
+    },
+    defaults: kDefaultPrograms,
+    section: 'programs',
+    addLabel: 'Add program',
+  );
 
   /// Active cathode labels for [side] (from the encoded cathode string), which
   /// drive the amplitude-split rows.
@@ -2109,39 +2280,57 @@ class _SessionScreenState extends State<SessionScreen>
         .toList();
   }
 
-  /// Column 1 item: one side's stim params + its amplitude split.
+  /// One side's parameters and amplitude split, with the lock that freezes
+  /// them and the side's contacts.
   Widget _paramsCard(
     String title,
     _SideInputs side,
     ElectrodeModel? model,
     StimLimits limits,
   ) {
-    final card = TitledSection(
-      title: side.enabled ? title : '$title (off)',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          StimParamsForm(
-            limits: limits,
-            frequency: side.freq,
-            amplitude: side.amp,
-            pulseWidth: side.pulseWidth,
-          ),
-          ListenableBuilder(
-            listenable: side.amp,
-            builder: (context, _) => AmplitudeSplit(
-              key: ValueKey(_editingBlock),
-              cathodes: _cathodesFor(side, model),
-              total: double.tryParse(side.amp.text.trim()) ?? 0,
-              decimals: limits.amplitudeDecimals,
-              initial: side.ampSplit,
-              onChanged: (pct) => side.ampSplit = pct,
+    final locked = !side.enabled;
+    final name = title.toLowerCase();
+    return TitledSection(
+      title: locked ? '$title (locked)' : title,
+      action: IconButton(
+        isSelected: locked,
+        icon: const Icon(Icons.lock_open),
+        selectedIcon: const Icon(Icons.lock),
+        tooltip: locked ? 'Unlock the $name side' : 'Lock the $name side',
+        onPressed: () => setState(() => side.enabled = locked),
+      ),
+      child: Opacity(
+        opacity: locked ? 0.6 : 1,
+        child: IgnorePointer(
+          ignoring: locked,
+          child: ExcludeFocus(
+            excluding: locked,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                StimParamsForm(
+                  limits: limits,
+                  frequency: side.freq,
+                  amplitude: side.amp,
+                  pulseWidth: side.pulseWidth,
+                ),
+                ListenableBuilder(
+                  listenable: side.amp,
+                  builder: (context, _) => AmplitudeSplit(
+                    key: ValueKey(_editingBlock),
+                    cathodes: _cathodesFor(side, model),
+                    total: double.tryParse(side.amp.text.trim()) ?? 0,
+                    decimals: limits.amplitudeDecimals,
+                    initial: side.ampSplit,
+                    onChanged: (pct) => side.ampSplit = pct,
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
-    return Opacity(opacity: side.enabled ? 1 : 0.6, child: card);
   }
 
   /// Column 1: program + Left/Right param groups.
@@ -2166,7 +2355,7 @@ class _SessionScreenState extends State<SessionScreen>
             ),
             IconButton(
               icon: const Icon(Icons.edit_note),
-              tooltip: 'Default settings per DBS indication',
+              tooltip: 'Edit stimulation defaults',
               onPressed: () => _editStimDefaults(limits),
             ),
           ],
@@ -2180,12 +2369,13 @@ class _SessionScreenState extends State<SessionScreen>
 
   /// Edit and keep the starting settings of each DBS indication.
   Future<void> _editStimDefaults(StimLimits limits) async {
-    final presets = (await _contracts).$3;
+    final (_, bundled, presets) = await _contracts;
     if (!mounted) return;
     final result = await showStimDefaultsDialog(
       context,
       limits: limits,
       indications: _prefs.pathologies ?? presets.pathologies,
+      defaults: bundled.defaults,
     );
     if (result == null) return;
     setState(() => _prefs.stimDefaults = result);
@@ -2235,24 +2425,17 @@ class _SessionScreenState extends State<SessionScreen>
     );
   }
 
-  /// One electrode pane: enable checkbox + the canvas (dimmed when disabled) +
-  /// the validation box.
+  /// One electrode pane: the side's name, the canvas, dimmed and frozen while
+  /// the side is locked, and the validation box.
   Widget _electrodePane(String title, _SideInputs side, ElectrodeModel? model) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Checkbox(
-              value: side.enabled,
-              onChanged: (v) => setState(() => side.enabled = v ?? true),
-            ),
-            Text(title),
-          ],
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(side.enabled ? title : '$title (locked)'),
         ),
         SizedBox(
-          // Grow with the window so maximizing enlarges the canvas (and its
-          // contacts / ring caps, easing taps); floored for small screens.
           height: (MediaQuery.sizeOf(context).height * 0.55).clamp(
             320.0,
             900.0,
@@ -2383,7 +2566,8 @@ class _SessionScreenState extends State<SessionScreen>
                       ? 'Session started for patient ${_ids.name.subject}, '
                             'session ${_ids.name.session}'
                             '${_ids.name.run == '01' ? '' : ', run ${_ids.name.run}'}'
-                      : 'Enter or choose the patient ID and press Next.',
+                      : 'Enter or choose the patient ID and press New '
+                            'session.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
@@ -2397,11 +2581,15 @@ class _SessionScreenState extends State<SessionScreen>
       children: [
         if (_patients.isNotEmpty) ...[
           DropdownMenu<String>(
-            key: ValueKey(_folder?.path),
+            key: ValueKey('${_folder?.path}/$_browsed'),
             expandedInsets: EdgeInsets.zero,
             label: const Text('Patient'),
-            initialSelection: _browsed,
+            initialSelection: _browsed ?? _kNewPatient,
             dropdownMenuEntries: [
+              const DropdownMenuEntry(
+                value: _kNewPatient,
+                label: 'New patient',
+              ),
               const DropdownMenuEntry(
                 value: kAllPatients,
                 label: 'All patients',
@@ -2410,6 +2598,15 @@ class _SessionScreenState extends State<SessionScreen>
             ],
             onSelected: (p) {
               if (p == null) return;
+              if (p == _kNewPatient) {
+                setState(() {
+                  _browsed = null;
+                  if (_started) return;
+                  _ids.subject.clear();
+                  _clearVisitInputs();
+                });
+                return;
+              }
               setState(() {
                 _browsed = p;
                 if (p != kAllPatients) _ids.subject.text = p;
@@ -2494,12 +2691,14 @@ class _SessionScreenState extends State<SessionScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_fromLastVisit)
+          if (_prefilledFor case final patient?)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
-                "Filled from this patient's last visit. Check each value: "
-                'a reimplantation changes the target, leads or IPG.',
+                'Filled from patient $patient'
+                '${_prefilledVisit.isEmpty ? '' : ', visit of $_prefilledVisit'}. '
+                'Check each value: a reimplantation changes the target, '
+                'leads or IPG.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
@@ -2520,14 +2719,7 @@ class _SessionScreenState extends State<SessionScreen>
                   },
                 ),
               ),
-              gear(
-                'Edit DBS indications',
-                () => _editList(
-                  'DBS indications',
-                  pathologies,
-                  (l) => _prefs.pathologies = l,
-                ),
-              ),
+              gear('Edit DBS indications', () => _editIndications(presets)),
             ],
           ),
           const SizedBox(height: 12),
@@ -2540,14 +2732,7 @@ class _SessionScreenState extends State<SessionScreen>
                   options: targets,
                 ),
               ),
-              gear(
-                'Edit targets',
-                () => _editList(
-                  'Anatomical targets',
-                  targets,
-                  (l) => _prefs.targets = l,
-                ),
-              ),
+              gear('Edit anatomical targets', () => _editTargets(presets)),
             ],
           ),
         ],
@@ -2663,10 +2848,15 @@ class _SessionScreenState extends State<SessionScreen>
   /// (defaults + overrides) set; the result replaces `UserPrefs.clinical` and
   /// is merged live via mergeScalePresets in build().
   Future<void> _editClinicalPresets(ScalePresets presets) async {
+    final (_, _, raw) = await _contracts;
+    if (!mounted) return;
     final edited = await showClinicalPresetsDialog(
       context,
       presets: presets.clinical,
       ranges: presets.clinicalRanges,
+      defaults: raw,
+      indications: _prefs.pathologies ?? presets.pathologies,
+      initial: _selectedClinicalPreset,
     );
     if (edited == null) return;
     setState(() {
@@ -2674,28 +2864,25 @@ class _SessionScreenState extends State<SessionScreen>
       _prefs.clinicalRanges = edited.ranges;
     });
     await saveUserPrefs(_prefs);
-    final (_, _, raw) = await _contracts;
     if (!mounted) return;
-    final pathology = _selectedClinicalPreset;
-    if (pathology != null) {
-      setState(
-        () => _addClinicalScales(pathology, mergeScalePresets(raw, _prefs)),
-      );
-    }
-    _snack('Clinical scale presets saved.');
+    _snack('Clinical scales saved.');
   }
 
-  /// Edit and persist the session scale presets via the group editor: all
-  /// disease groups, (name,min,max) rows, report mode preserved.
+  /// Edit and persist the symptom and side effect ratings per indication; the
+  /// ratings already in this session take the new ranges and targets.
   Future<void> _editSessionPresets(ScalePresets presets) async {
+    final (_, limits, raw) = await _contracts;
+    if (!mounted) return;
     final edited = await showSessionPresetsDialog(
       context,
       presets: presets.session,
+      defaults: raw,
+      indications: _prefs.pathologies ?? presets.pathologies,
+      initial: _selectedClinicalPreset,
     );
     if (edited == null) return;
     setState(() => _prefs.session = edited);
     await saveUserPrefs(_prefs);
-    final (_, limits, raw) = await _contracts;
     if (!mounted) return;
     final pathology = _selectedClinicalPreset;
     if (pathology != null) {
@@ -2704,10 +2891,11 @@ class _SessionScreenState extends State<SessionScreen>
           pathology,
           mergeScalePresets(raw, _prefs),
           limits,
+          addMissing: false,
         ),
       );
     }
-    _snack('Session scale presets saved.');
+    _snack('Symptom and side effect ratings saved.');
   }
 
   Widget _clinicalScalesCard(ScalePresets presets, StimLimits limits) {
@@ -2725,7 +2913,7 @@ class _SessionScreenState extends State<SessionScreen>
             ),
             IconButton(
               icon: const Icon(Icons.edit_note),
-              tooltip: 'Settings clinical scales',
+              tooltip: 'Edit clinical scales',
               onPressed: () => _editClinicalPresets(presets),
             ),
             _addScalesMenu(
@@ -2837,13 +3025,15 @@ class _SessionScreenState extends State<SessionScreen>
     child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
   );
 
-  /// Add a group's rating rows, and refresh the range, step and target of rows
-  /// already listed under the same name. Call inside setState.
+  /// Refresh the range, step and target of the ratings already listed from a
+  /// group's rows, and add the others unless [addMissing] is false, so a
+  /// rating removed from this session stays removed. Call inside setState.
   void _loadSessionPresetRows(
     String preset,
     ScalePresets presets,
-    StimLimits limits,
-  ) {
+    StimLimits limits, {
+    bool addMissing = true,
+  }) {
     final fallback = limits.sessionScale;
     final listed = {for (final s in _sessionScales) s.name.text.trim(): s};
     for (final row in sessionRows(presets, preset)) {
@@ -2853,10 +3043,11 @@ class _SessionScreenState extends State<SessionScreen>
         s.minCtrl.text = _fmtValue(min);
         s.maxCtrl.text = _fmtValue(max);
         s.mode = scaleModeFromString(row.mode);
+        s.custom = double.tryParse(row.custom);
         s.step = double.tryParse(row.step);
         continue;
       }
-      _sessionScales.add(_sessionScaleFrom(row, limits));
+      if (addMissing) _sessionScales.add(_sessionScaleFrom(row, limits));
     }
   }
 
@@ -2866,6 +3057,7 @@ class _SessionScreenState extends State<SessionScreen>
         max: _SessionScaleEdit._number(row.max) ?? limits.sessionScale.max,
         name: row.name,
         mode: scaleModeFromString(row.mode),
+        custom: double.tryParse(row.custom),
         step: double.tryParse(row.step),
       );
 
@@ -2935,7 +3127,7 @@ class _SessionScreenState extends State<SessionScreen>
             ),
             IconButton(
               icon: const Icon(Icons.edit_note),
-              tooltip: 'Settings session scales',
+              tooltip: 'Edit symptom and side effect ratings',
               onPressed: () => _editSessionPresets(presets),
             ),
             _addScalesMenu(
@@ -3192,7 +3384,19 @@ class _SessionScreenState extends State<SessionScreen>
             onNext: _currentStep < _finishStep
                 ? () => _goTo(_currentStep + 1)
                 : null,
-            onClose: _currentStep == _finishStep ? _closeApp : null,
+            action: switch (_currentStep) {
+              0 when !_started => (
+                icon: Icons.note_add_outlined,
+                text: 'New session',
+                onPressed: () => _goTo(1),
+              ),
+              _finishStep => (
+                icon: Icons.power_settings_new,
+                text: 'Close',
+                onPressed: _closeApp,
+              ),
+              _ => null,
+            },
           ),
         ],
       ),

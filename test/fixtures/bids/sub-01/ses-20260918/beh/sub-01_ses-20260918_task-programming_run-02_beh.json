@@ -3,7 +3,7 @@
   "TaskDescription": "Deep brain stimulation programming. Stimulation configurations are set, tried and rated during a clinical visit, one row per configuration tried.",
   "GeneratedBy": [
     {
-      "Name": "Wyss DBS Annotator",
+      "Name": "DBS Annotator",
       "Version": "0.7.0"
     }
   ],

@@ -117,7 +117,8 @@ void main() {
   testWidgets('setup cannot be left before a session is started, and says '
       'why', (tester) async {
     await pumpWizard(tester, open: false);
-    await tapNext(tester);
+    await tester.tap(find.text('New session'));
+    await tester.pumpAndSettle();
     expect(find.textContaining('Enter or choose the patient ID'), findsWidgets);
     expect(find.text('Patient ID'), findsOneWidget);
     expect(find.text('Frequency'), findsNothing);
@@ -143,7 +144,8 @@ void main() {
     expect(find.text('Task ID'), findsNothing);
     expect(find.text('Run ID'), findsNothing);
 
-    await tapNext(tester);
+    await tester.tap(find.text('New session'));
+    await tester.pumpAndSettle();
     expect(find.text('Enter or choose the patient ID'), findsOneWidget);
 
     await tester.tap(find.text('Research file naming'));
@@ -339,12 +341,56 @@ void main() {
     }
   });
 
-  testWidgets('Next starts the first session; New appears once one is open', (
+  testWidgets('with no session open, New session takes the place of Next', (
     tester,
   ) async {
     await pumpWizard(tester, open: false);
-    expect(find.text('New session'), findsNothing);
+    expect(find.text('New session'), findsOneWidget);
+    expect(find.text('Next'), findsNothing);
     expect(find.text('Open saved session'), findsNothing);
+  });
+
+  testWidgets('a locked side keeps its parameters and says so', (tester) async {
+    await pumpWizard(tester);
+    await tapNext(tester, 2);
+    final frequency = find.widgetWithText(TextFormField, 'Frequency').first;
+    String leftFrequency() => tester
+        .widget<TextField>(
+          find.descendant(of: frequency, matching: find.byType(TextField)),
+        )
+        .controller!
+        .text;
+    Future<void> increase() async {
+      final button = find.byTooltip('Increase Frequency').first;
+      await tester.ensureVisible(button);
+      await tester.tap(button, warnIfMissed: false);
+      await tester.pump();
+    }
+
+    await tester.enterText(frequency, '100');
+    await tester.tap(find.byTooltip('Lock the left side'));
+    await tester.pump();
+    expect(find.text('Left (locked)'), findsWidgets);
+    await increase();
+    expect(leftFrequency(), '100');
+
+    await tester.tap(find.byTooltip('Unlock the left side'));
+    await tester.pump();
+    expect(find.text('Left (locked)'), findsNothing);
+    await increase();
+    expect(leftFrequency(), isNot('100'));
+  });
+
+  testWidgets('the stimulation settings fold away as one', (tester) async {
+    await pumpWizard(tester);
+    await tapNext(tester, 2);
+    expect(find.byType(ElectrodeView), findsNWidgets(2));
+    expect(find.text('Active program (group)'), findsOneWidget);
+    await tester.tap(find.text('Stimulation settings'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ElectrodeView), findsNothing);
+    expect(find.byType(StimParamsForm), findsNothing);
+    expect(find.text('Active program (group)'), findsNothing);
   });
 
   testWidgets('wizard: setup, the initial assessment saves itself on Next, '
@@ -394,13 +440,27 @@ void main() {
 
     // + opens each pathology's scales as tick boxes; ticking adds a scale,
     // and a listed scale shows ticked wherever it appears.
-    await tickScale(tester, 'Add clinical scales', 'OCD', 'Y-BOCS');
+    await tickScale(
+      tester,
+      'Add clinical scales',
+      'Obsessive-compulsive disorder',
+      'Y-BOCS',
+    );
     expect(find.widgetWithText(TextField, 'Y-BOCS'), findsOneWidget);
-    await openScales(tester, 'Add clinical scales', 'OCD');
+    await openScales(
+      tester,
+      'Add clinical scales',
+      'Obsessive-compulsive disorder',
+    );
     expect(ticked(tester, 'Y-BOCS'), isTrue);
     expect(ticked(tester, 'Y-BOCS-o'), isFalse);
     await closeMenu(tester);
-    await tickScale(tester, 'Add clinical scales', 'MDD', 'HAM-D');
+    await tickScale(
+      tester,
+      'Add clinical scales',
+      'Major depressive disorder',
+      'HAM-D',
+    );
     expect(find.text('Score'), findsNWidgets(2));
 
     // Next writes ONE is_initial=1 block, one row per scored scale.
@@ -450,7 +510,7 @@ void main() {
       find.widgetWithText(DropdownMenu<String>, 'DBS indication'),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('PD').last);
+    await tester.tap(find.text("Parkinson's disease").last);
     await tester.pumpAndSettle();
     await tester.tap(
       find.widgetWithText(DropdownMenu<String>, 'Anatomical target'),
@@ -497,7 +557,7 @@ void main() {
     expect(
       rows.every(
         (r) =>
-            r.pathology == 'PD' &&
+            r.pathology == "Parkinson's disease" &&
             r.target == 'STN' &&
             r.leftIpgModel == 'Medtronic Percept PC' &&
             r.rightIpgModel == 'Medtronic Percept PC',
@@ -619,7 +679,7 @@ void main() {
   ) async {
     await pumpWizard(tester);
     await tapNext(tester);
-    await choosePathology(tester, 'PD');
+    await choosePathology(tester, "Parkinson's disease");
     await tapNext(tester);
 
     String text(String label, int side) => tester
@@ -649,26 +709,76 @@ void main() {
     expect(text('Amplitude', 0), '2');
   });
 
+  testWidgets('the ratings start from the targets in their settings', (
+    tester,
+  ) async {
+    await pumpWizard(tester);
+    await tapNext(tester);
+    await choosePathology(tester, 'Obsessive-compulsive disorder');
+    await tapNext(tester, 2);
+
+    final targets = find.text('Scale targets');
+    await tester.ensureVisible(targets);
+    await tester.tap(targets);
+    await tester.pumpAndSettle();
+    expect(find.text('Closest to'), findsNWidgets(2));
+    final values = find.descendant(
+      of: find.byWidgetPredicate(
+        (w) => w is Semantics && w.properties.label == 'Value',
+      ),
+      matching: find.byType(TextField),
+    );
+    expect(
+      [
+        for (final e in values.evaluate())
+          (e.widget as TextField).controller!.text,
+      ],
+      ['7', '7'],
+    );
+  });
+
+  testWidgets('saving the ratings settings keeps a removed rating out', (
+    tester,
+  ) async {
+    await pumpWizard(tester);
+    await tapNext(tester);
+    await choosePathology(tester, 'Obsessive-compulsive disorder');
+    await tapNext(tester, 2);
+    final count = scalePresets.session['Obsessive-compulsive disorder']!.length;
+    await tickScale(
+      tester,
+      'Add ratings',
+      'Obsessive-compulsive disorder',
+      'Energy',
+    );
+    expect(find.byType(ScaleSlider), findsNWidgets(count - 1));
+
+    final edit = find.byTooltip('Edit symptom and side effect ratings');
+    await tester.ensureVisible(edit);
+    await tester.tap(edit);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ScaleSlider), findsNWidgets(count - 1));
+  });
+
   testWidgets('the indication chosen sets the ratings; an omitted '
       'scale is inserted as "n/a"', (tester) async {
     final authoring = SessionAuthoring();
     await pumpWizard(tester, authoring: authoring);
     await tapNext(tester);
-    await choosePathology(tester, 'PD');
+    await choosePathology(tester, "Parkinson's disease");
     await tapNext(tester, 2);
 
-    // Programming: one rating row per PD scale, each with a bar and an omit
-    // ("not assessed") toggle.
-    final pdRows = scalePresets.session['PD']!;
-    const first = 'Rigidity, right arm';
+    final pdRows = scalePresets.session["Parkinson's disease"]!;
+    const first = 'Finger tapping R';
     expect(find.byType(ScaleSlider), findsNWidgets(pdRows.length));
     expect(find.text(first), findsOneWidget);
 
-    // Official items start not assessed; omit Dyskinesia, keep Paresthesia.
-    expect(find.byTooltip('Include (assessed)'), findsNWidgets(10));
-    final omitDyskinesia = find.byTooltip('Omit (not assessed)').first;
-    await tester.ensureVisible(omitDyskinesia);
-    await tester.tap(omitDyskinesia);
+    expect(find.byTooltip('Include (assessed)'), findsNWidgets(pdRows.length));
+    final includeParesthesia = find.byTooltip('Include (assessed)').last;
+    await tester.ensureVisible(includeParesthesia);
+    await tester.tap(includeParesthesia);
     await tester.pump();
 
     final insert = find.text('Save configuration');
@@ -676,9 +786,6 @@ void main() {
     await tester.tap(insert);
     await tester.pump();
 
-    // The PD defaults made the initial assessment worth saving, then one
-    // is_initial=0 block, one row per scale: omitted ones carry the
-    // limits.json omitted literal, untouched continuous bars their min.
     final recorded = [
       for (final r in authoring.rows)
         if (r.isInitial == '0') r,
@@ -696,14 +803,12 @@ void main() {
     expect(find.text('Test'), findsWidgets);
     expect(find.text('No entries inserted yet.'), findsNothing);
 
-    // The session's own pathology shows its ratings ticked; ticking another
-    // pathology's rating adds it, unticking one removes it.
-    await openScales(tester, 'Add ratings', 'PD');
+    await openScales(tester, 'Add ratings', "Parkinson's disease");
     expect(ticked(tester, first), isTrue);
     await closeMenu(tester);
-    await tickScale(tester, 'Add ratings', 'ET', 'Action tremor');
+    await tickScale(tester, 'Add ratings', 'Essential tremor', 'Action tremor');
     expect(find.byType(ScaleSlider), findsNWidgets(pdRows.length + 1));
-    await tickScale(tester, 'Add ratings', 'PD', 'Speech');
+    await tickScale(tester, 'Add ratings', "Parkinson's disease", 'Dyskinesia');
     expect(find.byType(ScaleSlider), findsNWidgets(pdRows.length));
   });
 }

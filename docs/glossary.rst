@@ -15,7 +15,9 @@ The words the rest of this documentation uses, in the order you meet them.
    The choices the app offers in lists: DBS indications, anatomical targets, leads and IPGs,
    stimulation defaults, programs, clinical scales, and symptom and side effect ratings. They are
    edited in the settings menu or beside each list, apply to every future session, and are never
-   saved in a session file.
+   saved in a session file. **Restore defaults** in a list's dialog, or **Restore default lists**
+   in the settings menu, puts them back to the ones that come with the app, which are listed in
+   :doc:`default_lists`.
 
 **Contacts**
    The electrodes on a lead, numbered by level from the tip (``E0``, ``E1``...). On a segmented
@@ -52,16 +54,16 @@ The words the rest of this documentation uses, in the order you meet them.
 
 **Symptom and side effect ratings**
    Quick ratings taken at *every* configuration, each on a range you define (for example
-   Obsessions 0 to 10, or rigidity of the right arm 0 to 4), so configurations can be compared
+   Obsessions 0 to 10, or rigidity on the right 0 to 4), so configurations can be compared
    within the visit. In the file and in some report headings they are called session scales.
 
-**Discrete and continuous ratings**
-   A discrete rating takes whole points only, such as a 0 to 4 item. A continuous rating takes
-   any value on the slider. Each rating is set to one or the other in its settings.
+**Rating steps**
+   A rating moves in whole points, such as a 0 to 4 item, in half points, or takes any value on
+   the slider. Each rating is set to one of these in its settings.
 
 **Final settings**
    The configuration the patient goes home on. It is marked while programming and confirmed on the
-   way to Finish. Reports head it *Final settings (marked by the clinician)*; when none
+   way to Finish. Reports head it *Final settings*; when none
    was confirmed, they show the last configuration saved and say so.
 
 **Contact notation**
@@ -69,12 +71,14 @@ The words the rest of this documentation uses, in the order you meet them.
    cathodes (-) sharing the current 60/40, and the case is the anode (+).
 
 **Scale targets**
-   What "better" means for each symptom and side effect rating: lower, higher, or closest to a
-   value. You set them; nothing is ranked until you do.
+   What "better" means for each symptom and side effect rating: lower, higher, closest to a
+   value, or not ranked. Each rating comes with one in its settings; it can be changed there, or
+   for one session or report.
 
 **Aggregate index**
    A score from 0 to 1 per configuration, computed from the ratings against the targets, where 1
-   is best. It is what the green highlighting ranks by. See :ref:`scale-targets`.
+   is the highest score. Only a configuration rated on every ranked rating gets one. It is what
+   the green highlighting ranks by. See :ref:`scale-targets`.
 
 **BIDS**
    The Brain Imaging Data Structure, a community standard for naming and organising neuroscience

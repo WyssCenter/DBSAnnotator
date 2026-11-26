@@ -3,6 +3,6 @@
     "Description": "Pseudonymous subject label typed by the clinician, as sub-<label>."
   },
   "dbs_indication": {
-    "Description": "Condition the stimulation treats, from the app's list (PD, ET, Dystonia, OCD, MDD, TS) or typed."
+    "Description": "Condition the stimulation treats, written in full as in the app's list (for example Parkinson's disease or Obsessive-compulsive disorder) or as typed."
   }
 }

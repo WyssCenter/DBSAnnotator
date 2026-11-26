@@ -1,11 +1,11 @@
-# Wyss DBS Annotator
+# DBS Annotator
 
 [![CI](https://github.com/neuromodulation/DBSAnnotator/actions/workflows/ci.yml/badge.svg)](https://github.com/neuromodulation/DBSAnnotator/actions/workflows/ci.yml)
 [![Docs](https://readthedocs.org/projects/dbs-annotator/badge/?version=latest)](https://dbs-annotator.readthedocs.io/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > [!IMPORTANT]
-> Wyss DBS Annotator is not a medical device and does not carry a CE mark.
+> DBS Annotator is not a medical device and does not carry a CE mark.
 
 Annotate deep brain stimulation programming visits, and get analysis-ready data
 out.
@@ -15,7 +15,7 @@ psychiatrist, who tries stimulation configurations and settles on one that works
 That takes a visit or several, and the parameters go on being adapted over months
 or years.
 
-Wyss DBS Annotator documents those visits: the stimulation parameters tried on each
+DBS Annotator documents those visits: the stimulation parameters tried on each
 contact, the clinical and session scale ratings at each configuration, side
 effects, and free-text notes, written to **BIDS tab-separated files** that go
 straight into analysis. It also produces clinician-readable **PDF and Word
@@ -111,7 +111,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Citing
 
-If you use Wyss DBS Annotator in published work, please cite it; see
+If you use DBS Annotator in published work, please cite it; see
 [CITATION.cff](CITATION.cff).
 
 ## Acknowledgements

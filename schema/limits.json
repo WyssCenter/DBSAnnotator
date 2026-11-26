@@ -30,12 +30,12 @@
     "omitted_tsv": "n/a"
   },
   "stimulation_defaults": {
-    "PD": {
+    "Parkinson's disease": {
       "frequency": 130,
       "amplitude": 1.5,
       "pulse_width": 60
     },
-    "OCD": {
+    "Obsessive-compulsive disorder": {
       "frequency": 130,
       "amplitude": 5.0,
       "pulse_width": 90

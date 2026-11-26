@@ -32,7 +32,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   // the pre-Dart frame small enough to be safe on its own.
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1024, 640);
-  if (!window.Create(L"Wyss DBS Annotator", origin, size)) {
+  if (!window.Create(L"DBS Annotator", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);

@@ -18,8 +18,8 @@ enum LongitudinalSection {
   ),
   sessionChart(
     'Symptom and side effect ratings by visit and configuration',
-    'Every configuration of every visit, with the two best of each visit '
-        'banded when scale targets are set.',
+    'Every configuration of every visit, with the two highest scores of each '
+        'visit banded when scale targets are set.',
   ),
   sessionTable(
     'Combined session data table',

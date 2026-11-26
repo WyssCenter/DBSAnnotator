@@ -28,6 +28,7 @@ class UserPrefs {
     this.entryVisibleConfigs,
     this.entryTableExpanded,
     this.entryChartsExpanded,
+    this.stimulationExpanded,
     this.reportSections,
     this.bidsFolders,
     this.defaultBidsFolder,
@@ -74,6 +75,10 @@ class UserPrefs {
   /// Whether the comparison charts in Programming are expanded.
   bool? entryChartsExpanded;
 
+  /// Whether the stimulation settings in Initial assessment and Programming
+  /// are unfolded.
+  bool? stimulationExpanded;
+
   /// The BIDS folders sessions are saved in, for example one per cohort.
   List<BidsFolder>? bidsFolders;
 
@@ -98,6 +103,18 @@ class UserPrefs {
 
   /// The leads and IPGs offered in Setup; null means the bundled ones.
   Devices? devices;
+
+  /// Drops the edited picklists, so the bundled ones apply again.
+  void restoreDefaultLists() {
+    pathologies = null;
+    targets = null;
+    devices = null;
+    stimDefaults = null;
+    programs = null;
+    clinical = null;
+    clinicalRanges = null;
+    session = null;
+  }
 
   /// Report sections to include, by [ReportSection.name]; null means every
   /// section. Persisted so a dropped section stays dropped on the next export.
@@ -133,6 +150,7 @@ class UserPrefs {
       entryVisibleConfigs: (j['entry_visible_configs'] as num?)?.toInt(),
       entryTableExpanded: j['entry_table_expanded'] as bool?,
       entryChartsExpanded: j['entry_charts_expanded'] as bool?,
+      stimulationExpanded: j['stimulation_expanded'] as bool?,
       bidsFolders: switch (j['bids_folders']) {
         final List<dynamic> list => [
           for (final f in list.cast<Map<String, dynamic>>())
@@ -179,6 +197,8 @@ class UserPrefs {
     if (entryTableExpanded != null) 'entry_table_expanded': entryTableExpanded,
     if (entryChartsExpanded != null)
       'entry_charts_expanded': entryChartsExpanded,
+    if (stimulationExpanded != null)
+      'stimulation_expanded': stimulationExpanded,
     if (reportSections != null) 'report_sections': reportSections,
     if (bidsFolders case final folders?)
       'bids_folders': [
@@ -213,8 +233,9 @@ const List<String> kReportPageSizes = ['a4', 'letter'];
 const List<String> kDefaultPrograms = ['Not specified', 'A', 'B', 'C', 'D'];
 
 /// Bundled [base] scale presets with the user's saved overrides layered on
-/// top: an edited or added disease group wins over the contract default, and a
-/// new group name is appended to the button bar.
+/// top: an edited or added disease group wins over the contract default, a
+/// new group name is appended to the button bar, and a group saved empty is
+/// dropped, so a deleted bundled group stays deleted.
 ScalePresets mergeScalePresets(ScalePresets base, UserPrefs prefs) {
   final clinical = {...base.clinical};
   prefs.clinical?.forEach((k, v) => clinical[k] = v);
@@ -241,12 +262,17 @@ ScalePresets mergeScalePresets(ScalePresets base, UserPrefs prefs) {
               ? r[3].trim().toLowerCase()
               : defaultScaleOptimizationMode,
           step: r.length > 4 ? r[4] : '',
+          custom: r.length > 5 ? r[5] : '',
         ),
     ],
   );
+  clinical.removeWhere((_, names) => names.isEmpty);
+  session.removeWhere((_, rows) => rows.isEmpty);
+  final kept = {...clinical.keys, ...session.keys};
   final buttons = [
-    ...base.buttons,
-    for (final k in {...clinical.keys, ...session.keys})
+    for (final k in base.buttons)
+      if (kept.contains(k)) k,
+    for (final k in kept)
       if (!base.buttons.contains(k)) k,
   ];
   return ScalePresets(

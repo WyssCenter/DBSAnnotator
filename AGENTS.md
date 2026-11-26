@@ -6,7 +6,7 @@ correct: fix CONTRIBUTING.md in the same change.
 
 ## Project
 
-Wyss DBS Annotator is an offline Flutter app for documenting deep brain stimulation
+DBS Annotator is an offline Flutter app for documenting deep brain stimulation
 programming sessions, built for Windows, macOS, Linux, Android and iOS. The TSV and BIDS
 output format is a contract defined in `schema/`, which the app bundles and the docs render
 from. User docs are Sphinx sources in `docs/`, published on Read the Docs.

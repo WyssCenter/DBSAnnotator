@@ -477,7 +477,7 @@ jobs:
         with:
           draft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
-          name: Wyss DBS Annotator ${{ github.ref_name }}
+          name: DBS Annotator ${{ github.ref_name }}
           files: dist/*
           fail_on_unmatched_files: true
           generate_release_notes: true

@@ -4,7 +4,7 @@
   "DatasetType": "raw",
   "GeneratedBy": [
     {
-      "Name": "Wyss DBS Annotator",
+      "Name": "DBS Annotator",
       "Version": "0.7.0",
       "CodeURL": "https://github.com/neuromodulation/DBSAnnotator"
     }

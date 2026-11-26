@@ -20,11 +20,12 @@ void main() {
   final bundled = ScalePresets.fromJson(readJson('schema/scale_presets.json'));
 
   /// The first rating saved for a PD session whose one rating has the range
-  /// [min] to [max], as typed in the session ratings settings.
+  /// [min] to [max], marked assessed unless [include] is false.
   Future<String> firstScaleValue(
     WidgetTester tester, {
     required String min,
     required String max,
+    bool include = true,
   }) async {
     final presets = ScalePresets(
       buttons: bundled.buttons,
@@ -34,7 +35,16 @@ void main() {
       targets: bundled.targets,
       session: {
         ...bundled.session,
-        'PD': [(name: 'Tremor', min: min, max: max, mode: 'min', step: '')],
+        "Parkinson's disease": [
+          (
+            name: 'Tremor',
+            min: min,
+            max: max,
+            mode: 'min',
+            step: '',
+            custom: '',
+          ),
+        ],
       },
     );
     final authoring = SessionAuthoring();
@@ -58,12 +68,18 @@ void main() {
       find.widgetWithText(DropdownMenu<String>, 'DBS indication'),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('PD').last);
+    await tester.tap(find.text("Parkinson's disease").last);
     await tester.pumpAndSettle();
     for (var i = 0; i < 2; i++) {
       await tester.ensureVisible(find.text('Next'));
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
+    }
+    if (include) {
+      final assessed = find.byTooltip('Include (assessed)');
+      await tester.ensureVisible(assessed);
+      await tester.tap(assessed);
+      await tester.pump();
     }
     final save = find.text('Save configuration');
     await tester.ensureVisible(save);
@@ -74,6 +90,13 @@ void main() {
         .firstWhere((r) => r.isInitial == '0' && r.scaleName == 'Tremor')
         .scaleValue;
   }
+
+  testWidgets('a rating never moved is saved as not assessed', (tester) async {
+    expect(
+      await firstScaleValue(tester, min: '0', max: '10', include: false),
+      'n/a',
+    );
+  });
 
   testWidgets('a rating is held inside the typed range', (tester) async {
     expect(await firstScaleValue(tester, min: '2', max: '5'), '2');

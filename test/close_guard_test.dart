@@ -71,7 +71,7 @@ void main() {
     final copy = File('${dir.path}/visit.tsv')..writeAsStringSync('rows');
     final result = await leave(tester, copy.path, onlyCopy: true);
     expect(find.text('Delete the only copy'), findsOneWidget);
-    expect(find.text('Discard copy'), findsNothing);
+    expect(find.text('Delete recovery copy'), findsNothing);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(await result, isFalse);
@@ -154,7 +154,7 @@ void main() {
     );
     await tester.tap(find.text('leave'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Discard copy'));
+    await tester.tap(find.text('Delete recovery copy'));
     await tester.pumpAndSettle();
     expect(await answer, isFalse);
   });
@@ -352,7 +352,7 @@ void main() {
         workingFailed: true,
         fileFailed: false,
       );
-      expect(find.text('Discard copy'), findsOneWidget);
+      expect(find.text('Delete recovery copy'), findsOneWidget);
       expect(find.text('Delete the only copy'), findsNothing);
       expect(find.textContaining('may be missing the latest'), findsOneWidget);
     });
@@ -456,7 +456,7 @@ void main() {
     );
     await tester.tap(find.text('leave'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Discard copy'));
+    await tester.tap(find.text('Delete recovery copy'));
     await tester.pumpAndSettle();
     expect(await result, LeaveChoice.discard);
     expect(copy.existsSync(), isTrue);

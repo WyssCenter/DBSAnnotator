@@ -94,8 +94,8 @@ Future<LeaveChoice?> askLeaveSession(
 }
 
 /// Offer back a session the app was closed in the middle of. True to reopen,
-/// false to discard, null when dismissed, which keeps the copy for next time:
-/// it is only deleted on an explicit Discard.
+/// false to delete it, null when dismissed, which keeps the copy for next
+/// time: it is only deleted on an explicit Delete recovered session.
 Future<bool?> askReopenUnfinished(
   BuildContext context, {
   required String title,
@@ -108,8 +108,11 @@ Future<bool?> askReopenUnfinished(
     content: SizedBox(width: 480, child: Text(message)),
     actions: [
       TextButton(
+        style: TextButton.styleFrom(
+          foregroundColor: Theme.of(context).colorScheme.error,
+        ),
         onPressed: () => Navigator.pop(context, false),
-        child: const Text('Discard'),
+        child: const Text('Delete recovered session'),
       ),
       FilledButton(
         onPressed: () => Navigator.pop(context, true),
@@ -186,10 +189,10 @@ Future<bool?> askKeepRecoveryCopy(
         child: Text(
           onlyCopy
               ? 'Changes in this session are not saved anywhere else unless you '
-                    'exported or shared them. Discarding deletes this copy.$failed'
+                    'exported or shared them. Deleting this copy loses them.$failed'
               : 'The app keeps a copy of this session so it can offer it back '
                     'if the app closes unexpectedly. Keep it to be offered the '
-                    'session again next time; discard it if you are done. Your '
+                    'session again next time; delete it if you are done. Your '
                     'saved file is not changed either way.$failed',
         ),
       ),
@@ -199,8 +202,13 @@ Future<bool?> askKeepRecoveryCopy(
           child: const Text('Cancel'),
         ),
         TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
           onPressed: () => Navigator.pop(context, false),
-          child: Text(onlyCopy ? 'Delete the only copy' : 'Discard copy'),
+          child: Text(
+            onlyCopy ? 'Delete the only copy' : 'Delete recovery copy',
+          ),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(context, true),

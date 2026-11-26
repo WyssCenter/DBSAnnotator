@@ -352,11 +352,8 @@ File plantWork(
   return file;
 }
 
-/// Start a visit as the app offers it: Next while no session is open, New once
-/// one is.
+/// Start a visit with New session: in the bottom bar while no session is open,
+/// on the Session step once one is.
 Future<void> tapNew(WidgetTester tester) async {
-  final newSession = find.text('New session');
-  await tester.tap(
-    newSession.evaluate().isEmpty ? find.text('Next') : newSession,
-  );
+  await tester.tap(find.text('New session'));
 }

@@ -28,6 +28,7 @@ Future<Set<T>?> showSectionsDialog<T>(
   List<SectionChoice<T>> choices,
   Set<T> selected, {
   Future<void> Function()? onEditTargets,
+  String confirm = 'Next',
 }) => showDialog<Set<T>>(
   context: context,
   builder: (_) => _SectionsDialog<T>(
@@ -35,6 +36,7 @@ Future<Set<T>?> showSectionsDialog<T>(
     choices: choices,
     selected: selected,
     onEditTargets: onEditTargets,
+    confirm: confirm,
   ),
 );
 
@@ -43,6 +45,7 @@ Future<Set<ReportSection>?> showReportSectionsDialog(
   BuildContext context,
   Set<ReportSection> selected, {
   Future<void> Function()? onEditTargets,
+  String confirm = 'Next',
 }) => showSectionsDialog<ReportSection>(
   context,
   'Session report sections',
@@ -52,6 +55,7 @@ Future<Set<ReportSection>?> showReportSectionsDialog(
   ],
   selected,
   onEditTargets: onEditTargets,
+  confirm: confirm,
 );
 
 /// The longitudinal report's chooser.
@@ -59,6 +63,7 @@ Future<Set<LongitudinalSection>?> showLongitudinalSectionsDialog(
   BuildContext context,
   Set<LongitudinalSection> selected, {
   Future<void> Function()? onEditTargets,
+  String confirm = 'Next',
 }) => showSectionsDialog<LongitudinalSection>(
   context,
   'Longitudinal report sections',
@@ -68,6 +73,7 @@ Future<Set<LongitudinalSection>?> showLongitudinalSectionsDialog(
   ],
   selected,
   onEditTargets: onEditTargets,
+  confirm: confirm,
 );
 
 class _SectionsDialog<T> extends StatefulWidget {
@@ -76,12 +82,17 @@ class _SectionsDialog<T> extends StatefulWidget {
     required this.choices,
     required this.selected,
     this.onEditTargets,
+    required this.confirm,
   });
 
   final String title;
   final List<SectionChoice<T>> choices;
   final Set<T> selected;
   final Future<void> Function()? onEditTargets;
+
+  /// The main button: Next when the export goes on, Save when only the choice
+  /// is kept.
+  final String confirm;
 
   @override
   State<_SectionsDialog<T>> createState() => _SectionsDialogState<T>();
@@ -136,7 +147,7 @@ class _SectionsDialogState<T> extends State<_SectionsDialog<T>> {
         // is never what anyone means.
         FilledButton(
           onPressed: _on.isEmpty ? null : () => Navigator.pop(context, _on),
-          child: const Text('Export'),
+          child: Text(widget.confirm),
         ),
       ],
     );
@@ -149,60 +160,78 @@ class _SectionsDialogState<T> extends State<_SectionsDialog<T>> {
 Future<ReportAttestation?> askAttestation(
   BuildContext context, {
   required bool rated,
-}) async {
-  final recorded = TextEditingController();
-  final ratedBy = TextEditingController();
-  final out = await showDialog<ReportAttestation>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Attestation'),
-      scrollable: true,
-      content: SizedBox(
-        width: 480,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Printed at the end of the report and not saved anywhere else. '
-              'Leave a name empty to sign by hand.',
+}) => showDialog<ReportAttestation>(
+  context: context,
+  builder: (_) => _AttestationDialog(rated: rated),
+);
+
+/// Owns its fields, so they are disposed only once the dialog has closed.
+class _AttestationDialog extends StatefulWidget {
+  const _AttestationDialog({required this.rated});
+
+  final bool rated;
+
+  @override
+  State<_AttestationDialog> createState() => _AttestationDialogState();
+}
+
+class _AttestationDialogState extends State<_AttestationDialog> {
+  final _recorded = TextEditingController();
+  final _ratedBy = TextEditingController();
+
+  @override
+  void dispose() {
+    _recorded.dispose();
+    _ratedBy.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Attestation'),
+    scrollable: true,
+    content: SizedBox(
+      width: 480,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Printed at the end of the report and not saved anywhere else. '
+            'Leave a name empty to sign by hand.',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _recorded,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Documented by (optional)',
             ),
-            const SizedBox(height: 12),
+          ),
+          if (widget.rated) ...[
+            const SizedBox(height: 8),
             TextField(
-              controller: recorded,
-              autofocus: true,
+              controller: _ratedBy,
               decoration: const InputDecoration(
-                labelText: 'Documented by (optional)',
+                labelText: 'Rated by (optional)',
               ),
             ),
-            if (rated) ...[
-              const SizedBox(height: 8),
-              TextField(
-                controller: ratedBy,
-                decoration: const InputDecoration(
-                  labelText: 'Rated by (optional)',
-                ),
-              ),
-            ],
           ],
-        ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, (
-            recordedBy: recorded.text.trim(),
-            ratedBy: ratedBy.text.trim(),
-          )),
-          child: const Text('Export'),
-        ),
-      ],
     ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, (
+          recordedBy: _recorded.text.trim(),
+          ratedBy: _ratedBy.text.trim(),
+        )),
+        child: const Text('Export'),
+      ),
+    ],
   );
-  recorded.dispose();
-  ratedBy.dispose();
-  return out;
 }

@@ -384,7 +384,7 @@ Future<void> _tag() async {
       'The last commit on main does not set the version to $version, so it '
       'is not the release commit. Find that with '
       'git log --first-parent -- pubspec.yaml and tag it by hand: '
-      'git tag -a v$version <commit> -m "Wyss DBS Annotator v$version"',
+      'git tag -a v$version <commit> -m "DBS Annotator v$version"',
     );
   }
 
@@ -394,7 +394,7 @@ Future<void> _tag() async {
     stdout.writeln('Stopped. Nothing was tagged.');
     return;
   }
-  _git(['tag', '-a', 'v$version', '-m', 'Wyss DBS Annotator v$version']);
+  _git(['tag', '-a', 'v$version', '-m', 'DBS Annotator v$version']);
   if (!_confirm('Push v$version to origin? This starts the release build.')) {
     stdout.writeln(
       'Tagged locally only. Push with: git push origin v$version\n'

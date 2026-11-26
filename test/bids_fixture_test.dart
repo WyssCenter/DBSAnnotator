@@ -152,7 +152,23 @@ void main() {
   test('the patient history comes from the last visit', () async {
     expect(await participantsIn(_root), ['01']);
     final history = await patientHistory(_root, '01');
-    expect(history.indication, 'OCD');
+    expect(history.indication, 'Obsessive-compulsive disorder');
     expect(history.lastVisit['session_id'], 'ses-20260918');
+  });
+
+  test('an abbreviated indication comes back spelled out', () async {
+    final dir = Directory.systemTemp.createTempSync('bids_history');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    File('${dir.path}/participants.tsv').writeAsStringSync(
+      'participant_id\tdbs_indication\nsub-01\tPD\nsub-02\tCluster headache\n',
+    );
+    expect(
+      (await patientHistory(dir.path, '01')).indication,
+      "Parkinson's disease",
+    );
+    expect(
+      (await patientHistory(dir.path, '02')).indication,
+      'Cluster headache',
+    );
   });
 }

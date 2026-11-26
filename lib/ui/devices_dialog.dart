@@ -2,17 +2,20 @@ import 'dart:math' show min;
 
 import 'package:flutter/material.dart';
 
+import '../app_info.dart';
 import '../core/electrode/electrode_model.dart';
 import 'electrode_view.dart';
 
 /// Edit the leads and IPGs of each manufacturer, and each lead's contact
-/// layout. Null on Cancel.
+/// layout. Restore defaults puts back [defaults], the ones the app comes with.
+/// Null on Cancel.
 Future<Devices?> showDevicesDialog(
   BuildContext context, {
   required Devices devices,
+  required Devices defaults,
 }) => showDialog<Devices>(
   context: context,
-  builder: (_) => _DevicesDialog(devices),
+  builder: (_) => _DevicesDialog(devices, defaults),
 );
 
 /// A new lead starts as four levels, the middle two directional.
@@ -64,21 +67,36 @@ class _Maker {
 }
 
 class _DevicesDialog extends StatefulWidget {
-  const _DevicesDialog(this.devices);
+  const _DevicesDialog(this.devices, this.defaults);
 
   final Devices devices;
+  final Devices defaults;
 
   @override
   State<_DevicesDialog> createState() => _DevicesDialogState();
 }
 
 class _DevicesDialogState extends State<_DevicesDialog> {
-  late final _makers = [
-    for (final MapEntry(:key, :value) in widget.devices.entries)
-      _Maker(key, value.leads, value.ipgs),
-  ];
+  late final _makers = _makersOf(widget.devices);
   int _selected = 0;
   _Lead? _designing;
+  String? _error;
+
+  static List<_Maker> _makersOf(Devices devices) => [
+    for (final MapEntry(:key, :value) in devices.entries)
+      _Maker(key, value.leads, value.ipgs),
+  ];
+
+  void _restore() => setState(() {
+    for (final m in _makers) {
+      m.dispose();
+    }
+    _makers
+      ..clear()
+      ..addAll(_makersOf(widget.defaults));
+    _selected = 0;
+    _designing = null;
+  });
 
   /// The content width of the dialog with no lead open, kept when one is, and
   /// the width added beside it for the lead design.
@@ -95,9 +113,17 @@ class _DevicesDialogState extends State<_DevicesDialog> {
 
   void _save() {
     final Devices out = {};
-    for (final m in _makers) {
+    for (final (i, m) in _makers.indexed) {
       final maker = m.name.text.trim();
       if (maker.isEmpty) continue;
+      if (out.containsKey(maker)) {
+        setState(() {
+          _selected = i;
+          _designing = null;
+          _error = 'Not saved: two manufacturers are named $maker.';
+        });
+        return;
+      }
       String full(TextEditingController c) =>
           c.text.trim().isEmpty ? '' : '$maker ${c.text.trim()}';
       out[maker] = (
@@ -120,37 +146,48 @@ class _DevicesDialogState extends State<_DevicesDialog> {
     final lead = _designing;
     final screen = MediaQuery.sizeOf(context);
     return AlertDialog(
-      title: const Text('Devices settings'),
-      constraints: lead == null ? null : const BoxConstraints(),
+      title: const DefaultsTitle('Leads and IPGs', section: 'leads-and-ipgs'),
+      constraints: const BoxConstraints(),
       content: SizedBox(
-        width: lead == null
-            ? 760
-            : min(_listsWidth + 16 + _designerWidth, screen.width - 112),
+        width: min(
+          lead == null ? 760 : _listsWidth + 16 + _designerWidth,
+          screen.width - 112,
+        ),
         height: 560,
-        child: LayoutBuilder(
-          builder: (context, c) => Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (lead == null || c.maxWidth >= 900) ...[
-                SizedBox(width: 180, child: _makerList()),
-                const VerticalDivider(width: 16),
-              ],
-              Expanded(child: _editor()),
-              if (lead != null) ...[
-                const VerticalDivider(width: 16),
-                SizedBox(width: _designerWidth, child: _designer(lead)),
-              ],
-            ],
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, c) => Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (lead == null || c.maxWidth >= 900) ...[
+                      SizedBox(width: 180, child: _makerList()),
+                      const VerticalDivider(width: 16),
+                    ],
+                    Expanded(child: _editor()),
+                    if (lead != null) ...[
+                      const VerticalDivider(width: 16),
+                      SizedBox(width: _designerWidth, child: _designer(lead)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            if (_error case final error?)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  error,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(onPressed: _save, child: const Text('Save')),
-      ],
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      actions: picklistActions(context, onRestore: _restore, onSave: _save),
     );
   }
 
@@ -168,7 +205,8 @@ class _DevicesDialogState extends State<_DevicesDialog> {
               overflow: TextOverflow.ellipsis,
             ),
             subtitle: Text(
-              '${_makers[i].leads.length} leads, ${_makers[i].ipgs.length} IPGs',
+              '${_count(_makers[i].leads.length, 'lead')}, '
+              '${_count(_makers[i].ipgs.length, 'IPG')}',
             ),
             trailing: IconButton(
               icon: const Icon(Icons.delete_outline, size: 20),
@@ -254,6 +292,7 @@ class _DevicesDialogState extends State<_DevicesDialog> {
     );
     return ListView(
       key: ObjectKey(m),
+      padding: const EdgeInsets.only(top: 8),
       children: [
         TextField(
           controller: m.name,
@@ -377,3 +416,6 @@ class _DevicesDialogState extends State<_DevicesDialog> {
     );
   }
 }
+
+/// [n] of [noun], singular only for one.
+String _count(int n, String noun) => '$n $noun${n == 1 ? '' : 's'}';

@@ -1,7 +1,7 @@
 name: dbs_annotator
 # Shown in the Microsoft Store listing and on the app's tile, where it becomes
 # the MSIX manifest Description, so this is user-facing copy, not a dev note.
-description: "Wyss DBS Annotator documents deep brain stimulation programming visits, the appointments at which stimulation is tested and optimised. It writes them to analysis-ready BIDS TSV files, produces PDF and Word reports, and runs fully offline."
+description: "DBS Annotator documents deep brain stimulation programming visits, the appointments at which stimulation is tested and optimised. It writes them to analysis-ready BIDS TSV files, produces PDF and Word reports, and runs fully offline."
 publish_to: "none"
 
 # THE source of truth for the version. Android versionCode/versionName, the
@@ -126,7 +126,7 @@ flutter_launcher_icons:
 # line at build time. They are case-sensitive, punctuation included, and a
 # mismatch is the most common submission rejection. See .github/RELEASING.md.
 msix_config:
-  display_name: Wyss DBS Annotator
+  display_name: DBS Annotator
   publisher_display_name: Wyss Center for Bio and Neuroengineering
   identity_name: ch.wysscenter.DBSAnnotator
   # Four components, and the fourth MUST be 0: Microsoft reserves the revision

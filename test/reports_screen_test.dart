@@ -160,6 +160,10 @@ void main() {
       );
       await tester.pump();
       expect(charted(), isTrue);
+      await tester.tap(
+        find.text('Symptom and side effect ratings by visit and configuration'),
+      );
+      await tester.pumpAndSettle();
       final painters = tester
           .widgetList<CustomPaint>(find.byType(CustomPaint))
           .map((p) => p.painter)
@@ -210,6 +214,10 @@ void _enlargeAndZoom() {
       ),
     );
     await tester.pump();
+    await tester.tap(
+      find.text('Symptom and side effect ratings by visit and configuration'),
+    );
+    await tester.pumpAndSettle();
     double width() => tester
         .getSize(
           find
